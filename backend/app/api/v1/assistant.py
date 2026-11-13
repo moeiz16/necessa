@@ -14,7 +14,7 @@ from app.ai.agents.qa_graph import run_assistant_turn
 from app.ai.sql.text_to_sql import answer_analytics
 from app.core.deps import RequestContext, get_db, require_perm
 from app.core.errors import not_found
-from app.core.events import format_sse
+from app.core.events import SSE_HEADERS, format_sse
 from app.db.models.platform import Conversation, Feedback, Message
 from app.schemas.assistant import (
     AnalyticsAskIn,
@@ -245,7 +245,7 @@ async def post_message(
             yield format_sse(event, data)
 
     return EventSourceResponse(
-        stream(), headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}, ping=15
+        stream(), headers=SSE_HEADERS, ping=15
     )
 
 

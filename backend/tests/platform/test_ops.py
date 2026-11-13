@@ -117,3 +117,13 @@ async def test_feedback(client):
     assert (
         await owner.post("/api/v1/feedback", json={"targetType": "x", "targetId": "a", "rating": 5})
     ).status_code == 422
+
+
+async def test_event_streams_opt_out_of_proxy_compression():
+    """Proxies (Next.js rewrites, CDNs) must not gzip/buffer SSE; `no-transform` tells them not to."""
+    from app.core.events import SSE_HEADERS, sse_response
+
+    resp = sse_response("test:headers")
+    assert "no-transform" in resp.headers["cache-control"]
+    assert resp.headers["x-accel-buffering"] == "no"
+    assert SSE_HEADERS["Cache-Control"].startswith("no-cache")

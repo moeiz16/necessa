@@ -140,12 +140,17 @@ async def _with_heartbeat(
             await stream.aclose()  # type: ignore[attr-defined]
 
 
+# `no-transform` keeps compressing proxies (Next.js rewrites, CDNs) from gzipping and therefore
+# buffering the stream; `X-Accel-Buffering: no` does the same for nginx-style reverse proxies.
+SSE_HEADERS = {"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"}
+
+
 def sse_response(
     channel: str, *, replay: list[tuple[str, dict]] | None = None, heartbeat: float = HEARTBEAT_SECONDS
 ) -> EventSourceResponse:
     """Stream a channel as SSE. `replay` events are sent first (current state for late joiners)."""
     return EventSourceResponse(
         _with_heartbeat(channel, replay, heartbeat),
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers=SSE_HEADERS,
         ping=None,
     )

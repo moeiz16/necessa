@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
 from app.core.deps import RequestContext, get_ctx, get_db
-from app.core.events import HEARTBEAT_SECONDS, format_sse, subscribe
+from app.core.events import HEARTBEAT_SECONDS, SSE_HEADERS, format_sse, subscribe
 from app.db.models.platform import Notification
 from app.schemas.base import APIModel
 from app.schemas.platform import NotificationOut
@@ -83,5 +83,5 @@ async def stream(ctx: RequestContext = Depends(get_ctx)) -> EventSourceResponse:
             await it.aclose()  # type: ignore[attr-defined]
 
     return EventSourceResponse(
-        events(), headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}, ping=None
+        events(), headers=SSE_HEADERS, ping=None
     )
