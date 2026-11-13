@@ -225,6 +225,29 @@ def _deid_all(sc) -> str:
 # ── retrieval suite ────────────────────────────────────────────────────────────────────────────
 
 
+async def _policy_families() -> tuple[dict[str, set[str]], set[str]]:
+    """Map each ingested source key to its same-title, same-type siblings (other contractors' editions)."""
+    from sqlalchemy import select
+
+    from app.db.models.knowledge import Policy
+    from app.db.session import session_scope
+
+    try:
+        async with session_scope() as db:
+            rows = (await db.execute(select(Policy.source_key, Policy.doc_type, Policy.title))).all()
+    except Exception as exc:  # knowledge tables missing: strict scoring only
+        log.warning("eval.families_unavailable", error=str(exc)[:200])
+        return {}, set()
+    groups: dict[tuple[str, str], set[str]] = {}
+    for key, doc_type, title in rows:
+        groups.setdefault((doc_type or "", " ".join((title or "").lower().split())), set()).add(key)
+    families = {
+        key: groups[(doc_type or "", " ".join((title or "").lower().split()))]
+        for key, doc_type, title in rows
+    }
+    return families, set(families)
+
+
 async def suite_retrieval(
     items: list[dict], *, live: bool, progress: Progress
 ) -> tuple[dict, list[dict], dict]:
@@ -232,10 +255,16 @@ async def suite_retrieval(
     from app.ai.retrieval.types import RetrievalQuery
 
     retriever = get_retriever()
+    families, ingested = await _policy_families()
     by_intent: dict[str, list[dict]] = {}
     results = []
     latencies = []
+    skipped: list[str] = []
     for i, it in enumerate(items):
+        exp = it["expected"]
+        if exp and ingested and not any(k in ingested for k in exp):
+            skipped.append(it["id"])  # gold policy not in this knowledge base (e.g. fixtures-only CI)
+            continue
         if progress and i % 5 == 0:
             await progress(i / max(1, len(items)), it["id"])
         t0 = time.monotonic()
@@ -249,20 +278,30 @@ async def suite_retrieval(
             keys, abstained = [], False
             log.warning("eval.retrieval_failed", item=it["id"], error=str(exc)[:200])
         latencies.append((time.monotonic() - t0) * 1000)
-        exp = it["expected"]
         if not exp:  # S11: success = abstain or nothing relevant
             m = {"abstained": 1.0 if (abstained or not keys) else 0.0}
             passed = m["abstained"] == 1.0
         else:
+            # Only gold policies present in this knowledge base can be retrieved (fixtures-only CI runs).
+            exp = [k for k in exp if k in ingested] or exp if ingested else exp
+            # Policy-level ranking: several chunks of one policy count once.
+            ranked = list(dict.fromkeys(k for k in keys if k))
+            # Without a state in the question, every contractor's edition of the same LCD/article is a
+            # correct answer: map each retrieved family member onto the gold key it stands for, then
+            # score against the gold list as usual. Strict (exact-key) numbers are reported alongside.
+            canon = {member: gold for gold in exp for member in families.get(gold, {gold})}
+            canonical = list(dict.fromkeys(canon.get(k, k) for k in ranked))
             gains = {k: 1.0 / (j + 1) ** 0.5 for j, k in enumerate(exp)}
             m = {
-                "recall@5": M.recall_at_k(keys, exp, 5),
-                "recall@10": M.recall_at_k(keys, exp, 10),
-                "precision@5": M.precision_at_k(keys, exp, 5),
-                "mrr": M.reciprocal_rank(keys, exp),
-                "ndcg@10": M.ndcg_at_k(keys, gains, 10),
-                "hit@1": M.hit_rate_at_k(keys, exp, 1),
-                "hit@10": M.hit_rate_at_k(keys, exp, 10),
+                "recall@5": M.recall_at_k(canonical, exp, 5),
+                "recall@10": M.recall_at_k(canonical, exp, 10),
+                "precision@5": M.precision_at_k(canonical, exp, 5),
+                "mrr": M.reciprocal_rank(canonical, exp),
+                "ndcg@10": M.ndcg_at_k(canonical, gains, 10),
+                "hit@1": M.hit_rate_at_k(canonical, exp, 1),
+                "hit@10": M.hit_rate_at_k(canonical, exp, 10),
+                "strict.hit@10": M.hit_rate_at_k(ranked, exp, 10),
+                "strict.mrr": M.reciprocal_rank(ranked, exp),
             }
             passed = m["hit@10"] == 1.0
         by_intent.setdefault(it["intent"], []).append(m)
@@ -283,14 +322,26 @@ async def suite_retrieval(
     metrics = (
         {
             k: round(M.mean(x[k] for x in scored), 4)
-            for k in ("recall@5", "recall@10", "precision@5", "mrr", "ndcg@10", "hit@1", "hit@10")
+            for k in (
+                "recall@5",
+                "recall@10",
+                "precision@5",
+                "mrr",
+                "ndcg@10",
+                "hit@1",
+                "hit@10",
+                "strict.hit@10",
+                "strict.mrr",
+            )
         }
         if scored
         else {}
     )
     abst = [r["metrics"]["abstained"] for r in results if "abstained" in r["metrics"]]
     metrics["abstention_rate_s11"] = round(M.mean(abst), 4) if abst else None
-    metrics["latency_p95_ms"] = round(M.percentile(latencies, 0.95), 1)
+    metrics["latency_p95_ms"] = round(M.percentile(latencies, 0.95), 1) if latencies else None
+    metrics["items_evaluated"] = len(results)
+    metrics["items_skipped_not_ingested"] = len(skipped)
     metrics["by_intent"] = {
         k: {"n": len(v), "hit@10": round(M.mean(x.get("hit@10", x.get("abstained", 0)) for x in v), 4)}
         for k, v in by_intent.items()
