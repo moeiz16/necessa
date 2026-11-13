@@ -151,22 +151,25 @@ flowchart TB
 - Verdicts are `MET / NOT_MET / INSUFFICIENT`. **Negative-attestation criteria can never be MET because evidence is absent.**
 - The final status is **documentation readiness** (`ready / gaps / not_supported`), never a coverage decision.
 - Guards: recursion limit, per-case token budget, per-node timeouts, bounded concurrency (free-tier RPM), cancellation.
+- **Criteria transfer across contractors:** Medicare contractors publish their own edition of the same LCD. When the applicable edition has no approved criteria, a curated set from a same-title edition is reused **only if every quote is found verbatim** in the target's text; otherwise it is queued for human review and the evaluation reports `unknown` readiness with a blocker gap. (Real example: Noridian's facet LCD L38801 rewords one requirement of L33930, so it is held for review.)
 - **Degraded mode** (no LLM keys or quota exhausted): lexical evidence finder + deterministic temporal/numeric rules. Everything else becomes `INSUFFICIENT` with "LLM unavailable". The UI shows the degradation clearly.
 
-## 9. Multi-LLM routing (LiteLLM, in-process)
-| Group | Purpose | Primary → fallbacks (free tiers; ids are config) |
+## 9. Multi-LLM routing (LiteLLM SDK + in-house router)
+The router is a thin, tested layer over `litellm.acompletion` (not `litellm.Router`), so data-class enforcement, quotas, budgets and structured-output repair live in one place. Model ids are config only (`backend/app/ai/llm/models.yaml`); a deployment exists only if its provider key is set.
+
+| Group | Purpose | Deployment order (free tiers) |
 |---|---|---|
-| `router-small` | intent fallback, rewrite, decomposition, listwise rerank | Groq `llama-3.1-8b-instant` → Gemini `2.5-flash-lite` → OpenRouter free |
-| `qa-public` | assistant answers (public policy data) | Groq `llama-3.3-70b-versatile` → Gemini `2.5-flash` → OpenRouter free |
-| `judge` | per-criterion verdicts (de-identified evidence) | Gemini `2.5-flash` → Groq `openai/gpt-oss-120b` → OpenRouter free |
-| `verifier` | entailment / cross-check (**a different family than the judge**) | Groq `qwen/qwen3-32b` or `gpt-oss` → Mistral (if key) |
-| `sql` | text-to-SQL | Groq `openai/gpt-oss-120b` → Gemini `2.5-flash` |
-| `drafter` | letters/appeals (de-identified facts, rehydrated locally) | Groq `llama-3.3-70b-versatile` → Gemini `2.5-flash` |
-| `compiler-longctx` | criteria extraction from long policies (offline) | Gemini `2.5-flash` (long context) → Groq `gpt-oss-120b` |
-| `ocr-vision` | scanned PDF pages → text | Gemini `2.5-flash` (vision) |
-| `guard` | injection / unsafe-request classification | Groq `llama-3.1-8b-instant` → Gemini `flash-lite` |
-| embeddings | pinned | `gemini/gemini-embedding-001` @ 768 |
-| rerank | chain | Cohere `rerank-v3.5` → Jina `jina-reranker-v2-base-multilingual` → LLM listwise |
+| `router-small` | intent fallback, rewrite, decomposition, listwise rerank | Groq `llama-3.1-8b-instant` → Cerebras → Gemini `2.5-flash-lite` → Mistral small → OpenRouter free |
+| `qa-public` | assistant answers over public policy text | Groq `llama-3.3-70b-versatile` → Gemini `2.5-flash` → Groq `gpt-oss-120b` → OpenRouter free → Mistral → GitHub Models |
+| `judge` | per-criterion verdicts on de-identified evidence | Groq `openai/gpt-oss-120b` → Groq `llama-3.3-70b` → Gemini `2.5-flash` → Cerebras → OpenRouter free |
+| `verifier` | entailment check (**different family from the judge**) | Gemini `2.5-flash` → Groq `qwen/qwen3-32b` → Mistral small → OpenRouter free |
+| `sql` | text-to-SQL | Groq `gpt-oss-120b` → Groq `qwen3-32b` → Gemini `2.5-flash` → Mistral Codestral |
+| `drafter` | letters/appeals on placeholders, rehydrated locally | Groq `llama-3.3-70b-versatile` → Gemini `2.5-flash` → Groq `gpt-oss-120b` → OpenRouter free |
+| `compiler-longctx` | criteria extraction from long policies (offline) | Gemini `2.5-flash` → Groq `gpt-oss-120b` → Mistral medium |
+| `ocr-vision` | scanned PDF pages → text | Gemini `2.5-flash` → Groq Llama 4 Scout |
+| `guard` | injection / unsafe-request classification | Groq `llama-3.1-8b-instant` → Gemini `flash-lite` → Mistral small |
+| embeddings | pinned (one vector space per index) | `gemini/gemini-embedding-001` @ 768 (alternatives listed, never mixed) |
+| rerank | chain | Cohere `rerank-v3.5` → Jina `jina-reranker-v2-base-multilingual` → LLM listwise (`router-small`) → fusion order |
 
 - **Reliability:** deployments are built only for keys that exist. LiteLLM retries with backoff honoring `Retry-After`, then cooldowns, then group fallbacks. A daily quota tracker shifts traffic before 429s happen. Per-request and per-org token budgets cap spend.
 - **Data-class enforcement:** `PHI` calls require `deidentified=True` and a group in `phi_allowed_groups`. A secondary regex scan blocks payloads that still look identifying. Production would point `phi_allowed_groups` at BAA-covered endpoints (e.g. Claude via a BAA-covered platform) by config.
@@ -195,6 +198,20 @@ flowchart TB
 - **App security:** argon2id passwords, short-lived JWTs, rotating refresh tokens with reuse detection, TOTP MFA + recovery codes, CSRF double-submit, RBAC + tenant isolation (Postgres RLS in migrations), API keys (hashed, prefix-identified), rate limiting (stricter on auth), security headers, hash-chained tamper-evident audit log with a verify endpoint.
 - **Supply chain / CI:** gitleaks, Bandit, pip-audit, ruff, typed code, lockfiles.
 
+### OWASP Top 10 for LLM Applications (2025)
+| Risk | Control |
+|---|---|
+| LLM01 Prompt injection | Heuristics + `guard` model on user input and uploaded/retrieved text; forged wrapper tags escaped; malicious documents quarantined; read-only tools |
+| LLM02 Sensitive information disclosure | De-identification before any provider call; PHI data-class enforcement; redacted logs; RLS; minimum-necessary context per criterion |
+| LLM03 Supply chain | Pinned dependency versions, pip-audit, gitleaks, Bandit in CI; no model weights downloaded at all |
+| LLM04 Data & model poisoning | Source allowlist (CMS export host), content hashes, smoke eval before an index goes live, criteria require verbatim grounding |
+| LLM05 Improper output handling | Pydantic schemas with repair retry; markdown sanitized in the UI; generated SQL AST-validated and run read-only |
+| LLM06 Excessive agency | Fixed workflow graph, no write tools for models, human review before letters are approved or exported |
+| LLM07 System prompt leakage | No secrets in prompts; prompts treated as public; red-team probes in the safety suite |
+| LLM08 Vector & embedding weaknesses | Tenant filters injected server-side, `is_tenant` payload index, per-case chart scoping, one pinned embedding model per index |
+| LLM09 Misinformation | Grounded answers with citations, verbatim quote checks, cross-family verification, abstention, false-MET release gate |
+| LLM10 Unbounded consumption | Rate limits, per-request/per-case/daily token budgets, recursion limits, bounded concurrency, quota tracking |
+
 ## 13. Degradation ladder
 | Failure | Behavior |
 |---|---|
@@ -209,3 +226,63 @@ Stateless API replicas behind a load balancer, with Redis pub/sub for SSE fan-ou
 
 ## 15. Architecture decision records
 See [`docs/adr/`](adr/). Key ones: 001 criteria-first evaluation · 002 Qdrant · 003 managed free tiers over local inference · 004 in-house BM25 sparse vectors · 005 Postgres as system of record · 006 graph from structured data · 007 tools before text-to-SQL · 008 in-process job runner · 009 single orchestrated graph over multi-agent · 010 code-level guardrails · 011 no fine-tuning in v1.
+
+## 16. Evaluation & quality gates
+Suites live in `backend/app/ai/evaluation/` and `eval/`; reports are written to `eval/reports/` and persisted to `eval_runs`. All numbers below are **offline** (deterministic fake models, so dense retrieval is effectively off). Live-model runs are a manual workflow (`nightly-eval.yml` → `live`) capped by quota.
+
+| Suite | Dataset | Gate | Offline result |
+|---|---|---|---|
+| Retrieval (61 questions, intents S1–S11, real CMS focus data) | `retrieval_gold.jsonl` | hit@10 ≥ 0.90, recall@10 ≥ 0.70, nDCG@10 ≥ 0.75, MRR ≥ 0.60 | hit@10 **0.95**, recall@10 **0.83**, nDCG@10 **0.76**, MRR **0.81** (strict exact-key hit@10 0.78) |
+| Retrieval (CI: synthetic fixtures only) | same, items without ingested gold skipped | same | hit@10 1.0, recall@10 1.0, nDCG@10 0.95, MRR 0.94 |
+| Verdicts (338 counterfactual cases, 1,835 criteria) | `verdict_gold.jsonl` | false-MET ≤ 0.02, macro-F1 ≥ 0.85, INSUFFICIENT recall ≥ 0.90, citation validity ≥ 0.999 | false-MET **0.0**, macro-F1 **0.99**, INSUFFICIENT recall **1.0**, citation validity **1.0** |
+| Verdicts, no-LLM degraded mode | same | false-MET ≤ 0.02 | false-MET **0.0** (accuracy 0.37, by design it abstains) |
+| Faithfulness | letters + verdicts | unsupported claims = 0, PHI token leaks = 0 | 0 / 0 |
+| Safety (24 red-team probes) | `safety_redteam.jsonl` | pass ≥ 0.95, PHI leaks = 0 | **1.0**, 0 |
+| Criteria grounding | all curated sets | 100% verbatim | **1.0** |
+| Text-to-SQL (40 questions) | `sql_gold.jsonl` | execution accuracy ≥ 0.85 | live-only (needs a real model); unsafe SQL executed = **0** |
+
+**Retrieval relevance is scored per policy family.** Without a state in the question, every contractor's edition of an LCD is a correct answer, so retrieved editions are mapped onto the gold key before scoring; strict exact-key numbers are reported alongside. The three remaining misses are lay-language paraphrases ("nerve zapper", "droopy eyelids") that need real dense embeddings.
+
+## 17. Failure modes designed for
+| # | Production failure | Mitigation | Covered by |
+|---|---|---|---|
+| F1 | Wrong policy version or jurisdiction | Date-of-service + contractor-jurisdiction filters; deterministic `resolve_policies` | `tests/rag/test_e2e_mcd_slice.py` |
+| F2 | Missing evidence counted as "met" | Three-valued verdicts, negative-attestation criteria, Kleene aggregation | `tests/cases/test_logic.py`, verdict suite |
+| F3 | Codes missed by vector search | Code-preserving BM25, FTS channel, SQL exact path | `tests/rag/test_sparse_fusion.py`, S1/S6 |
+| F4 | Rules cut in half by chunking | Section-aware parent-child chunking | retrieval suite |
+| F5 | Stale or broken index release | Content-hash incremental ingest, smoke eval, blue/green alias + rollback | `tests/rag/test_e2e_fixtures.py` |
+| F6 | Mixed embedding spaces | One pinned model per index, model recorded per vector | ingestion pipeline |
+| F7 | Hallucinated citations | Verbatim quote check + entailment by another model family; failures downgrade to INSUFFICIENT | `tests/cases/test_case_graph.py` |
+| F8 | Semantic cache returns a near-duplicate's answer | Entity-equality guard (codes, payer, state, as-of, with/without) | `tests/rag/test_guardrails.py` |
+| F9 | Injection hidden in an uploaded note | Injection scan on documents and retrieved text; quarantine; escaped wrapper tags | safety suite, `tests/platform/test_documents.py` |
+| F10 | PHI sent to a provider | De-identification at intake, data-class enforcement, redacted logs | `tests/rag/test_router_policy.py`, faithfulness suite |
+| F11 | Free-tier 429s and outages | Retry-After backoff, cooldowns, cross-provider fallbacks, quota tracker, degradation ladder | `tests/rag/test_router_policy.py` |
+| F12 | Runaway agent loops | Recursion limits, token budgets, timeouts, bounded concurrency | `tests/cases/test_case_graph.py` |
+| F13 | Unsafe generated SQL | Tools first; AST allowlist, LIMIT, read-only, timeout, Postgres RLS on `app.org_id` | `tests/rag/test_sql_validator.py` |
+| F14 | Contractor editions word a requirement differently | Criteria transfer only on 100% verbatim re-grounding, else human review | `tests/cases/test_criteria_transfer.py` |
+| F15 | Readiness reported when nothing was evaluated | `unknown` readiness + blocker gap naming the policies without criteria | `tests/cases/test_logic.py` |
+| F16 | Proxies buffering live streams | SSE responses marked `no-transform` and `X-Accel-Buffering: no` | `tests/platform/test_ops.py` |
+| F17 | Non-JSON types breaking writes | Engine-level JSON serializer for dates, UUIDs and enums | `tests/platform/test_json_columns.py` |
+| F18 | Cross-tenant data access | Org filter in every query, 404 on foreign IDs, RLS, server-side vector filters | `tests/platform/test_cases.py` |
+
+## 18. AI-engineering coverage map
+| Topic | Where it lives |
+|---|---|
+| LLM fundamentals (temperature, structured outputs, tool calling, context limits) | `ai/llm/router.py`, prompts in `ai/prompts/`, §9 |
+| Embeddings, cosine vs dot vs L2, embedding drift | `ai/embeddings.py`, §6.1, ADR-002 |
+| Vector DB (HNSW, quantization, payload filtering, namespaces, aliases) | `ai/vectorstore.py`, §6, ADR-002 |
+| Document processing (HTML, PDF, OCR, tables, dedup, metadata) | `ai/ingestion/`, `services/documents.py`, §5 |
+| Chunking (section, recursive, parent-child, contextual headers) | `ai/ingestion/chunker.py`, §5 |
+| Retrieval (dense, sparse, FTS, hybrid, self-query, expansion, HyDE, decomposition, multi-hop) | `ai/retrieval/`, §6 |
+| Reranking & fusion (RRF, weighted, z-score, API rerankers, LLM listwise, MMR) | `ai/retrieval/fusion.py`, `ai/rerank.py`, §6.3 |
+| Advanced RAG (corrective, adaptive, conversational, context compression) | `ai/retrieval/corrective.py`, `ai/retrieval/context.py`, `ai/agents/qa_graph.py` |
+| Graph retrieval | `ai/graph/coverage_graph.py`, §7, ADR-006 |
+| Structured RAG / text-to-SQL | `ai/sql/`, §7, ADR-007 |
+| Regulated-document RAG (citations, provenance, audit, temporal) | criteria grounding, `services/audit.py`, version tables |
+| Evaluation (Recall@K, MRR, nDCG, faithfulness, safety, calibration) | `ai/evaluation/`, `eval/`, §16 |
+| Guardrails (injection, PII, citation and policy checks) | `ai/guardrails/`, §12 |
+| Agentic workflows (LangGraph fan-out, bounded loops, human review) | `ai/agents/case_graph.py`, ADR-009 |
+| Memory & context engineering | conversation summaries in `qa_graph.py`, `ContextPacker` |
+| Production concerns (caching, rate limits, streaming, routing, fallbacks, observability) | `ai/cache.py`, `core/ratelimit.py`, `core/events.py`, `ai/llm/`, `/metrics` |
+| Fine-tuning | deliberately deferred, ADR-011 |
+
