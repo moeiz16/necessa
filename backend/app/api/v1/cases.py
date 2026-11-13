@@ -115,10 +115,25 @@ async def create_case(
 @router.get("/cases/{case_id}", response_model=CaseOut)
 async def get_case(
     case_id: uuid.UUID,
+    reveal: bool = False,
     ctx: RequestContext = Depends(require_perm("cases:read")),
     db: AsyncSession = Depends(get_db),
 ):
-    return await case_svc.case_detail(db, await case_svc.get_case(db, ctx.org_id, case_id))
+    case = await case_svc.get_case(db, ctx.org_id, case_id)
+    detail = await case_svc.case_detail(db, case)
+    if not reveal:
+        return detail
+    if not ctx.has("phi:reveal"):
+        raise forbidden("Missing permission 'phi:reveal'.")
+    patient = await case_svc.get_patient(db, ctx.org_id, case.patient_id)
+    demo = case_svc.patient_out(patient, reveal=True).get("demographics") or {}
+    await audit(
+        db, ctx, action="phi.patient_revealed", resource_type="patient", resource_id=patient.id,
+        metadata={"caseId": str(case.id)},
+    )
+    out = CaseOut.model_validate(detail)
+    out.patient_revealed = {k: demo.get(k) for k in ("fullName", "dob", "memberId", "mrn")}
+    return out
 
 
 @router.patch("/cases/{case_id}", response_model=CaseOut)

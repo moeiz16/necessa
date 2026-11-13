@@ -180,6 +180,8 @@ class CaseOut(CaseSummary):
     created_by: uuid.UUID | None
     created_at: datetime
     allowed_transitions: list[str] = Field(default_factory=list)
+    # Present only for `?reveal=true` by a user holding `phi:reveal`; every reveal is audited.
+    patient_revealed: dict[str, Any] | None = None
 
 
 class CaseStatsOut(APIModel):
