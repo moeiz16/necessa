@@ -21,10 +21,13 @@ class ConversationPatch(APIModel):
 
 class MessageOut(APIModel):
     id: str
+    conversation_id: str | None = None
     role: Literal["user", "assistant"]
     content: str
     citations: list[dict] = Field(default_factory=list)
     route: dict | None = None
+    retrieval: dict | None = None
+    guardrails: list[dict] = Field(default_factory=list)
     sql: dict | None = None
     usage: dict = Field(default_factory=dict)
     feedback: int | None = None

@@ -42,12 +42,20 @@ async def _conversation(db: AsyncSession, ctx: RequestContext, conversation_id: 
 
 
 def _msg(m: Message) -> MessageOut:
+    route = dict(m.route or {})
+    retrieval = route.pop("retrieval", None)
+    guardrails = route.pop("guardrails", None) or []
+    if "filters_applied" in route:  # messages saved before the trace was normalized
+        route["filters"] = route.pop("filters_applied")
     return MessageOut(
         id=str(m.id),
+        conversation_id=str(m.conversation_id),
         role=m.role,
         content=m.content,
         citations=m.citations or [],
-        route=m.route,
+        route=route or None,
+        retrieval=retrieval,
+        guardrails=guardrails,
         sql=m.sql,
         usage=m.usage or {},
         feedback=m.feedback,

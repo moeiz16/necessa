@@ -828,11 +828,21 @@ async def run_assistant_turn(
             await queue.put(None)
 
     task = asyncio.create_task(runner())
+    # Keep the exact payloads the client saw, so a reloaded conversation renders the same
+    # retrieval inspector and guardrail notices as the live stream did.
+    seen: dict[str, Any] = {"guardrails": []}
     try:
         while True:
             item = await queue.get()
             if item is None:
                 break
+            event, data = item
+            if event == "route" and "intent" in data:
+                seen["route"] = data
+            elif event == "retrieval":
+                seen["retrieval"] = data
+            elif event == "guardrail":
+                seen["guardrails"].append({"kind": data.get("kind"), "message": data.get("message")})
             yield item
     finally:
         if not task.done():
@@ -840,8 +850,9 @@ async def run_assistant_turn(
     if not result:
         return
     answer = result.get("answer", "")
-    retrieval = result.get("retrieval")
-    route = retrieval.route.to_dict() if retrieval is not None else None
+    route: dict | None = dict(seen["route"]) if "route" in seen else None
+    if route is not None or seen["guardrails"]:
+        route = {**(route or {}), "retrieval": seen.get("retrieval"), "guardrails": seen["guardrails"]}
     usage = {**(result.get("usage") or {}), "budgetUsed": budget.used}
     msg_id = None
     if persist:

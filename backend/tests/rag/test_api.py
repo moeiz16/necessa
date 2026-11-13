@@ -1,4 +1,4 @@
-"""API-level tests for knowledge, assistant and admin routers (workstream B)."""
+"""API-level tests for knowledge, assistant and admin routers."""
 
 from __future__ import annotations
 
@@ -106,6 +106,11 @@ async def test_assistant_conversation_stream_persist_feedback(client, fixtures_i
     detail = (await owner.get(f"/api/v1/assistant/conversations/{conv['id']}")).json()
     assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
     assert detail["messages"][1]["citations"] and detail["title"] != "New conversation"
+    # A reloaded answer carries the same trace the live stream showed (retrieval inspector).
+    saved = detail["messages"][1]
+    live_route = next(d for e, d in events if e == "route" and "intent" in d)
+    assert saved["route"]["intent"] == live_route["intent"] and "filters" in saved["route"]
+    assert saved["retrieval"]["chunks"] and saved["conversationId"] == conv["id"]
     r = await owner.post(f"/api/v1/assistant/messages/{done['messageId']}/feedback", json={"rating": 1})
     assert r.status_code == 204
     convs = (await owner.get("/api/v1/assistant/conversations")).json()["items"]
