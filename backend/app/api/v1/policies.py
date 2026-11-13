@@ -14,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.retrieval.retriever import get_retriever
 from app.ai.retrieval.types import PolicyFilters, RetrievalQuery
 from app.ai.sql.tools import section_diff
+from app.ai.vectorstore import get_vectorstore
+from app.core.cache import TTLCache, org_cache
 from app.core.deps import RequestContext, get_db, require_perm
 from app.core.errors import bad_request, not_found
 from app.db.models.knowledge import (
@@ -43,6 +45,8 @@ from app.schemas.knowledge import (
 )
 
 router = APIRouter(tags=["knowledge"])
+# Offset pagination: deep pages scan and discard every preceding row; nobody pages 10k rows deep in the UI.
+_MAX_OFFSET = 10_000
 
 
 def _cursor(offset: int) -> str:
@@ -53,9 +57,12 @@ def _offset(cursor: str | None) -> int:
     if not cursor:
         return 0
     try:
-        return int(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)).decode())
+        off = int(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)).decode())
     except Exception as exc:
         raise bad_request("invalid_cursor", "Malformed pagination cursor.") from exc
+    if not 0 <= off <= _MAX_OFFSET:
+        raise bad_request("invalid_cursor", "Malformed pagination cursor.")
+    return off
 
 
 def _tenant(ctx: RequestContext):
@@ -166,6 +173,66 @@ async def _summaries(db: AsyncSession, policies: list[Policy]) -> list[PolicySum
     return out
 
 
+# Library search runs the full hybrid retriever (embedding + vector search + rerank), by far the most
+# expensive read in the app. Users re-run the same search constantly (back/forward, filters, paging the
+# detail view), so the ranked policy hits are cached briefly per org. The key includes the active index
+# collection and the knowledge-write generation, so a re-index or payer upload never serves results from
+# before it; summaries (criteria status, code counts) are still hydrated from the database every time.
+_LIBRARY_HITS = TTLCache(maxsize=512, ttl_s=120.0)
+
+
+async def _library_hits(
+    ctx: RequestContext,
+    q: str,
+    as_of: date | None,
+    state: str | None,
+    doc_type: str | None,
+    contractor_id: int | None,
+    limit: int,
+) -> dict[str, tuple[float, str]]:
+    top_k = min(30, limit * 2)
+    try:
+        index = await (await get_vectorstore()).current_physical("policy_chunks")
+    except Exception:
+        index = None
+    key = (
+        ctx.org_id,
+        index,
+        org_cache.knowledge_generation,  # bumped by any committed knowledge write (e.g. a payer upload)
+        " ".join(q.split()),
+        as_of,
+        state,
+        doc_type,
+        contractor_id,
+        top_k,
+    )
+    cached = _LIBRARY_HITS.get(key) if index else None
+    if cached is not None:
+        return cached
+    res = await get_retriever().search(
+        RetrievalQuery(
+            text=q,
+            org_id=ctx.org_id,
+            top_k=top_k,
+            strategy=None,
+            filters=PolicyFilters(
+                as_of=as_of,
+                states=[state] if state else None,
+                doc_types=[doc_type] if doc_type else None,
+                contractor_ids=[contractor_id] if contractor_id else None,
+            ),
+        )
+    )
+    best: dict[str, tuple[float, str]] = {}
+    for c in res.chunks:
+        pid = c.source.get("policy_id")
+        if pid and (pid not in best or c.score > best[pid][0]):
+            best[pid] = (c.score, c.text[:280])
+    if index and not res.route.degraded:
+        _LIBRARY_HITS.set(key, best)
+    return best
+
+
 @router.get("/policies", response_model=Page[PolicySummary])
 async def list_policies(
     ctx: RequestContext = Depends(require_perm("policies:read")),
@@ -181,25 +248,7 @@ async def list_policies(
     cursor: str | None = None,
 ):
     if q and q.strip():
-        res = await get_retriever().search(
-            RetrievalQuery(
-                text=q,
-                org_id=ctx.org_id,
-                top_k=min(30, limit * 2),
-                strategy=None,
-                filters=PolicyFilters(
-                    as_of=as_of,
-                    states=[state] if state else None,
-                    doc_types=[doc_type] if doc_type else None,
-                    contractor_ids=[contractor_id] if contractor_id else None,
-                ),
-            )
-        )
-        best: dict[str, tuple[float, str]] = {}
-        for c in res.chunks:
-            pid = c.source.get("policy_id")
-            if pid and (pid not in best or c.score > best[pid][0]):
-                best[pid] = (c.score, c.text[:280])
+        best = await _library_hits(ctx, q, as_of, state, doc_type, contractor_id, limit)
         if not best:
             return Page[PolicySummary](items=[], next_cursor=None, total=0)
         pols = list(

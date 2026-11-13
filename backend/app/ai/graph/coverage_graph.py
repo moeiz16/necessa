@@ -16,6 +16,7 @@ import itertools
 import uuid
 from collections import defaultdict
 from datetime import date
+from typing import NamedTuple
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +33,11 @@ from app.db.models.knowledge import (
 from app.schemas.knowledge import CoverageGraph, GraphEdge, GraphNode
 
 _TYPE = {"lcd": "lcd", "article": "article", "ncd": "ncd", "payer": "payer"}
+
+
+class _Ver(NamedTuple):
+    id: uuid.UUID
+    version: int
 
 
 def _norm(code: str) -> tuple[str, list[str]]:
@@ -143,6 +149,22 @@ async def coverage_paths(
             if targets
             else {}
         )
+        # current versions of every link target in ONE query (was one `db.get` per link: N+1)
+        want = {
+            p.current_version_id
+            for p in tpols.values()
+            if p.current_version_id and p.current_version_id not in level
+        }
+        tversions = (
+            {
+                v.id: v
+                for v in (
+                    await db.execute(select(PolicyVersion).where(PolicyVersion.id.in_(list(want))))
+                ).scalars()
+            }
+            if want
+            else {}
+        )
         for ln in links:
             src_v = versions.get(ln.from_version_id)
             if src_v is None:
@@ -168,7 +190,7 @@ async def coverage_paths(
             }.get(ln.relation, "RELATED")
             edge(f"policy:{src.source_key}", tid, etype)
             if tp and tp.current_version_id and tp.current_version_id not in level:
-                v = await db.get(PolicyVersion, tp.current_version_id)
+                v = tversions.get(tp.current_version_id)
                 if v:
                     versions[v.id] = v
                     pols[tp.id] = tp
@@ -210,19 +232,20 @@ async def coverage_paths(
         for s in show:
             sid = node(f"state:{s}", "state", "National" if s == "US" else s)
             edge(f"policy:{key}", sid, "APPLIES_IN")
-    # temporal: previous versions of the reached policies
-    for p in {pols[versions[v].policy_id] for v in vids}:
-        prev = (
-            (
-                await db.execute(
-                    select(PolicyVersion)
-                    .where(PolicyVersion.policy_id == p.id)
-                    .order_by(PolicyVersion.version.desc())
-                )
+    # temporal: previous versions of the reached policies — one query for all of them (was one per policy)
+    reached = {pols[versions[v].policy_id].id: pols[versions[v].policy_id] for v in vids}
+    history: dict[uuid.UUID, list[tuple[uuid.UUID, int]]] = defaultdict(list)
+    if reached:
+        for vid_, pid_, ver_ in (
+            await db.execute(
+                select(PolicyVersion.id, PolicyVersion.policy_id, PolicyVersion.version)
+                .where(PolicyVersion.policy_id.in_(list(reached)))
+                .order_by(PolicyVersion.policy_id, PolicyVersion.version.desc())
             )
-            .scalars()
-            .all()
-        )
+        ).all():
+            history[pid_].append((vid_, ver_))
+    for p in reached.values():
+        prev = [_Ver(id=i, version=n) for i, n in history.get(p.id, [])]
         if len(prev) > 1:
             for newer, older in itertools.pairwise(prev):
                 a = node(

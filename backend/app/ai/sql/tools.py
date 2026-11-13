@@ -91,26 +91,42 @@ async def _contractor_for(
     return out
 
 
+DxStatus = Literal["covered", "noncovered", "unlisted", "no_list"]
+
+
 async def covered_dx_for_policy(
     db: AsyncSession, policy_version_id: str | uuid.UUID, dx_codes: list[str]
-) -> dict[str, Literal["covered", "noncovered", "unlisted", "no_list"]]:
+) -> dict[str, DxStatus]:
     vid = uuid.UUID(str(policy_version_id))
+    return (await covered_dx_for_policies(db, [vid], dx_codes)).get(vid, {})
+
+
+async def covered_dx_for_policies(
+    db: AsyncSession, version_ids: list[uuid.UUID], dx_codes: list[str]
+) -> dict[uuid.UUID, dict[str, DxStatus]]:
+    """`covered_dx_for_policy` for many policy versions in ONE query."""
     wanted = {_norm_icd(c) for c in dx_codes if c}
-    if not wanted:
+    if not wanted or not version_ids:
         return {}
-    rows = (
+    by_vid: dict[uuid.UUID, list[tuple[str, str]]] = defaultdict(list)
+    for vid, system, code in (
         await db.execute(
-            select(PolicyCode.code_system, PolicyCode.code).where(
-                PolicyCode.policy_version_id == vid,
+            select(PolicyCode.policy_version_id, PolicyCode.code_system, PolicyCode.code).where(
+                PolicyCode.policy_version_id.in_(list(dict.fromkeys(version_ids))),
                 PolicyCode.code_system.in_(["ICD10_COVERED", "ICD10_NONCOVERED"]),
             )
         )
-    ).all()
+    ).all():
+        by_vid[vid].append((system, code))
+    return {vid: _dx_status(wanted, by_vid.get(vid, [])) for vid in version_ids}
+
+
+def _dx_status(wanted: set[str], rows: list[tuple[str, str]]) -> dict[str, DxStatus]:
     if not rows:
         return dict.fromkeys(wanted, "no_list")
     covered = {_norm_icd(c) for s, c in rows if s == "ICD10_COVERED"}
     non = {_norm_icd(c) for s, c in rows if s == "ICD10_NONCOVERED"}
-    out: dict[str, Literal["covered", "noncovered", "unlisted", "no_list"]] = {}
+    out: dict[str, DxStatus] = {}
     for c in wanted:
         if c in covered:
             out[c] = "covered"
@@ -207,11 +223,23 @@ async def resolve_policies(
                 linked.setdefault(ln.to_source_key, (ln.relation, src))
     if linked:
         extra = list((await db.execute(select(Policy).where(Policy.source_key.in_(list(linked))))).scalars())
+        want = [p.current_version_id for p in extra if p.id not in cand and p.current_version_id]
+        # linked policies' current versions in ONE query (was one `db.get` per linked policy: N+1)
+        extra_versions = (
+            {
+                v.id: v
+                for v in (
+                    await db.execute(select(PolicyVersion).where(PolicyVersion.id.in_(want)))
+                ).scalars()
+            }
+            if want
+            else {}
+        )
         for p in extra:
             policies[p.id] = p
             if p.id in cand or not p.current_version_id:
                 continue
-            v = await db.get(PolicyVersion, p.current_version_id)
+            v = extra_versions.get(p.current_version_id)
             if v is not None:
                 versions[v.id] = v
                 cand[p.id] = v
@@ -225,6 +253,21 @@ async def resolve_policies(
             states[ps.policy_version_id][ps.state_abbrev] = ps.primary
     contractors = await _contractor_for(db, vids, st)
     crit = await _criteria_status(db, vids)
+
+    def _in_scope(pol: Policy, v: PolicyVersion) -> bool:  # mirrors the jurisdiction/payer skips below
+        vs = states.get(v.id, {})
+        if "US" not in vs and st and st not in vs:
+            return False
+        return not (pol.source == "payer" and is_medicare)
+
+    # diagnosis lists for every in-scope candidate in ONE query (was one query per candidate)
+    dx_by_version = (
+        await covered_dx_for_policies(
+            db, [v.id for pid, v in cand.items() if _in_scope(policies[pid], v)], dx_codes
+        )
+        if dx_codes
+        else {}
+    )
 
     out: list[PolicyMatchDTO] = []
     for pid, v in cand.items():
@@ -269,7 +312,7 @@ async def resolve_policies(
             score -= 0.25  # Medicare policy shown only as reference for commercial plans
         dx_status: dict[str, str] = {}
         if dx_codes:
-            dx_status = await covered_dx_for_policy(db, v.id, dx_codes)
+            dx_status = dx_by_version.get(v.id, {})
             cov = [c for c, s in dx_status.items() if s == "covered"]
             bad = [c for c, s in dx_status.items() if s == "noncovered"]
             if cov:
@@ -347,6 +390,18 @@ async def find_policies_by_code(
         .limit(limit * 3)
     )
     rows = (await db.execute(q)).all()
+    # states for every candidate version in ONE query (was one query per row: N+1)
+    state_map: dict[uuid.UUID, set[str]] = defaultdict(set)
+    cand_vids = {r[4] for r in rows}
+    if cand_vids:
+        for vid_, ab in (
+            await db.execute(
+                select(PolicyState.policy_version_id, PolicyState.state_abbrev).where(
+                    PolicyState.policy_version_id.in_(list(cand_vids))
+                )
+            )
+        ).all():
+            state_map[vid_].add(ab)
     out = []
     seen = set()
     for pid, key, title, dtype, vid, ver, eff, end, system in rows:
@@ -354,10 +409,7 @@ async def find_policies_by_code(
             continue
         if as_of and ((eff and eff > as_of) or (end and end < as_of)):
             continue
-        st_rows = (
-            await db.execute(select(PolicyState.state_abbrev).where(PolicyState.policy_version_id == vid))
-        ).scalars()
-        states = sorted(set(st_rows))
+        states = sorted(state_map.get(vid, set()))
         if state and state.upper() not in states and "US" not in states:
             continue
         seen.add(key)

@@ -13,8 +13,11 @@
 from __future__ import annotations
 
 import asyncio
+import functools
+import time
 import uuid
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -22,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from qdrant_client import AsyncQdrantClient, models
+from qdrant_client import AsyncQdrantClient, QdrantClient, models
 
 from app.core.config import get_settings
 
@@ -69,11 +72,16 @@ class Hit:
 
 
 class VectorStore:
-    def __init__(self, client: AsyncQdrantClient, prefix: str, remote: bool) -> None:
+    # Alias -> physical collection lookups cost a round trip per search on Qdrant Cloud; aliases only
+    # change on blue/green activation (which refreshes this cache in-process), so a short TTL is safe.
+    ALIAS_TTL_S = 30.0
+
+    def __init__(self, client: Any, prefix: str, remote: bool) -> None:
         self.client = client
         self.prefix = prefix
         self.remote = remote
         self._dense_cache: dict[str, bool] = {}
+        self._aliases: tuple[float, dict[str, str]] | None = None
 
     # ── naming ──────────────────────────────────────────────────────────────
     def alias_name(self, alias: str) -> str:
@@ -129,6 +137,8 @@ class VectorStore:
     async def drop_collection(self, name: str) -> None:
         if await self.collection_exists(name):
             await self.client.delete_collection(name)
+        self.invalidate_aliases()  # deleting a collection drops its aliases
+        self._dense_cache.pop(name, None)
 
     async def has_dense(self, name: str) -> bool:
         if name in self._dense_cache:
@@ -149,21 +159,26 @@ class VectorStore:
             return 0
 
     # ── aliases (blue/green) ───────────────────────────────────────────────
-    async def current_physical(self, alias: str) -> str | None:
+    async def current_physical(self, alias: str, *, fresh: bool = False) -> str | None:
         target = self.alias_name(alias)
+        cached = self._aliases
+        if not fresh and cached is not None and cached[0] > time.monotonic():
+            return cached[1].get(target)
         try:
             res = await self.client.get_aliases()
         except Exception:
             return None
-        for a in res.aliases:
-            if a.alias_name == target:
-                return a.collection_name
-        return None
+        mapping = {a.alias_name: a.collection_name for a in res.aliases}
+        self._aliases = (time.monotonic() + self.ALIAS_TTL_S, mapping)
+        return mapping.get(target)
+
+    def invalidate_aliases(self) -> None:
+        self._aliases = None
 
     async def activate(self, alias: str, physical: str) -> str | None:
         """Atomically point `alias` at `physical`. Returns the previously active collection."""
         target = self.alias_name(alias)
-        previous = await self.current_physical(alias)
+        previous = await self.current_physical(alias, fresh=True)
         ops: list[Any] = []
         if previous:
             ops.append(models.DeleteAliasOperation(delete_alias=models.DeleteAlias(alias_name=target)))
@@ -172,13 +187,16 @@ class VectorStore:
                 create_alias=models.CreateAlias(collection_name=physical, alias_name=target)
             )
         )
-        await self.client.update_collection_aliases(change_aliases_operations=ops)
+        try:
+            await self.client.update_collection_aliases(change_aliases_operations=ops)
+        finally:
+            self.invalidate_aliases()
         log.info("qdrant.alias_switched", alias=target, to=physical, previous=previous)
         return previous
 
     async def ensure_singleton(self, alias: str, dense_dims: int | None) -> str:
         """For aliases with one long-lived collection (chart_chunks, criteria, semantic_cache)."""
-        physical = await self.current_physical(alias)
+        physical = await self.current_physical(alias, fresh=True)
         if physical and await self.collection_exists(physical):
             return physical
         physical = f"{self.prefix}_{alias}_v1" + ("" if dense_dims else "_sparse")
@@ -294,7 +312,34 @@ _store: VectorStore | None = None
 _lock = asyncio.Lock()
 
 
-def _make_client() -> tuple[AsyncQdrantClient, bool]:
+class ThreadedLocalQdrant:
+    """Async facade over an embedded (local-mode, on-disk) Qdrant client that runs every call on ONE
+    dedicated worker thread.
+
+    Local mode is pure Python: a filtered brute-force search over ~10k points holds the CPU for hundreds
+    of milliseconds. Through `AsyncQdrantClient(path=...)` that work ran ON the event loop, stalling every
+    concurrent request (dashboards, worklists) behind each policy search. The single worker thread keeps
+    calls serialized (local mode isn't thread-safe) and also owns the client's SQLite handles, which
+    sqlite3 requires to stay on the thread that opened them. Remote Qdrant is unaffected.
+    """
+
+    def __init__(self, path: str) -> None:
+        self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="qdrant-local")
+        self._client: QdrantClient = self._pool.submit(QdrantClient, path=path).result()
+
+    def __getattr__(self, name: str) -> Any:
+        attr = getattr(self._client, name)
+        if not callable(attr):
+            return attr
+
+        async def call(*args: Any, **kwargs: Any) -> Any:
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(self._pool, functools.partial(attr, *args, **kwargs))
+
+        return call
+
+
+def _make_client() -> tuple[Any, bool]:
     s = get_settings()
     if s.qdrant_url:
         if s.qdrant_url == ":memory:":
@@ -305,7 +350,7 @@ def _make_client() -> tuple[AsyncQdrantClient, bool]:
         return AsyncQdrantClient(location=":memory:"), False
     path = Path(s.data_dir) / "qdrant"
     path.mkdir(parents=True, exist_ok=True)
-    return AsyncQdrantClient(path=str(path)), False
+    return ThreadedLocalQdrant(str(path)), False
 
 
 async def get_vectorstore() -> VectorStore:
