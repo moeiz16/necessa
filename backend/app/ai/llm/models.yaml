@@ -1,0 +1,194 @@
+# Necessa model catalog — config only. Free tiers change often: verify ids/limits on each
+# provider console. A deployment whose provider key is missing is skipped automatically.
+#
+# Routing rules (enforced in router.py):
+#   * a group's deployments are tried in order; rate-limited / failing deployments cool down
+#   * proactive quota guard: a deployment is skipped once ~98% of its daily request hint is used
+#   * PHI-class calls must be de-identified AND target a group listed in phi_allowed_groups
+version: 4
+
+defaults:
+  timeout_s: 45
+  max_retries_per_deployment: 1
+  cooldown_s: 60
+  auth_error_cooldown_s: 3600
+
+providers:
+  groq:
+    env: GROQ_API_KEY
+    prefix: groq
+    rpm: 30
+    rpd: 1000
+    tpm: 6000
+    json_mode: true
+    note: "Free plan; per-model limits; no BAA."
+  gemini:
+    env: GEMINI_API_KEY
+    prefix: gemini
+    rpm: 10
+    rpd: 250
+    tpm: 250000
+    json_mode: true
+    note: "Unpaid tier content may be used to improve Google products — never send PHI."
+  openrouter:
+    env: OPENROUTER_API_KEY
+    prefix: openrouter
+    rpm: 20
+    rpd: 50
+    json_mode: false
+    note: ":free variants are upstream rate-limited and rotate often."
+  cerebras:
+    env: CEREBRAS_API_KEY
+    prefix: cerebras
+    rpm: 30
+    rpd: 1000
+    json_mode: true
+    note: "Free tier reported reduced in 2026; optional."
+  mistral:
+    env: MISTRAL_API_KEY
+    prefix: mistral
+    rpm: 60
+    rpd: 2000
+    json_mode: true
+    note: "Experiment plan availability varies; optional."
+  github:
+    env: GITHUB_MODELS_TOKEN
+    prefix: github
+    rpm: 10
+    rpd: 150
+    json_mode: true
+    note: "GitHub Models free usage with a GitHub account."
+  cohere:
+    env: COHERE_API_KEY
+    prefix: cohere
+    rpm: 10
+    rpd: 1000
+    note: "Trial key — rerank + chat; rate-limited."
+  jina:
+    env: JINA_API_KEY
+    prefix: jina_ai
+    rpm: 100
+    rpd: 5000
+    note: "Free token grant for new keys (rerank / embeddings)."
+
+groups:
+  router-small:
+    purpose: "Intent fallback, query rewriting, decomposition, HyDE passages, listwise rerank"
+    temperature: 0.0
+    max_tokens: 512
+    data_classes: [PUBLIC, INTERNAL, PHI]
+    deployments:
+      - { provider: groq, model: llama-3.1-8b-instant }
+      - { provider: cerebras, model: llama3.1-8b }
+      - { provider: gemini, model: gemini-2.5-flash-lite }
+      - { provider: mistral, model: mistral-small-latest }
+      - { provider: openrouter, model: "meta-llama/llama-3.2-3b-instruct:free" }
+  qa-public:
+    purpose: "Policy Q&A answer synthesis with citations (public data only)"
+    temperature: 0.1
+    max_tokens: 1200
+    data_classes: [PUBLIC, INTERNAL]
+    deployments:
+      - { provider: groq, model: llama-3.3-70b-versatile }
+      - { provider: gemini, model: gemini-2.5-flash }
+      - { provider: groq, model: openai/gpt-oss-120b }
+      - { provider: openrouter, model: "meta-llama/llama-3.3-70b-instruct:free" }
+      - { provider: mistral, model: mistral-medium-latest }
+      - { provider: github, model: openai/gpt-4.1-mini }
+  judge:
+    purpose: "Per-criterion verdicts over de-identified chart evidence"
+    temperature: 0.0
+    max_tokens: 700
+    data_classes: [PUBLIC, INTERNAL, PHI]
+    deployments:
+      - { provider: groq, model: openai/gpt-oss-120b }
+      - { provider: groq, model: llama-3.3-70b-versatile }
+      - { provider: gemini, model: gemini-2.5-flash }
+      - { provider: cerebras, model: gpt-oss-120b }
+      - { provider: openrouter, model: "openai/gpt-oss-120b:free" }
+  verifier:
+    purpose: "Cross-family verification (entailment, criteria agreement, LLM-as-judge in evals)"
+    temperature: 0.0
+    max_tokens: 500
+    data_classes: [PUBLIC, INTERNAL, PHI]
+    deployments:
+      - { provider: gemini, model: gemini-2.5-flash }
+      - { provider: groq, model: qwen/qwen3-32b }
+      - { provider: mistral, model: mistral-small-latest }
+      - { provider: openrouter, model: "qwen/qwen3-32b:free" }
+  sql:
+    purpose: "Text-to-SQL over allowlisted analytics views"
+    temperature: 0.0
+    max_tokens: 600
+    data_classes: [PUBLIC, INTERNAL, PHI]
+    deployments:
+      - { provider: groq, model: openai/gpt-oss-120b }
+      - { provider: groq, model: qwen/qwen3-32b }
+      - { provider: gemini, model: gemini-2.5-flash }
+      - { provider: mistral, model: codestral-latest }
+  drafter:
+    purpose: "Letters of medical necessity / appeals over de-identified facts"
+    temperature: 0.4
+    max_tokens: 2200
+    data_classes: [PUBLIC, INTERNAL, PHI]
+    deployments:
+      - { provider: groq, model: llama-3.3-70b-versatile }
+      - { provider: gemini, model: gemini-2.5-flash }
+      - { provider: groq, model: openai/gpt-oss-120b }
+      - { provider: openrouter, model: "meta-llama/llama-3.3-70b-instruct:free" }
+  compiler-longctx:
+    purpose: "Offline criteria compilation from long public policies"
+    temperature: 0.0
+    max_tokens: 4000
+    data_classes: [PUBLIC]
+    deployments:
+      - { provider: gemini, model: gemini-2.5-flash }
+      - { provider: groq, model: openai/gpt-oss-120b }
+      - { provider: mistral, model: mistral-medium-latest }
+  ocr-vision:
+    purpose: "Text extraction from scanned PDFs / images (synthetic documents only)"
+    temperature: 0.0
+    max_tokens: 4000
+    data_classes: [PUBLIC, INTERNAL, PHI]
+    deployments:
+      - { provider: gemini, model: gemini-2.5-flash }
+      - { provider: groq, model: meta-llama/llama-4-scout-17b-16e-instruct }
+  guard:
+    purpose: "Prompt-injection / jailbreak classification of inputs and retrieved text"
+    temperature: 0.0
+    max_tokens: 200
+    data_classes: [PUBLIC, INTERNAL, PHI]
+    deployments:
+      - { provider: groq, model: llama-3.1-8b-instant }
+      - { provider: gemini, model: gemini-2.5-flash-lite }
+      - { provider: mistral, model: mistral-small-latest }
+
+# PHI may only flow (de-identified) to these groups. In production, point them at BAA-covered
+# endpoints (e.g. Claude via a BAA) and shrink this list.
+phi_allowed_groups: [router-small, judge, verifier, sql, drafter, ocr-vision, guard]
+
+embedding:
+  # The index is pinned to ONE embedding model. There is deliberately no cross-model fallback:
+  # mixing vector spaces silently corrupts retrieval. On outage, retrieval degrades to sparse + SQL.
+  model: gemini/gemini-embedding-001
+  dims: 768
+  provider: gemini
+  rpm: 100
+  batch_size: 64
+  alternatives:   # switching requires a full re-embed into a new index version
+    - { model: mistral/mistral-embed, dims: 1024, provider: mistral }
+    - { model: jina_ai/jina-embeddings-v3, dims: 1024, provider: jina }
+    - { model: cohere/embed-english-v3.0, dims: 1024, provider: cohere }
+
+rerank:
+  chain:
+    - { provider: cohere, model: rerank-v3.5 }
+    - { provider: jina, model: jina-reranker-v2-base-multilingual }
+    - { llm_group: router-small }
+  # Calibrated thresholds per reranker for the corrective/abstain loop (see retrieval/corrective.py)
+  thresholds:
+    cohere: { high: 0.45, low: 0.12 }
+    jina: { high: 0.40, low: 0.10 }
+    llm: { high: 0.60, low: 0.25 }
+    lexical: { high: 0.35, low: 0.08 }
+    fake: { high: 0.30, low: 0.05 }
