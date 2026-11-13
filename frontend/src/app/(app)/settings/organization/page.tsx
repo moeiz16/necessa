@@ -65,6 +65,20 @@ function ProfileTab({ org }: { org: Org }) {
   );
 }
 
+const PERM_LABEL: Record<string, string> = {
+  "cases:read": "See cases",
+  "cases:write": "Create and edit cases",
+  "cases:review": "Review and change suggested results",
+  "letters:approve": "Approve letters",
+  "phi:reveal": "View patient details",
+  "policies:read": "Use the policy library",
+  "criteria:review": "Review requirements checklists",
+  "knowledge:admin": "Manage policy updates",
+  "analytics:read": "See insights",
+  "audit:read": "See the compliance log",
+  "org:admin": "Manage people and settings",
+};
+
 function MembersTab() {
   const { me } = useSession();
   const members = useMembers();
@@ -122,7 +136,7 @@ function MembersTab() {
             <table className="w-full min-w-[600px] text-[13px]">
               <thead className="text-xs text-muted">
                 <tr>
-                  {["Member", "Role", "MFA", "Last active", ""].map((h) => (
+                  {["Person", "Role", "Two-step", "Last active", ""].map((h) => (
                     <th key={h} className="px-4 py-2 text-left font-medium">
                       {h}
                     </th>
@@ -183,12 +197,12 @@ function MembersTab() {
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Role permissions" description="Enforced server-side on every request and by row-level security in the database." />
+        <CardHeader title="What each role can do" description="Access is checked every time someone opens or changes something." />
         <CardBody className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr>
-                <th className="py-1.5 pr-3 text-left font-medium text-muted">Permission</th>
+                <th className="py-1.5 pr-3 text-left font-medium text-muted">Can</th>
                 {ROLES.map((r) => (
                   <th key={r} className="px-2 py-1.5 text-center font-medium text-muted">
                     {ROLE_LABEL[r]}
@@ -197,9 +211,9 @@ function MembersTab() {
               </tr>
             </thead>
             <tbody>
-              {Object.entries(PERMISSIONS).map(([perm, roles]) => (
+              {Object.entries(PERMISSIONS).filter(([perm]) => perm in PERM_LABEL).map(([perm, roles]) => (
                 <tr key={perm} className="border-t border-border/60">
-                  <td className="py-1.5 pr-3 font-mono text-[11px]">{perm}</td>
+                  <td className="py-1.5 pr-3 text-[12.5px] text-fg">{PERM_LABEL[perm]}</td>
                   {ROLES.map((r) => (
                     <td key={r} className="px-2 py-1.5 text-center">
                       {roles.includes(r) ? <span className="text-met">●</span> : <span className="text-border-strong">·</span>}
@@ -226,8 +240,8 @@ function ApiKeysTab() {
   return (
     <Card>
       <CardHeader
-        title="API keys"
-        description="For EHR or RCM integrations. Keys are hashed at rest and shown once."
+        title="Access keys"
+        description="Let other systems, such as your EHR, connect to Necessa. A key is shown only once, so copy it when you create it."
         actions={
           <Button size="sm" variant="primary" onClick={() => (setOpen(true), setSecret(null), setName(""))}>
             <KeyRound /> Create key
@@ -235,7 +249,7 @@ function ApiKeysTab() {
         }
       />
       <CardBody className="grid gap-2">
-        {(keys.data ?? []).length === 0 ? <EmptyState compact art="shield" title="No API keys" /> : null}
+        {(keys.data ?? []).length === 0 ? <EmptyState compact art="shield" title="No access keys yet" /> : null}
         {(keys.data ?? []).map((k) => (
           <div key={k.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3 py-2.5">
             <KeyRound className="size-4 text-subtle" />
@@ -245,8 +259,8 @@ function ApiKeysTab() {
             </span>
             <span className="flex flex-wrap gap-1">
               {k.scopes.map((s) => (
-                <Badge key={s} size="xs" className="font-mono">
-                  {s}
+                <Badge key={s} size="xs">
+                  {PERM_LABEL[s] ?? s}
                 </Badge>
               ))}
             </span>
@@ -258,7 +272,7 @@ function ApiKeysTab() {
         ))}
       </CardBody>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent title={secret ? "Copy your API key" : "Create API key"} description={secret ? "This is the only time the full key is shown." : "Grant the minimum scopes the integration needs."}>
+        <DialogContent title={secret ? "Copy your access key" : "Create an access key"} description={secret ? "This is the only time the full key is shown." : "Give it only the access the connection needs."}>
           {secret ? (
             <div className="flex items-center gap-2 rounded-lg bg-surface-2 p-3">
               <code className="min-w-0 flex-1 break-all font-mono text-xs">{secret}</code>
@@ -269,14 +283,14 @@ function ApiKeysTab() {
           ) : (
             <div className="grid grid-cols-1 gap-4">
               <Field label="Name">
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Epic integration (prod)" autoFocus />
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="For example: EHR connection" autoFocus />
               </Field>
-              <Field label="Scopes">
+              <Field label="What it can do">
                 <div className="grid gap-2">
                   {SCOPES.map((s) => (
-                    <label key={s} className="flex items-center gap-2 font-mono text-xs">
+                    <label key={s} className="flex items-center gap-2 text-[13px]">
                       <Checkbox checked={scopes.includes(s)} onCheckedChange={(v) => setScopes(v ? [...scopes, s] : scopes.filter((x) => x !== s))} />
-                      {s}
+                      {PERM_LABEL[s] ?? s}
                     </label>
                   ))}
                 </div>
@@ -307,15 +321,15 @@ function PoliciesTab({ org }: { org: Org }) {
   return (
     <div className="grid grid-cols-1 gap-4">
       <Card>
-        <CardHeader title="Service levels" description="Drive case due dates and SLA alerts. Defaults mirror CMS-0057-F payer decision timeframes." />
+        <CardHeader title="Payer deadlines" description="Used for due dates and reminders. The defaults follow the CMS-0057-F payer decision timeframes." />
         <CardBody className="grid max-w-2xl gap-4 sm:grid-cols-2">
-          <Field label="Standard (hours)">
+          <Field label="Standard requests (hours)">
             <Input type="number" value={s.slaHoursStandard} onChange={(e) => setS({ ...s, slaHoursStandard: Number(e.target.value) })} />
           </Field>
-          <Field label="Expedited (hours)">
+          <Field label="Urgent requests (hours)">
             <Input type="number" value={s.slaHoursExpedited} onChange={(e) => setS({ ...s, slaHoursExpedited: Number(e.target.value) })} />
           </Field>
-          <Field label="Default policy as-of date" className="sm:col-span-2">
+          <Field label="Check policies as of" className="sm:col-span-2">
             <Select
               value={s.defaultAsOf}
               onValueChange={(v) => setS({ ...s, defaultAsOf: v as "dos" | "today" })}
@@ -328,23 +342,23 @@ function PoliciesTab({ org }: { org: Org }) {
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Security & retention" />
+        <CardHeader title="Security and record keeping" />
         <CardBody className="grid max-w-2xl gap-3">
           <label className="flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2.5">
             <span className="grid">
               <span className="text-[13px] font-medium">Require two-step verification</span>
-              <span className="text-xs text-muted">Members without MFA are blocked from case data until they enroll.</span>
+              <span className="text-xs text-muted">People who haven&apos;t set it up can&apos;t open case data until they do.</span>
             </span>
             <Switch checked={s.requireMfa} onCheckedChange={(v) => setS({ ...s, requireMfa: v })} />
           </label>
-          <Field label="Case data retention after closure">
+          <Field label="Keep case information after a case is closed">
             <Select
               value={String(s.dataRetentionDays)}
               onValueChange={(v) => setS({ ...s, dataRetentionDays: Number(v) })}
               options={[
                 { value: "90", label: "90 days" },
                 { value: "365", label: "1 year" },
-                { value: "2190", label: "6 years (HIPAA documentation)" },
+                { value: "2190", label: "6 years (typical for HIPAA records)" },
               ]}
             />
           </Field>
@@ -361,10 +375,10 @@ function IntegrationsTab() {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {[
-        { t: "FHIR R4 endpoint", d: "Pull Patient, Condition, Procedure and DocumentReference resources directly from your EHR (SMART on FHIR).", s: "Planned" },
-        { t: "Da Vinci PAS export", d: "Submit prior-auth bundles to payers that expose a CMS-0057-F Prior Authorization API.", s: "Planned" },
-        { t: "Webhooks", d: "case.evaluated, letter.approved and denial.recorded events, HMAC-signed.", s: "Available via API" },
-        { t: "CMS Medicare Coverage Database", d: "Weekly MCD export ingestion (AMA/ADA/AHA license accepted by an admin).", s: "Connected" },
+        { t: "EHR connection", d: "Bring patient information in directly from your electronic health record.", s: "Planned" },
+        { t: "Submit to payers", d: "Send prior-authorization requests electronically to payers that accept them (CMS-0057-F).", s: "Planned" },
+        { t: "Updates to your other systems", d: "Get a message when a case is checked, a letter is approved or a denial is recorded.", s: "Available on request" },
+        { t: "Medicare coverage policies", d: "The policy library is refreshed from the CMS Medicare Coverage Database.", s: "Connected" },
       ].map((x) => (
         <Card key={x.t}>
           <CardBody className="grid gap-2 pt-4">
@@ -387,7 +401,7 @@ export default function OrganizationSettingsPage() {
   const org = useOrg();
   return (
     <AppPage crumbs={<Breadcrumb items={[{ label: "Settings", href: "/settings" }, { label: "Organization" }]} />}>
-      <PageHeader title="Organization" description="Practice profile, team, access and integrations." />
+      <PageHeader title="Organization" description="Practice profile, people, access and connections." />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[200px_minmax(0,1fr)]">
         <div className="min-w-0 overflow-x-auto scrollbar-thin lg:overflow-visible">
           <SettingsNav />
@@ -396,10 +410,10 @@ export default function OrganizationSettingsPage() {
           {org.data ? (
             <Tabs defaultValue="members">
               <TabsList className="mb-5">
-                <TabsTrigger value="members">Members</TabsTrigger>
+                <TabsTrigger value="members">People</TabsTrigger>
                 <TabsTrigger value="profile">Profile</TabsTrigger>
-                <TabsTrigger value="keys">API keys</TabsTrigger>
-                <TabsTrigger value="policies">SLAs & security</TabsTrigger>
+                <TabsTrigger value="keys">Access keys</TabsTrigger>
+                <TabsTrigger value="policies">Deadlines &amp; security</TabsTrigger>
                 <TabsTrigger value="integrations">Integrations</TabsTrigger>
               </TabsList>
               <TabsContent value="members">

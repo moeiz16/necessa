@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, CircleCheck, CircleX, Layers, Plus, Sparkles, Trash2, XCircle } from "lucide-react";
+import { BadgeCheck, CircleCheck, CircleX, Layers, Plus, Trash2, XCircle } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -33,8 +33,8 @@ function updateAt(n: CriteriaNode, p: Path, fn: (x: CriteriaNode) => CriteriaNod
 const STOP = new Set(["the", "and", "for", "with", "that", "this", "must", "from", "are", "has", "have", "been", "per", "any", "all", "of", "to", "a", "an", "or", "in", "on", "be", "is", "by"]);
 const words = (t: string) => t.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter((w) => w.length > 1 && !STOP.has(w));
 
-/** Deterministic assist: the sentence/line in this edition that shares the most words with a quote
- *  that no longer matches verbatim (e.g. another contractor's wording). The reviewer decides. */
+/** Suggests the sentence in this policy that shares the most words with a quote that no longer matches
+ *  (for example, a different issuer's wording). The reviewer decides. */
 function closestPassage(quote: string, text: string): { text: string; score: number; section?: string } | null {
   const q = new Set(words(quote));
   if (!q.size) return null;
@@ -94,8 +94,8 @@ function Editor({ node, path, sections, onChange, selected, onSelect }: { node: 
     <div className={cn("grid gap-2 rounded-lg border bg-surface p-3", selected === node.id ? "border-brand shadow-[0_0_0_1px_var(--brand)]" : "border-border")} onFocus={() => onSelect(node.id ?? null)}>
       <div className="flex items-center gap-2">
         <span className="font-mono text-xs text-subtle">{node.id}</span>
-        <Input value={node.text ?? ""} onChange={(e) => onChange(path, (x) => ({ ...x, text: e.target.value }))} className="h-8" aria-label="Criterion text" />
-        <Button variant="ghost" size="icon-sm" aria-label="Remove criterion" onClick={() => onChange(path, () => null)}>
+        <Input value={node.text ?? ""} onChange={(e) => onChange(path, (x) => ({ ...x, text: e.target.value }))} className="h-8" aria-label="Requirement text" />
+        <Button variant="ghost" size="icon-sm" aria-label="Remove requirement" onClick={() => onChange(path, () => null)}>
           <Trash2 />
         </Button>
       </div>
@@ -105,13 +105,13 @@ function Editor({ node, path, sections, onChange, selected, onSelect }: { node: 
           className="w-40"
           value={node.kind ?? "positive"}
           onValueChange={(v) => onChange(path, (x) => ({ ...x, kind: v as CriteriaNode["kind"] }))}
-          aria-label="Kind"
+          aria-label="Type"
           options={[
             { value: "positive", label: "Clinical" },
             { value: "documentation", label: "Documentation" },
             { value: "temporal", label: "Duration" },
             { value: "numeric", label: "Measure" },
-            { value: "negative_attestation", label: "Attestation (negative)" },
+            { value: "negative_attestation", label: "Must be confirmed" },
           ]}
         />
         <Select
@@ -119,22 +119,20 @@ function Editor({ node, path, sections, onChange, selected, onSelect }: { node: 
           className="w-48"
           value={node.sourceSpan?.section ?? "indication"}
           onValueChange={(v) => onChange(path, (x) => ({ ...x, sourceSpan: { section: v, quote: x.sourceSpan?.quote ?? "" } }))}
-          aria-label="Source section"
+          aria-label="Policy section"
           options={Object.keys(sections).map((k) => ({ value: k, label: titleCase(k) }))}
         />
-        {node.kind === "temporal" ? <Input type="number" className="h-8 w-28" value={node.lookbackDays ?? ""} placeholder="lookback d" onChange={(e) => onChange(path, (x) => ({ ...x, lookbackDays: Number(e.target.value) || null }))} aria-label="Lookback days" /> : null}
+        {node.kind === "temporal" ? <Input type="number" className="h-8 w-28" value={node.lookbackDays ?? ""} placeholder="within days" onChange={(e) => onChange(path, (x) => ({ ...x, lookbackDays: Number(e.target.value) || null }))} aria-label="Within days" /> : null}
       </div>
       <div className="grid gap-1">
-        <Textarea value={node.sourceSpan?.quote ?? ""} onChange={(e) => onChange(path, (x) => ({ ...x, sourceSpan: { section: x.sourceSpan?.section ?? "indication", quote: e.target.value } }))} className="min-h-14 text-[12.5px]" aria-label="Source quote" />
+        <Textarea value={node.sourceSpan?.quote ?? ""} onChange={(e) => onChange(path, (x) => ({ ...x, sourceSpan: { section: x.sourceSpan?.section ?? "indication", quote: e.target.value } }))} className="min-h-14 text-[12.5px]" aria-label="Quote from the policy" />
         <p className={cn("flex items-center gap-1 text-xs", grounded ? "text-met-fg" : "text-notmet-fg")}>
           {grounded ? <CircleCheck className="size-3.5" /> : <CircleX className="size-3.5" />}
-          {grounded ? "Quote found verbatim in the policy section" : "Quote not found verbatim — fix before approving"}
+          {grounded ? "Quote matches the policy text" : "This quote doesn't match the policy text. Fix it before approving."}
         </p>
         {suggestion ? (
-          <div className="mt-1 grid gap-1.5 rounded-lg border border-dashed border-ai-2/40 bg-surface-2/50 p-2.5">
-            <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted">
-              <Sparkles className="size-3 text-ai-2" /> Closest passage in this edition · {Math.round(suggestion.score * 100)}% word overlap
-            </p>
+          <div className="mt-1 grid gap-1.5 rounded-lg border border-dashed border-border-strong bg-surface-2/50 p-2.5">
+            <p className="text-[11px] font-medium text-muted">Closest wording in this policy ({Math.round(suggestion.score * 100)}% similar)</p>
             <p className="text-[12.5px] leading-relaxed text-fg">“{suggestion.text}”</p>
             <div>
               <Button
@@ -144,7 +142,7 @@ function Editor({ node, path, sections, onChange, selected, onSelect }: { node: 
               >
                 Use this quote
               </Button>
-              <span className="ml-2 text-[11px] text-subtle">Check the meaning still matches the criterion before approving.</span>
+              <span className="ml-2 text-[11px] text-subtle">Check that the meaning still fits the requirement before approving.</span>
             </div>
           </div>
         ) : null}
@@ -193,7 +191,7 @@ export default function CriteriaEditorPage() {
   const canEdit = can("criteria:review");
 
   return (
-    <AppPage crumbs={<Breadcrumb items={[{ label: "Knowledge ops", href: "/knowledge?tab=criteria" }, { label: `${s.sourceKey} criteria` }]} />} wide>
+    <AppPage crumbs={<Breadcrumb items={[{ label: "Policy updates", href: "/knowledge?tab=review" }, { label: `${s.sourceKey} requirements` }]} />} wide>
       <div className="flex flex-col gap-3 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -211,10 +209,10 @@ export default function CriteriaEditorPage() {
             <Button variant="ghost" onClick={() => save.mutate({ tree, notes }, { onSuccess: () => toast.success("Draft saved") })} loading={save.isPending}>
               Save draft
             </Button>
-            <Button variant="secondary" onClick={() => save.mutate({ status: "rejected", notes }, { onSuccess: () => (toast.success("Rejected — recompilation queued"), router.push("/knowledge?tab=criteria")) })}>
+            <Button variant="secondary" onClick={() => save.mutate({ status: "rejected", notes }, { onSuccess: () => (toast.success("Checklist rejected"), router.push("/knowledge?tab=review")) })}>
               <XCircle /> Reject
             </Button>
-            <Button variant="primary" disabled={ungrounded > 0} onClick={() => save.mutate({ tree, notes, status: "approved" }, { onSuccess: () => (toast.success("Criteria approved", { description: "New evaluations will use this version." }), router.push("/knowledge?tab=criteria")) })}>
+            <Button variant="primary" disabled={ungrounded > 0} onClick={() => save.mutate({ tree, notes, status: "approved" }, { onSuccess: () => (toast.success("Checklist approved", { description: "New case checks will use it." }), router.push("/knowledge?tab=review")) })}>
               <BadgeCheck /> Approve
             </Button>
           </div>
@@ -225,10 +223,10 @@ export default function CriteriaEditorPage() {
         <div className="grid content-start gap-3">
           {ungrounded ? (
             <p className="rounded-lg bg-notmet-soft px-3 py-2 text-[13px] text-notmet-fg">
-              {ungrounded} criterion{ungrounded > 1 ? "a" : ""} not grounded verbatim — approval is blocked until every quote matches the source text.
+              {ungrounded} {ungrounded > 1 ? "requirements don't" : "requirement doesn't"} match the policy text. Approval is blocked until every quote does.
             </p>
           ) : (
-            <p className="rounded-lg bg-met-soft px-3 py-2 text-[13px] text-met-fg">All {leaves.length} criteria are grounded verbatim in the policy text.</p>
+            <p className="rounded-lg bg-met-soft px-3 py-2 text-[13px] text-met-fg">All {leaves.length} requirements match the policy text.</p>
           )}
           <Editor node={tree} path={[]} sections={sections} onChange={change} selected={selected} onSelect={setSelected} />
           {canEdit ? (
@@ -236,30 +234,28 @@ export default function CriteriaEditorPage() {
               variant="ghost"
               size="sm"
               className="w-fit"
-              onClick={() => setTree((t) => (t ? { ...t, children: [...(t.children ?? []), { id: nextId(t), text: "New criterion", kind: "documentation", sourceSpan: { section: "indication", quote: "" } }] } : t))}
+              onClick={() => setTree((t) => (t ? { ...t, children: [...(t.children ?? []), { id: nextId(t), text: "New requirement", kind: "documentation", sourceSpan: { section: "indication", quote: "" } }] } : t))}
             >
-              <Plus /> Add criterion
+              <Plus /> Add requirement
             </Button>
           ) : null}
         </div>
         <div className="grid content-start gap-4 xl:sticky xl:top-20">
           <Card>
-            <CardHeader title="Compilation report" />
+            <CardHeader title="How this checklist was prepared" />
             <CardBody>
               <DataList
                 items={[
-                  { label: "Extractor", value: <span className="font-mono text-xs">{s.extractorModel}</span> },
-                  { label: "Verifier", value: <span className="font-mono text-xs">{s.verifierModel}</span> },
-                  { label: "Model agreement", value: `${fmtPct(s.agreement)} (tree edit distance)` },
-                  { label: "Grounding pass rate", value: fmtPct(s.groundingPassRate) },
-                  { label: "Compiled", value: fmtDate(s.createdAt) },
+                  { label: "Prepared by", value: s.extractorModel?.startsWith("transfer:") ? `Imported from ${s.extractorModel.slice(9)}` : s.extractorModel === "curated" ? "Clinical content team" : "Prepared automatically" },
+                  { label: "Quotes matching the policy", value: fmtPct(s.groundingPassRate) },
+                  { label: "Prepared on", value: fmtDate(s.createdAt) },
                 ]}
               />
               <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reviewer notes" className="mt-4 min-h-20" />
             </CardBody>
           </Card>
           <Card className="max-h-[60vh] overflow-hidden">
-            <CardHeader title="Policy text" description={selectedLeaf ? `Showing ${selectedLeaf.sourceSpan?.section?.replace(/_/g, " ")} for ${selectedLeaf.id}` : "Focus a criterion to locate its source"} />
+            <CardHeader title="Policy text" description={selectedLeaf ? `Showing ${selectedLeaf.sourceSpan?.section?.replace(/_/g, " ")} for ${selectedLeaf.id}` : "Select a requirement to see where it comes from"} />
             <CardBody className="max-h-[48vh] overflow-y-auto scrollbar-thin">
               {(policy.data?.sections ?? [])
                 .filter((sec) => !selectedLeaf || sec.sectionKey === selectedLeaf.sourceSpan?.section)

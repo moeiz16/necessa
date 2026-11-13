@@ -89,7 +89,7 @@ function MfaDisable({ open, onOpenChange }: { open: boolean; onOpenChange: (v: b
   const [busy, setBusy] = useState(false);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Disable two-step verification?" description="Enter a current code from your authenticator app to confirm. Organizations that require MFA will block access until you re-enroll." size="sm">
+      <DialogContent title="Disable two-step verification?" description="Enter a current code from your authenticator app to confirm. Practices that require two-step verification will block access until you re-enroll." size="sm">
         <Field label="6-digit code">
           <Input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" className="font-mono tracking-[0.3em]" autoFocus />
         </Field>
@@ -161,7 +161,7 @@ export default function SettingsPage() {
 
           <TabsContent value="profile">
             <Card>
-              <CardHeader title="Profile" description="Shown on case activity, letters and the audit log." />
+              <CardHeader title="Profile" description="Shown on case activity, letters and the compliance log." />
               <CardBody className="grid max-w-lg gap-4">
                 <div className="flex items-center gap-3">
                   <Avatar name={me.user.fullName} color={me.user.avatarColor} size={48} />
@@ -185,7 +185,7 @@ export default function SettingsPage() {
 
           <TabsContent value="security" className="grid gap-4">
             <Card>
-              <CardHeader title="Two-step verification" description="Protects PHI access even if your password is compromised." />
+              <CardHeader title="Two-step verification" description="Adds a second step at sign-in, so patient information stays protected even if your password is stolen." />
               <CardBody className="flex flex-wrap items-center justify-between gap-3">
                 <span className="flex items-center gap-2 text-[13px]">
                   {me.user.mfaEnabled ? <ShieldCheck className="size-5 text-met" /> : <ShieldOff className="size-5 text-subtle" />}
