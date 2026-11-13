@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, CircleCheck, CircleX, Layers, Plus, Trash2, XCircle } from "lucide-react";
+import { BadgeCheck, CircleCheck, CircleX, Layers, Plus, Sparkles, Trash2, XCircle } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import type { CriteriaNode } from "@/lib/api/types";
 import { fmtDate, fmtPct, titleCase } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AppPage } from "@/components/shell/app-shell";
+import { quoteFound } from "@/components/policies/criteria-tree";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/controls";
 import { Badge, Breadcrumb, Card, CardBody, CardHeader, DataList, Skeleton } from "@/components/ui/display";
@@ -27,6 +28,26 @@ function updateAt(n: CriteriaNode, p: Path, fn: (x: CriteriaNode) => CriteriaNod
     else children[h!] = next;
   } else children[h!] = updateAt(children[h!]!, rest, fn);
   return { ...n, children };
+}
+
+const STOP = new Set(["the", "and", "for", "with", "that", "this", "must", "from", "are", "has", "have", "been", "per", "any", "all", "of", "to", "a", "an", "or", "in", "on", "be", "is", "by"]);
+const words = (t: string) => t.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter((w) => w.length > 1 && !STOP.has(w));
+
+/** Deterministic assist: the sentence/line in this edition that shares the most words with a quote
+ *  that no longer matches verbatim (e.g. another contractor's wording). The reviewer decides. */
+function closestPassage(quote: string, text: string): { text: string; score: number; section?: string } | null {
+  const q = new Set(words(quote));
+  if (!q.size) return null;
+  let best: { text: string; score: number } | null = null;
+  for (const raw of text.split(/\n+|(?<=\.)\s+(?=[A-Z0-9])/)) {
+    const cand = raw.replace(/^\s*\d+\.\s*/, "").trim();
+    if (cand.length < 12) continue;
+    const c = new Set(words(cand));
+    const inter = [...q].filter((w) => c.has(w)).length;
+    const score = inter / new Set([...q, ...c]).size;
+    if (!best || score > best.score) best = { text: cand, score };
+  }
+  return best && best.score >= 0.3 ? best : null;
 }
 
 function nextId(tree: CriteriaNode) {
@@ -66,7 +87,9 @@ function Editor({ node, path, sections, onChange, selected, onSelect }: { node: 
     );
   }
   const sectionText = sections[node.sourceSpan?.section ?? ""] ?? "";
-  const grounded = !!node.sourceSpan?.quote && sectionText.toLowerCase().includes(node.sourceSpan.quote.toLowerCase());
+  const quote = node.sourceSpan?.quote ?? "";
+  const grounded = !!quote && quoteFound(quote, sectionText);
+  const suggestion = !grounded && quote.length > 12 ? closestPassage(quote, Object.values(sections).join("\n")) : null;
   return (
     <div className={cn("grid gap-2 rounded-lg border bg-surface p-3", selected === node.id ? "border-brand shadow-[0_0_0_1px_var(--brand)]" : "border-border")} onFocus={() => onSelect(node.id ?? null)}>
       <div className="flex items-center gap-2">
@@ -107,6 +130,24 @@ function Editor({ node, path, sections, onChange, selected, onSelect }: { node: 
           {grounded ? <CircleCheck className="size-3.5" /> : <CircleX className="size-3.5" />}
           {grounded ? "Quote found verbatim in the policy section" : "Quote not found verbatim — fix before approving"}
         </p>
+        {suggestion ? (
+          <div className="mt-1 grid gap-1.5 rounded-lg border border-dashed border-ai-2/40 bg-surface-2/50 p-2.5">
+            <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted">
+              <Sparkles className="size-3 text-ai-2" /> Closest passage in this edition · {Math.round(suggestion.score * 100)}% word overlap
+            </p>
+            <p className="text-[12.5px] leading-relaxed text-fg">“{suggestion.text}”</p>
+            <div>
+              <Button
+                size="xs"
+                variant="secondary"
+                onClick={() => onChange(path, (x) => ({ ...x, sourceSpan: { section: suggestion.section ?? x.sourceSpan?.section ?? "indication", quote: suggestion.text } }))}
+              >
+                Use this quote
+              </Button>
+              <span className="ml-2 text-[11px] text-subtle">Check the meaning still matches the criterion before approving.</span>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -117,7 +158,8 @@ export default function CriteriaEditorPage() {
   const router = useRouter();
   const { can } = useSession();
   const set = useCriteriaSet(id);
-  const policyId = set.data?.sourceKey ? `pol-${set.data.sourceKey.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : "";
+  // The policy endpoint accepts the CMS source key, so this works against both the API and demo mode.
+  const policyId = set.data?.sourceKey ?? "";
   const policy = usePolicy(policyId);
   const save = useUpdateCriteriaSet(id);
   const [tree, setTree] = useState<CriteriaNode | null>(null);
@@ -137,7 +179,7 @@ export default function CriteriaEditorPage() {
     if (tree) walk(tree);
     return out;
   }, [tree]);
-  const ungrounded = leaves.filter((l) => !(l.sourceSpan?.quote && (sections[l.sourceSpan.section] ?? "").toLowerCase().includes(l.sourceSpan.quote.toLowerCase()))).length;
+  const ungrounded = leaves.filter((l) => !(l.sourceSpan?.quote && quoteFound(l.sourceSpan.quote, sections[l.sourceSpan.section] ?? ""))).length;
   const selectedLeaf = leaves.find((l) => l.id === selected);
 
   if (set.isPending || !tree)
