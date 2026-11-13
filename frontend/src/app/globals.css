@@ -1,0 +1,286 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Necessa design tokens — see DESIGN.md
+   Neutrals are "paper & ink": slightly warm light canvas, cool-ink dark canvas.
+   Brand = Iris (blue-violet). Verdict colors are reserved for criteria states.
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  --bg: #f8f8f6;
+  --surface: #ffffff;
+  --surface-2: #f3f3f0;
+  --surface-3: #ebebe7;
+  --border: #e4e4df;
+  --border-strong: #d1d1ca;
+  --fg: #121417;
+  --fg-muted: #565b64;
+  --fg-subtle: #858a93;
+
+  --brand: #3e4bdb;
+  --brand-hover: #3340c4;
+  --brand-soft: #eceefe;
+  --brand-fg: #2b36a8;
+  --brand-contrast: #ffffff;
+  --ring: #6672f0;
+
+  --met: #0f7a55;
+  --met-soft: #e4f4eb;
+  --met-fg: #0b5e41;
+  --notmet: #c0352b;
+  --notmet-soft: #fbe9e7;
+  --notmet-fg: #9b2920;
+  --insufficient: #b26b00;
+  --insufficient-soft: #fdf1da;
+  --insufficient-fg: #8a5300;
+  --degraded: #6b7280;
+  --degraded-soft: #eff0f2;
+  --degraded-fg: #4b5260;
+  --info: #1f6fd1;
+  --info-soft: #e7f0fc;
+
+  --ai-1: #5b5bf6;
+  --ai-2: #8b5cf6;
+  --ai-3: #1fb5cc;
+
+  --shadow-1: 0 1px 2px rgb(16 18 23 / 0.05), 0 0 0 1px rgb(16 18 23 / 0.04);
+  --shadow-2: 0 4px 12px -2px rgb(16 18 23 / 0.08), 0 0 0 1px rgb(16 18 23 / 0.05);
+  --shadow-3: 0 18px 48px -12px rgb(16 18 23 / 0.18), 0 0 0 1px rgb(16 18 23 / 0.06);
+  --grid-line: rgb(18 20 23 / 0.045);
+}
+
+.dark {
+  --bg: #0a0b0d;
+  --surface: #111316;
+  --surface-2: #16191d;
+  --surface-3: #1d2126;
+  --border: #23272d;
+  --border-strong: #31363e;
+  --fg: #ecedef;
+  --fg-muted: #a3a9b2;
+  --fg-subtle: #737a84;
+
+  --brand: #7d87ff;
+  --brand-hover: #9199ff;
+  --brand-soft: #1a1d3b;
+  --brand-fg: #b5bbff;
+  --brand-contrast: #0a0b1a;
+  --ring: #8e97ff;
+
+  --met: #3cc48c;
+  --met-soft: #0f2a20;
+  --met-fg: #74e2b3;
+  --notmet: #f2685c;
+  --notmet-soft: #33140f;
+  --notmet-fg: #ff9d93;
+  --insufficient: #f0a53a;
+  --insufficient-soft: #33230b;
+  --insufficient-fg: #ffc673;
+  --degraded: #8a919b;
+  --degraded-soft: #1c1f24;
+  --degraded-fg: #b6bcc5;
+  --info: #5aa2ff;
+  --info-soft: #0f2038;
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px rgb(255 255 255 / 0.04);
+  --shadow-2: 0 6px 16px -4px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.06);
+  --shadow-3: 0 24px 56px -12px rgb(0 0 0 / 0.65), 0 0 0 1px rgb(255 255 255 / 0.07);
+  --grid-line: rgb(255 255 255 / 0.04);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-subtle: var(--fg-subtle);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-fg: var(--brand-fg);
+  --color-brand-contrast: var(--brand-contrast);
+  --color-ring: var(--ring);
+  --color-met: var(--met);
+  --color-met-soft: var(--met-soft);
+  --color-met-fg: var(--met-fg);
+  --color-notmet: var(--notmet);
+  --color-notmet-soft: var(--notmet-soft);
+  --color-notmet-fg: var(--notmet-fg);
+  --color-insufficient: var(--insufficient);
+  --color-insufficient-soft: var(--insufficient-soft);
+  --color-insufficient-fg: var(--insufficient-fg);
+  --color-degraded: var(--degraded);
+  --color-degraded-soft: var(--degraded-soft);
+  --color-degraded-fg: var(--degraded-fg);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-ai-1: var(--ai-1);
+  --color-ai-2: var(--ai-2);
+  --color-ai-3: var(--ai-3);
+
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  --font-display: var(--font-instrument), ui-serif, Georgia, serif;
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 22px;
+
+  --shadow-e1: var(--shadow-1);
+  --shadow-e2: var(--shadow-2);
+  --shadow-e3: var(--shadow-3);
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-spring: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-pulse-dot: pulse-dot 1.4s ease-in-out infinite;
+  --animate-fade-in: fade-in 180ms var(--ease-out-quart) both;
+  --animate-rise: rise 240ms var(--ease-out-quart) both;
+}
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes sheet-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+@keyframes sheet-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+@keyframes stroke-draw {
+  from { stroke-dashoffset: var(--len, 40); }
+  to { stroke-dashoffset: 0; }
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--brand) 22%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--fg-subtle);
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+  .ai-gradient {
+    background-image: linear-gradient(120deg, var(--ai-1), var(--ai-2) 55%, var(--ai-3));
+  }
+  .ai-gradient-text {
+    background-image: linear-gradient(120deg, var(--ai-1), var(--ai-2) 55%, var(--ai-3));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .ai-border {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(var(--surface), var(--surface)) padding-box,
+      linear-gradient(120deg, var(--ai-1), var(--ai-2) 55%, var(--ai-3)) border-box;
+  }
+  .bg-grid {
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  .mark-evidence {
+    background: color-mix(in oklab, var(--met) 18%, transparent);
+    box-shadow: inset 0 -2px 0 color-mix(in oklab, var(--met) 55%, transparent);
+    border-radius: 2px;
+  }
+  .mark-policy {
+    background: color-mix(in oklab, var(--brand) 16%, transparent);
+    box-shadow: inset 0 -2px 0 color-mix(in oklab, var(--brand) 55%, transparent);
+    border-radius: 2px;
+  }
+  .mark-active {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* React Flow theming */
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-node-border-radius: 10px;
+  --xy-edge-stroke: var(--border-strong);
+  --xy-controls-button-background-color: var(--surface);
+  --xy-controls-button-border-color: var(--border);
+  --xy-controls-button-color: var(--fg);
+}
+.react-flow__attribution {
+  display: none;
+}
