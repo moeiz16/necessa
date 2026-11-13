@@ -238,6 +238,9 @@ async def _execute(sql: str, org_id: uuid.UUID, dialect: str) -> tuple[list[str]
             if dialect == "postgresql":
                 await conn.execute(text("SET TRANSACTION READ ONLY"))
                 await conn.execute(text(f"SET LOCAL statement_timeout = {int(STATEMENT_TIMEOUT_S * 1000)}"))
+                # Row-level security (see the tenant RLS migration) keys off this transaction-local
+                # setting, so generated SQL is tenant-isolated even if the validator were bypassed.
+                await conn.execute(text("SELECT set_config('app.org_id', :org, true)"), {"org": org_param})
             elif dialect == "sqlite":
                 await conn.execute(text("PRAGMA query_only = 1"))
             try:
