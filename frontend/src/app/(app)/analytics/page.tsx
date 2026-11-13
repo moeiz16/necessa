@@ -1,14 +1,14 @@
 "use client";
 
-import { CheckCheck, Clock3, Database, Gauge, Gavel, ListChecks, ShieldAlert, Sparkles, Timer, TrendingUp, Users } from "lucide-react";
+import { Search } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useAnalytics, useAskAnalytics, useTeam } from "@/lib/api/hooks";
-import type { AnalyticsOverview } from "@/lib/api/types";
+import type { AnalyticsOverview, SqlResult } from "@/lib/api/types";
 import { fmtNumber, fmtPct, PAYER_LABEL, ROLE_LABEL, titleCase } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AppPage } from "@/components/shell/app-shell";
-import { SqlAnswer } from "@/components/assistant/chat";
+import { Legend, SqlChart } from "@/components/charts/charts";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/controls";
 import { Avatar, Breadcrumb, Card, CardBody, CardHeader, PageHeader, Skeleton } from "@/components/ui/display";
@@ -18,85 +18,64 @@ import { StatCard } from "@/components/ui/widgets";
 
 const VolumeChart = dynamic(() => import("./_charts").then((m) => m.VolumeChart), { ssr: false, loading: () => <Skeleton className="h-[230px] w-full rounded-lg" /> });
 const ReadinessChart = dynamic(() => import("./_charts").then((m) => m.ReadinessChart), { ssr: false, loading: () => <Skeleton className="h-[230px] w-full rounded-lg" /> });
-const DonutChart = dynamic(() => import("./_charts").then((m) => m.DonutChart), { ssr: false, loading: () => <Skeleton className="h-[150px] w-full rounded-full" /> });
 
-const PALETTE = ["var(--brand)", "var(--ai-3)", "var(--ai-2)", "var(--insufficient)", "var(--met)", "var(--notmet)"];
-const PROMPTS = ["Top 5 gap criteria this month", "Denials by category this month", "Average turnaround hours by week", "Cases and readiness by payer"];
+const PROMPTS = ["Top documentation gaps this month", "Denials by reason this month", "Average turnaround by week", "Cases by payer"];
 
-/** Average time-to-submission against the CMS-0057-F payer decision clocks (72 h expedited, 7 days standard). */
-function ClockGauge({ hours }: { hours: number }) {
+const DENIAL_LABEL: Record<string, string> = {
+  medical_necessity: "Medical necessity not shown",
+  documentation: "Missing documentation",
+  coding: "Coding mismatch",
+  eligibility: "Eligibility",
+  timely_filing: "Filed late",
+  prior_authorization: "Prior authorization missing",
+  other: "Other",
+};
+
+/** Hours from case created to submitted, against the payer decision deadlines (CMS-0057-F: 72 h urgent, 7 days standard). */
+function Turnaround({ hours }: { hours: number | null | undefined }) {
+  if (hours == null) return <p className="text-sm text-muted">Turnaround appears once cases have been submitted.</p>;
   const max = 168;
-  const pct = Math.min(1, hours / max);
-  const status = hours <= 72 ? "met" : hours <= 168 ? "insufficient" : "notmet";
+  const tone = hours <= 72 ? "bg-met" : hours <= 168 ? "bg-insufficient" : "bg-notmet";
   return (
-    <div className="grid gap-3">
-      <div className="flex items-end gap-2">
-        <span className="tabular text-[28px] font-semibold leading-none tracking-[-0.03em] text-fg">{fmtNumber(hours, { maximumFractionDigits: 1 })}</span>
-        <span className="pb-0.5 text-sm text-muted">hours, request created → submitted</span>
-      </div>
-      <div className="relative pt-5">
-        <div className="relative h-2.5 overflow-hidden rounded-full bg-surface-3">
-          <div className="absolute inset-y-0 left-0 bg-met/20" style={{ width: `${(72 / max) * 100}%` }} />
-          <div className={cn("absolute inset-y-0 left-0 rounded-full", status === "met" ? "bg-met" : status === "insufficient" ? "bg-insufficient" : "bg-notmet")} style={{ width: `${pct * 100}%` }} />
+    <div className="grid grid-cols-1 gap-4">
+      <p className="tabular text-[28px] font-semibold leading-none tracking-tight text-fg">
+        {hours >= 48 ? `${fmtNumber(hours / 24, { maximumFractionDigits: 1 })} days` : `${fmtNumber(hours, { maximumFractionDigits: 1 })} hours`}
+        <span className="ml-2 text-sm font-normal text-muted">on average, from request to submission</span>
+      </p>
+      <div className="relative pb-6">
+        <div className="h-2 overflow-hidden rounded-full bg-surface-3">
+          <div className={cn("h-full rounded-full", tone)} style={{ width: `${Math.min(1, hours / max) * 100}%` }} />
         </div>
-        {[
-          { at: 72, label: "72 h · expedited clock" },
-          { at: 168, label: "7 d · standard clock" },
-        ].map((m) => (
-          <div key={m.at} className="absolute top-0 -translate-x-full text-right" style={{ left: `${(m.at / max) * 100}%` }}>
-            <span className="whitespace-nowrap pr-1 text-[10.5px] text-subtle">{m.label}</span>
-            <span className="absolute right-0 top-4 h-[18px] w-px bg-border-strong" aria-hidden />
-          </div>
-        ))}
+        <span className="absolute top-0 h-2 w-px bg-fg/50" style={{ left: `${(72 / max) * 100}%` }} aria-hidden />
+        <span className="absolute top-3 -translate-x-1/2 whitespace-nowrap text-[11px] text-subtle" style={{ left: `${(72 / max) * 100}%` }}>
+          72 h urgent
+        </span>
+        <span className="absolute right-0 top-3 whitespace-nowrap text-[11px] text-subtle">7 days standard</span>
       </div>
       <p className="text-xs leading-relaxed text-muted">
-        {status === "met"
-          ? "Packets leave well inside even the expedited payer window, leaving room for a second documentation pass."
-          : status === "insufficient"
-            ? "Faster than the 7-day standard clock, but not the 72-hour expedited one — prioritize expedited cases in the worklist."
-            : "Slower than the standard payer clock — documentation is likely being requested after submission."}
+        {hours <= 72
+          ? "Requests leave well inside even the urgent payer deadline, leaving time for a second look."
+          : hours <= 168
+            ? "Inside the 7-day standard deadline, but not the 72-hour urgent one. Prioritize urgent cases in the worklist."
+            : "Slower than the standard payer deadline. Missing documentation is likely being requested after submission."}
       </p>
     </div>
   );
 }
 
-function PayerMix({ rows }: { rows: AnalyticsOverview["payerMix"] }) {
-  const total = rows.reduce((a, r) => a + r.count, 0) || 1;
-  const sorted = [...rows].sort((a, b) => b.count - a.count);
+function BarList({ items, tone = "bg-insufficient" }: { items: { label: string; value: number; sub?: string }[]; tone?: string }) {
+  const max = Math.max(1, ...items.map((i) => i.value));
   return (
-    <div className="grid gap-3">
-      <div className="flex h-2.5 overflow-hidden rounded-full bg-surface-3" aria-hidden>
-        {sorted.map((r, i) => (
-          <span key={r.payerType} style={{ width: `${(r.count / total) * 100}%`, background: PALETTE[i % PALETTE.length] }} />
-        ))}
-      </div>
-      <ul className="grid gap-2">
-        {sorted.map((r, i) => (
-          <li key={r.payerType} className="flex items-center gap-2 text-[13px]">
-            <span className="size-2.5 rounded-sm" style={{ background: PALETTE[i % PALETTE.length] }} />
-            <span className="text-fg">{PAYER_LABEL[r.payerType] ?? titleCase(r.payerType)}</span>
-            <span className="tabular ml-auto text-muted">{r.count}</span>
-            <span className="tabular w-10 text-right text-xs text-subtle">{Math.round((r.count / total) * 100)}%</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function GapRank({ items }: { items: AnalyticsOverview["topGapCriteria"] }) {
-  const max = Math.max(1, ...items.map((i) => i.count));
-  return (
-    <ol className="grid gap-3">
-      {items.map((g, i) => (
-        <li key={g.criterionText} className="grid gap-1.5">
-          <div className="flex items-start gap-2 text-[13px]">
-            <span className="tabular mt-px w-4 text-xs text-subtle">{i + 1}</span>
-            <span className="flex-1 text-fg">{g.criterionText}</span>
-            <span className="tabular font-medium text-fg">{g.count}</span>
+    <ol className="grid gap-3.5">
+      {items.map((it) => (
+        <li key={it.label} className="grid gap-1.5">
+          <div className="flex items-baseline gap-3 text-[13px]">
+            <span className="flex-1 text-fg">{it.label}</span>
+            {it.sub ? <span className="text-xs text-subtle">{it.sub}</span> : null}
+            <span className="tabular font-medium text-fg">{it.value}</span>
           </div>
-          <div className="ml-6 h-1.5 overflow-hidden rounded-full bg-surface-3">
-            <div className="h-full rounded-full bg-insufficient transition-[width] duration-700" style={{ width: `${(g.count / max) * 100}%` }} />
+          <div className="h-1.5 overflow-hidden rounded-full bg-surface-3">
+            <div className={cn("h-full rounded-full", tone)} style={{ width: `${(it.value / max) * 100}%` }} />
           </div>
         </li>
       ))}
@@ -104,19 +83,58 @@ function GapRank({ items }: { items: AnalyticsOverview["topGapCriteria"] }) {
   );
 }
 
-function Legend({ items }: { items: { label: string; color: string }[] }) {
+function PayerMix({ rows }: { rows: AnalyticsOverview["payerMix"] }) {
+  const total = rows.reduce((a, r) => a + r.count, 0) || 1;
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-      {items.map((i) => (
-        <span key={i.label} className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-sm" style={{ background: i.color }} /> {i.label}
-        </span>
-      ))}
+    <BarList
+      tone="bg-brand"
+      items={[...rows]
+        .sort((a, b) => b.count - a.count)
+        .map((r) => ({ label: PAYER_LABEL[r.payerType] ?? titleCase(r.payerType), value: r.count, sub: `${Math.round((r.count / total) * 100)}%` }))}
+    />
+  );
+}
+
+/** A plain answer: a sentence, a chart when it helps, and a table. How the answer was produced is never shown. */
+function Answer({ result }: { result: SqlResult }) {
+  const hasRows = result.rows.length > 0;
+  return (
+    <div className="grid gap-3">
+      {result.summary ? <p className="text-[13.5px] leading-relaxed text-fg">{result.summary}</p> : null}
+      {hasRows ? <SqlChart result={result} height={200} /> : null}
+      {hasRows ? (
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full text-[13px]">
+            <thead className="bg-surface-2/60 text-xs text-muted">
+              <tr>
+                {result.columns.map((c) => (
+                  <th key={c} scope="col" className="px-3 py-2 text-left font-medium">
+                    {titleCase(c.replace(/_/g, " "))}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {result.rows.slice(0, 12).map((row, i) => (
+                <tr key={i} className="border-t border-border/70">
+                  {row.map((v, j) => (
+                    <td key={j} className="tabular px-3 py-2 text-fg">
+                      {v == null ? "–" : typeof v === "number" ? fmtNumber(v, { maximumFractionDigits: 2 }) : String(v)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-sm text-muted">No matching cases for that question yet.</p>
+      )}
     </div>
   );
 }
 
-export default function AnalyticsPage() {
+export default function InsightsPage() {
   const [range, setRange] = useState("30d");
   const a = useAnalytics(range);
   const team = useTeam();
@@ -124,147 +142,105 @@ export default function AnalyticsPage() {
   const [question, setQuestion] = useState("");
   const d = a.data;
   const days = Number(range.replace("d", ""));
-  const run = (text: string) => {
-    setQuestion(text);
-    ask.mutate(text);
-  };
   const teamMax = Math.max(1, ...(team.data ?? []).map((t) => t.completed30d));
+  const submit = (text: string) => {
+    const q = text.trim();
+    if (!q) return;
+    setQuestion(q);
+    ask.mutate(q);
+  };
 
   return (
-    <AppPage crumbs={<Breadcrumb items={[{ label: "Insights" }, { label: "Analytics" }]} />} wide>
+    <AppPage crumbs={<Breadcrumb items={[{ label: "Insights" }]} />} wide>
       <PageHeader
-        title="Analytics"
-        description="Volume, readiness, turnaround and denials — computed from your organization's own cases, isolated by tenant at the database."
+        title="Insights"
+        description="How your prior-authorization work is performing: turnaround, documentation gaps, denials and team capacity."
         actions={<Segmented value={range} onValueChange={setRange} options={[{ value: "7d", label: "7 days" }, { value: "30d", label: "30 days" }, { value: "90d", label: "90 days" }]} />}
       />
 
-      <Card className="ai-border mb-6">
-        <CardHeader title="Ask a question about your data" description="Natural language → validated, read-only SQL over allowlisted, tenant-scoped views. The generated query is always shown." icon={<Sparkles className="text-ai-2" />} />
-        <CardBody className="grid gap-3">
-          <form
-            className="flex flex-col gap-2 sm:flex-row"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (question.trim()) ask.mutate(question.trim());
-            }}
-          >
-            <div className="min-w-0 flex-1">
-              <Input leading={<Database />} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="e.g. Which criteria caused the most gaps for Medicare FFS this month?" aria-label="Analytics question" className="h-10" />
-            </div>
-            <Button type="submit" variant="primary" className="h-10 px-5" loading={ask.isPending} disabled={!question.trim()}>
-              Ask
-            </Button>
-          </form>
-          <div className="flex flex-wrap gap-1.5">
-            {PROMPTS.map((p) => (
-              <button key={p} onClick={() => run(p)} className="rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted transition-colors hover:border-border-strong hover:text-fg">
-                {p}
-              </button>
-            ))}
-          </div>
-          {ask.isPending ? <Skeleton className="h-40 rounded-xl" /> : null}
-          {ask.data && !ask.isPending ? (
-            <div className="grid gap-2">
-              {ask.data.summary ? <p className="text-[13px] leading-relaxed text-fg">{ask.data.summary}</p> : null}
-              {ask.data.warnings?.length ? (
-                <ul className="grid gap-1">
-                  {ask.data.warnings.map((w) => (
-                    <li key={w} className="flex items-start gap-2 rounded-md bg-insufficient-soft/60 px-2.5 py-1.5 text-xs text-insufficient-fg">
-                      <ShieldAlert className="mt-px size-3.5 shrink-0" /> {w}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              <SqlAnswer sql={ask.data} />
-            </div>
-          ) : null}
-        </CardBody>
-      </Card>
-
       {!d ? (
         <div className="grid grid-cols-1 gap-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[104px] rounded-xl" />)}</div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[104px] rounded-xl" />)}</div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-[300px] rounded-xl" />)}</div>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Ready-to-submit rate" value={fmtPct(d.kpis.readyRate)} icon={<Gauge />} hint="Share of evaluated cases with every criterion documented" />
-            <StatCard label="Avg readiness score" value={fmtPct(d.kpis.avgReadinessScore)} icon={<TrendingUp />} hint="Mean completeness across evaluated criteria" />
-            <StatCard label="Gaps caught pre-submission" value={fmtNumber(d.kpis.gapsCaughtPreSubmission)} icon={<CheckCheck />} hint="Documentation gaps flagged before the packet left the practice" />
-            <StatCard label="Appeals overturned" value={`${d.kpis.appealsOverturned} / ${d.kpis.deniedCases}`} icon={<Gavel />} hint="Denials overturned on appeal / total denials" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Ready to submit" value={fmtPct(d.kpis.readyRate)} hint="Cases with every requirement documented" />
+            <StatCard
+              label="Average turnaround"
+              value={d.kpis.avgTurnaroundHours == null ? "–" : `${fmtNumber(d.kpis.avgTurnaroundHours, { maximumFractionDigits: 1 })} h`}
+              hint="Payer deadlines: 72 h urgent, 7 days standard"
+            />
+            <StatCard label="Gaps fixed before submission" value={fmtNumber(d.kpis.gapsCaughtPreSubmission)} hint="Caught before the payer saw them" />
+            <StatCard label="Staff time saved" value={`${fmtNumber(d.kpis.estimatedHoursSaved, { maximumFractionDigits: 1 })} h`} hint="Estimated from cases prepared in this period" />
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card>
-              <CardHeader title="Case volume" description={`New prior-authorization cases per day · last ${days} days`} />
-              <CardBody className="grid gap-2">
-                <Legend items={[{ label: "Daily", color: "color-mix(in srgb, var(--brand) 30%, transparent)" }, { label: "7-day average", color: "var(--brand)" }]} />
-                {d.trends.casesByDay.some((x) => x.count) ? <VolumeChart data={d.trends.casesByDay} /> : <EmptyState compact art="chart" title="No cases in this range" />}
-              </CardBody>
+              <CardHeader title="New cases" description={`Per day, last ${days} days`} />
+              <CardBody>{d.trends.casesByDay.some((x) => x.count) ? <VolumeChart data={d.trends.casesByDay} /> : <EmptyState compact art="chart" title="No cases in this period" />}</CardBody>
             </Card>
             <Card>
-              <CardHeader title="Readiness outcomes" description="Evaluated cases by week" />
+              <CardHeader title="Documentation readiness" description="Cases checked each week" />
               <CardBody className="grid gap-2">
-                <Legend items={[{ label: "Ready", color: "var(--met)" }, { label: "Gaps", color: "var(--insufficient)" }, { label: "Not supported", color: "var(--notmet)" }]} />
-                {d.trends.readinessByWeek.length ? <ReadinessChart data={d.trends.readinessByWeek} /> : <EmptyState compact art="chart" title="No evaluations in this range" />}
+                {d.trends.readinessByWeek.length ? (
+                  <>
+                    <Legend items={[{ label: "Ready to submit", color: "var(--met)" }, { label: "Needs more documentation", color: "var(--insufficient)" }, { label: "Not supported by policy", color: "var(--notmet)" }]} />
+                    <ReadinessChart data={d.trends.readinessByWeek} />
+                  </>
+                ) : (
+                  <EmptyState compact art="chart" title="No cases checked in this period" />
+                )}
               </CardBody>
             </Card>
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <Card>
-              <CardHeader title="Turnaround vs payer clocks" description="CMS-0057-F decision timeframes, in force since Jan 2026" icon={<Timer />} />
+              <CardHeader title="Turnaround" description="Compared with payer decision deadlines" />
               <CardBody>
-                <ClockGauge hours={d.kpis.avgTurnaroundHours} />
+                <Turnaround hours={d.kpis.avgTurnaroundHours} />
               </CardBody>
             </Card>
             <Card>
-              <CardHeader title="Denial categories" description="Recorded payer denials, by mapped reason" icon={<Gavel />} />
-              <CardBody>
+              <CardHeader title="Why cases are denied" description="Reasons on denials you've recorded" />
+              <CardBody className="grid gap-4">
                 {d.denialReasons.length ? (
-                  <div className="grid grid-cols-[minmax(0,120px)_1fr] items-center gap-4 sm:grid-cols-[140px_1fr]">
-                    <DonutChart data={d.denialReasons.map((r) => ({ name: titleCase(r.category), value: r.count }))} />
-                    <ul className="grid gap-1.5">
-                      {d.denialReasons.map((r, i) => (
-                        <li key={r.category} className="flex items-center gap-2 text-[13px]">
-                          <span className="size-2.5 rounded-sm" style={{ background: PALETTE[i % PALETTE.length] }} />
-                          <span className="text-fg">{titleCase(r.category)}</span>
-                          <span className="tabular ml-auto text-muted">{r.count}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  <BarList items={d.denialReasons.map((r) => ({ label: DENIAL_LABEL[r.category] ?? titleCase(r.category), value: r.count }))} />
                 ) : (
                   <EmptyState compact art="chart" title="No denials recorded" />
                 )}
+                <p className="border-t border-border pt-3 text-[13px] text-muted">
+                  Appeals overturned: <span className="tabular font-medium text-fg">{d.kpis.appealsOverturned}</span> of <span className="tabular font-medium text-fg">{d.kpis.deniedCases}</span>
+                </p>
               </CardBody>
             </Card>
             <Card>
-              <CardHeader title="Payer mix" description="Cases by payer type" icon={<Clock3 />} />
-              <CardBody>{d.payerMix.length ? <PayerMix rows={d.payerMix} /> : <EmptyState compact art="chart" title="No data" />}</CardBody>
+              <CardHeader title="Payer mix" description="Cases by payer type" />
+              <CardBody>{d.payerMix.length ? <PayerMix rows={d.payerMix} /> : <EmptyState compact art="chart" title="No data yet" />}</CardBody>
             </Card>
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1.2fr]">
             <Card>
-              <CardHeader title="Top gap criteria" description="The requirements most often missing from charts — target these in clinic workflows" icon={<ListChecks />} />
-              <CardBody>{d.topGapCriteria.length ? <GapRank items={d.topGapCriteria} /> : <EmptyState compact art="chart" title="No gaps recorded" />}</CardBody>
+              <CardHeader title="Most common documentation gaps" description="Requirements most often missing. Fix these at the source in your clinic workflow." />
+              <CardBody>{d.topGapCriteria.length ? <BarList items={d.topGapCriteria.slice(0, 6).map((g) => ({ label: g.criterionText, value: g.count }))} /> : <EmptyState compact art="chart" title="No gaps recorded" />}</CardBody>
             </Card>
             <Card>
-              <CardHeader title="Team workload" description="Open cases, near-due cases and 30-day throughput" icon={<Users />} />
+              <CardHeader title="Team workload" description="Open and near-due cases, and cases completed in 30 days" />
               <CardBody className="px-0 pb-2">
                 {team.isPending ? (
-                  <div className="grid gap-2 px-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+                  <div className="grid gap-2 px-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[480px] text-[13px]">
+                    <table className="w-full min-w-[460px] text-[13px]">
                       <thead className="text-xs text-muted">
                         <tr>
-                          <th scope="col" className="px-4 py-2 text-left font-medium">Member</th>
+                          <th scope="col" className="px-4 py-2 text-left font-medium">Person</th>
                           <th scope="col" className="px-4 py-2 text-right font-medium">Open</th>
                           <th scope="col" className="px-4 py-2 text-right font-medium">Due soon</th>
-                          <th scope="col" className="w-2/5 px-4 py-2 text-left font-medium">Completed (30 d)</th>
+                          <th scope="col" className="w-2/5 px-4 py-2 text-left font-medium">Completed</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -298,6 +274,36 @@ export default function AnalyticsPage() {
               </CardBody>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader title="Ask a question about your cases" description="Get an answer as a table or chart, for example by payer, by month or by reason." />
+            <CardBody className="grid gap-3">
+              <form
+                className="flex flex-col gap-2 sm:flex-row"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submit(question);
+                }}
+              >
+                <div className="min-w-0 flex-1">
+                  <Input leading={<Search />} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Which requirements caused the most gaps for Medicare this month?" aria-label="Question about your cases" className="h-10" />
+                </div>
+                <Button type="submit" variant="primary" className="h-10 px-5" loading={ask.isPending} disabled={!question.trim()}>
+                  Ask
+                </Button>
+              </form>
+              <div className="flex flex-wrap gap-1.5">
+                {PROMPTS.map((p) => (
+                  <button key={p} onClick={() => submit(p)} className="rounded-full border border-border px-3 py-1 text-xs text-muted transition-colors hover:border-border-strong hover:text-fg">
+                    {p}
+                  </button>
+                ))}
+              </div>
+              {ask.isPending ? <Skeleton className="h-40 rounded-lg" /> : null}
+              {ask.isError ? <p className="text-sm text-muted">We couldn&apos;t answer that one. Try rephrasing the question.</p> : null}
+              {ask.data && !ask.isPending ? <Answer result={ask.data} /> : null}
+            </CardBody>
+          </Card>
         </div>
       )}
     </AppPage>
