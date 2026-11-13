@@ -208,8 +208,14 @@ def summarize(
         _qualify(r, t.policy_key)
         results.append(r)
         scores.append(completeness_score(t.root, local))
-    root = combine_policies(results) if results else TreeResult(verdict=U)
-    score = sum(scores) / len(scores) if scores else 0.0
+    if not results:  # nothing was evaluable: never report a readiness we didn't measure
+        return (
+            TreeResult(verdict=U, label="No approved criteria for the applicable policies"),
+            Readiness.UNKNOWN,
+            0.0,
+        )
+    root = combine_policies(results)
+    score = sum(scores) / len(scores)
     return root, readiness_of(root), round(score, 4)
 
 

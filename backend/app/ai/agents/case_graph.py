@@ -48,6 +48,7 @@ from app.ai.compiler.schema import (
     CriterionLeaf,
     CriterionVerdict,
     EntailmentCheck,
+    Gap,
     Verdict,
     iter_leaves_with_path,
 )
@@ -122,6 +123,7 @@ class Runtime:
     evaluation_id: str
     snapshot: CaseSnapshot | None = None
     criteria: list[LoadedCriteria] = field(default_factory=list)
+    matches: list[dict] = field(default_factory=list)
     chunks: list[ChartChunk] = field(default_factory=list)
     lexical: LexicalIndex | None = None
     models: dict[str, str] = field(default_factory=dict)
@@ -448,6 +450,7 @@ def build_case_graph(rt: Runtime):
 
     async def resolve(state: CaseState) -> CaseState:
         matches = await rt.ports.resolve_policies(rt.snapshot)
+        rt.matches = matches
         await rt.ports.publish(
             "evaluation.phase",
             {"phase": "loading_criteria", "message": f"{len(matches)} applicable polic(ies)"},
@@ -547,15 +550,33 @@ def build_case_graph(rt: Runtime):
         root, readiness, score = summarize(trees, verdicts)
         tree_json = root.model_dump(by_alias=True, exclude_none=True)
         await rt.ports.publish(
-            "evaluation.aggregate", {"readiness": readiness.value, "readinessScore": score, "tree": tree_json}
+            "evaluation.aggregate",
+            {"readiness": readiness.value, "readinessScore": score if trees else None, "tree": tree_json},
         )
         await rt.ports.publish("evaluation.phase", {"phase": "drafting_gaps", "message": "Computing gaps"})
         gaps = [g.model_dump(by_alias=True) for g in gaps_for(trees, verdicts)]
+        if not trees:
+            keys = (
+                ", ".join(sorted({str(m.get("sourceKey")) for m in rt.matches if m.get("sourceKey")}))
+                or "none"
+            )
+            gaps.insert(
+                0,
+                Gap(
+                    criterion_id="policy:criteria",
+                    title="No approved criteria for the applicable policy",
+                    detail=f"Matched policies ({keys}) have no reviewed criteria set yet, "
+                    "so nothing was evaluated.",
+                    severity="blocker",
+                    suggested_fix="Compile or approve criteria in Knowledge → Criteria review, "
+                    "then re-run the evaluation.",
+                ).model_dump(by_alias=True),
+            )
         await rt.ports.publish("evaluation.gaps", {"gaps": gaps})
         degraded = sorted(set(state.get("degraded", [])))
         summary = {
             "readiness": readiness.value,
-            "readiness_score": score,
+            "readiness_score": score if trees else None,
             "tree_result": tree_json,
             "gaps": gaps,
             "policy_version_ids": [lc.policy_version_id for lc in rt.criteria if lc.policy_version_id],

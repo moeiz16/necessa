@@ -140,3 +140,12 @@ def test_tree_validation_rejects_duplicates_and_bad_n():
         )
     with pytest.raises(ValueError):
         CriteriaNode(op="N_OF_M", n=3, children=[leaf("C1"), leaf("C2")])
+
+
+def test_no_evaluable_criteria_is_unknown_not_gaps():
+    from app.ai.compiler.logic import summarize
+    from app.ai.compiler.schema import Readiness
+
+    root, readiness, score = summarize([], {})
+    assert readiness == Readiness.UNKNOWN
+    assert score == 0.0 and root.verdict.value == "INSUFFICIENT"
