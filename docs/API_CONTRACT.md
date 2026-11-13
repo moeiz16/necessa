@@ -185,7 +185,7 @@ Owners: **[A]** platform · **[B]** knowledge/RAG · **[C]** case AI/evals. Each
 |---|---|---|
 | GET | `/cases` | filters: `status, priority, assignee (me|id), readiness, payerType, q, dueBefore, sort (dueAt|-updatedAt|…)` → Page[CaseSummary] |
 | POST | `/cases` | `{patientId? , patient?:{fullName, dob, sex, state, memberId}, title?, priority, payerType, payerName, state, serviceCodes[], dxCodes[], dateOfService, placeOfService?, assigneeId?, tags[]}` → Case |
-| GET | `/cases/{id}` | → Case (patient demographics masked unless `?reveal=true` + audit) |
+| GET | `/cases/{id}` | → Case; `?reveal=true&reason=…` (needs `phi:reveal`) adds `patientRevealed {fullName, dob, memberId, mrn}` and writes an audit entry with the stated purpose |
 | PATCH | `/cases/{id}` | partial; status transitions validated (state machine in `services/cases.py`) |
 | DELETE | `/cases/{id}` | soft-delete → status `closed` + audit |
 | POST | `/cases/{id}/documents` | multipart `file`, `kind`, `noteDate?` → CaseDocument (text extraction, de-identification and injection scan run synchronously or via job) |
@@ -205,7 +205,8 @@ Owners: **[A]** platform · **[B]** knowledge/RAG · **[C]** case AI/evals. Each
 **Case AI — `case_ai.py` [C]**
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/cases/{id}/policy-suggestions` | → `{matches:[PolicyMatch]}`: deterministic resolution preview while creating a case (assistive) |
+| POST | `/cases/{id}/policy-suggestions` | → `{matches:[PolicyMatch]}`: deterministic resolution preview for a saved case |
+| POST | `/cases/policy-suggestions` | `{serviceCodes, dxCodes, state, payerType, dateOfService}` → `{matches}`: the same preview before a case exists (new-case wizard) |
 | POST | `/cases/{id}/evaluate` | `{policyVersionIds?: [...]}` → `{evaluationId, jobId}`; progress streams over SSE |
 | GET | `/cases/{id}/events` | **SSE** stream on channel `case:{id}` (replays the current evaluation state first) |
 | GET | `/cases/{id}/evaluations` | → [EvaluationSummary] |
@@ -221,7 +222,7 @@ Owners: **[A]** platform · **[B]** knowledge/RAG · **[C]** case AI/evals. Each
 | GET | `/cases/{id}/denials` · PATCH `/cases/{id}/denials/{denialId}` | |
 | GET | `/cases/{id}/export/fhir` | QuestionnaireResponse-style JSON (DTR-like) |
 
-`PolicyMatch = {policyId, policyVersionId, sourceKey, title, docType, version, effectiveFrom, effectiveTo, matchReasons:[{type:"hcpcs|icd10|state|contractor", value, detail}], score, contractor:{id,name}|null, criteriaSetStatus}`
+`PolicyMatch = {policyId, policyVersionId, sourceKey, title, docType, version, effectiveFrom, effectiveTo, matchReasons:[{type:"hcpcs|icd10|state|contractor|link|national|manual", value, detail}], score, contractor:{id,name}|null, criteriaSetStatus:"approved|needs_review|draft|missing"}`
 `Evaluation = {id, caseId, status, readiness, readinessScore, degraded, policies:[PolicyMatch], tree: TreeResult, criteria:[CriterionResult], gaps:[Gap], tokenUsage, modelInfo, startedAt, finishedAt}`
 `CriterionResult = {id, criterionId, text, kind, treePath, verdict, effectiveVerdict (override ?? verdict), confidence, rationale, evidence:[Evidence], policyCitation, verification, override:{verdict, reason, by:{id,fullName}, at}|null}`
 `Gap = {criterionId, title, detail, severity:"blocker|major|minor", suggestedFix, policyQuote}`
@@ -287,6 +288,7 @@ Owners: **[A]** platform · **[B]** knowledge/RAG · **[C]** case AI/evals. Each
 
 ## 5. Streaming events (SSE: `event: <name>\ndata: <json>\n\n`)
 ### 5.1 Case channel `case:{id}` [C publishes]
+Every `evaluation.*` and `criterion.*` event carries `evaluationId`, so clients can ignore replayed events from earlier runs. Replay on connect starts with `evaluation.snapshot`.
 `evaluation.started {evaluationId, policies:[PolicyMatch], criteriaCount}` ·
 `evaluation.phase {phase:"resolving|loading_criteria|indexing_chart|evaluating|aggregating|drafting_gaps|review", message}` ·
 `criterion.started {criterionId, text, treePath}` ·
