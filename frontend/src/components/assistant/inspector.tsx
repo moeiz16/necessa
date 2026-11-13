@@ -8,6 +8,26 @@ import { Badge, SectionLabel } from "@/components/ui/display";
 import { EmptyState } from "@/components/ui/empty";
 import { Tooltip } from "@/components/ui/overlays";
 
+/** Plain-language names for the retrieval strategy matrix (docs/ARCHITECTURE.md §6.2). */
+export const STRATEGY_NAME: Record<string, string> = {
+  S1: "Exact identifier",
+  S2: "Coverage facts (tools/graph)",
+  S3: "Analytics (text-to-SQL)",
+  S4: "Hybrid + rerank",
+  S5: "Lay language (expanded)",
+  S6: "Keyword-weighted",
+  S7: "Chart evidence",
+  S8: "Multi-hop",
+  S9: "Version comparison",
+  S10: "Denial → criteria",
+  S11: "Out of scope · abstain",
+};
+export function strategyLabel(strategy?: string | null) {
+  if (!strategy) return "—";
+  const code = /S\d{1,2}/.exec(strategy)?.[0];
+  return code && STRATEGY_NAME[code] ? `${code} · ${STRATEGY_NAME[code]}` : strategy;
+}
+
 const STAGES: { key: keyof StageScores; label: string; max: number; color: string }[] = [
   { key: "dense", label: "Dense", max: 1, color: "var(--ai-1)" },
   { key: "sparse", label: "Sparse", max: 1, color: "var(--ai-3)" },
@@ -46,7 +66,7 @@ export function RetrievalInspector({ route, chunks, timings, className }: { rout
         <div className="rounded-lg border border-border bg-surface p-3">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="brand">
-              <Route /> {route.strategy}
+              <Route /> {strategyLabel(route.strategy)}
             </Badge>
             <span className="text-xs text-muted">
               intent <span className="font-mono text-fg">{route.intent}</span> · {Math.round(route.confidence * 100)}%
@@ -64,6 +84,24 @@ export function RetrievalInspector({ route, chunks, timings, className }: { rout
             </p>
           ) : null}
         </div>
+      </div>
+
+      <div className="grid gap-2">
+        <SectionLabel>Flow</SectionLabel>
+        <ol className="flex flex-wrap items-center gap-1 text-[11px]" aria-label="Retrieval pipeline">
+          {[
+            { k: "Understand", on: true },
+            ...(route.retrievers?.length ? route.retrievers : ["retrieve"]).map((r) => ({ k: r, on: !route.degraded?.includes(r) })),
+            { k: route.fusion ? "Fuse" : "Fuse", on: !!route.fusion },
+            { k: "Rerank", on: !!route.rerank && !route.degraded?.includes("rerank") },
+            { k: route.abstained ? "Abstain" : "Answer", on: true },
+          ].map((step, i, arr) => (
+            <li key={`${step.k}-${i}`} className="flex items-center gap-1">
+              <span className={cn("rounded-md px-1.5 py-0.5 font-medium ring-1 ring-inset", step.on ? "bg-brand-soft text-brand-fg ring-brand/20" : "bg-surface-2 text-subtle line-through ring-border")}>{step.k}</span>
+              {i < arr.length - 1 ? <span className="text-subtle">→</span> : null}
+            </li>
+          ))}
+        </ol>
       </div>
 
       <div className="grid gap-2">
@@ -121,7 +159,7 @@ export function RetrievalInspector({ route, chunks, timings, className }: { rout
                   <span className="truncate text-[11px] text-muted">{c.sectionKey.replace(/_/g, " ")}</span>
                   <span className="tabular ml-auto text-xs font-medium text-fg">{c.score.toFixed(2)}</span>
                 </div>
-                {c.text ? <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-muted">{c.text}</p> : null}
+                {c.text || (c as { snippet?: string }).snippet ? <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-muted">{c.text ?? (c as { snippet?: string }).snippet}</p> : null}
                 <div className="mt-2">
                   <ScoreBars scores={c.scores} />
                 </div>

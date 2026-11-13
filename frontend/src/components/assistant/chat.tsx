@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Bot, ChevronDown, Code2, Copy, Database, ShieldAlert, Sparkles, Square, ThumbsDown, ThumbsUp, Wrench } from "lucide-react";
+import { ArrowUp, Bot, ChevronDown, CircleSlash, Code2, Copy, Database, ShieldAlert, ShieldCheck, Sparkles, Square, ThumbsDown, ThumbsUp, Wrench } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -11,10 +11,12 @@ import { fmtMs } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SqlChart } from "@/components/charts/charts";
 import { CitationChip } from "@/components/domain/verdict";
+import { AiWorking } from "@/components/domain/trust";
 import { LogoMark } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { Badge, CodeBlock, Skeleton } from "@/components/ui/display";
 import { Tooltip } from "@/components/ui/overlays";
+import { strategyLabel } from "./inspector";
 import type { PendingMessage } from "./use-chat";
 
 function withCitationLinks(md: string) {
@@ -117,13 +119,24 @@ function AssistantBubble({ m, selected, onSelect }: { m: Message; selected: bool
         {m.sql ? <SqlAnswer sql={m.sql} /> : null}
         <div className="mt-2 flex flex-wrap items-center gap-1 text-xs text-subtle">
           {m.route ? (
-            <button onClick={onSelect} className={cn("inline-flex h-6 items-center gap-1 rounded-md px-1.5 transition-colors hover:bg-surface-2 hover:text-fg", selected && "bg-brand-soft text-brand-fg")}>
-              <Sparkles className="size-3" /> {m.route.strategy}
+            <button onClick={onSelect} className={cn("inline-flex h-6 items-center gap-1 rounded-md px-1.5 transition-colors hover:bg-surface-2 hover:text-fg", selected && "bg-brand-soft text-brand-fg")} title="Show how this answer was retrieved">
+              <Sparkles className="size-3" /> {strategyLabel(m.route.strategy)}
             </button>
           ) : null}
-          {m.usage ? (
+          {m.citations.length ? (
+            <span className="inline-flex items-center gap-1 px-1 text-met-fg">
+              <ShieldCheck className="size-3" /> Grounded in {new Set(m.citations.map((c) => c.sourceKey)).size} source{new Set(m.citations.map((c) => c.sourceKey)).size === 1 ? "" : "s"}
+            </span>
+          ) : m.route?.abstained ? (
+            <span className="inline-flex items-center gap-1 px-1 text-insufficient-fg">
+              <CircleSlash className="size-3" /> Abstained — not enough evidence
+            </span>
+          ) : null}
+          {m.usage && (m.usage.model || m.usage.latencyMs) ? (
             <span className="px-1">
-              {m.usage.provider}/{m.usage.model} · {fmtMs(m.usage.latencyMs ?? 0)}
+              {m.usage.model ? `${m.usage.provider ? `${m.usage.provider}/` : ""}${m.usage.model}` : ""}
+              {m.usage.model && m.usage.latencyMs ? " · " : ""}
+              {m.usage.latencyMs ? fmtMs(m.usage.latencyMs) : ""}
             </span>
           ) : null}
           <span className="ml-auto flex items-center gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
@@ -158,7 +171,7 @@ function AssistantBubble({ m, selected, onSelect }: { m: Message; selected: bool
 }
 
 function PendingBubble({ p }: { p: PendingMessage }) {
-  const stages = { routing: "Understanding the question…", retrieving: `Routing → ${p.route?.strategy ?? "…"}`, generating: "Writing a grounded answer…", done: "", error: "" };
+  const stages = { routing: "Understanding the question…", retrieving: `Retrieving · ${p.route ? strategyLabel(p.route.strategy) : "choosing a route…"}`, generating: "Writing a grounded answer…", done: "", error: "" };
   return (
     <div className="flex gap-3">
       <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-soft">
@@ -172,12 +185,12 @@ function PendingBubble({ p }: { p: PendingMessage }) {
           </p>
         ))}
         {p.content ? (
-          <Answer content={p.content} citations={p.citations} />
+          <Answer content={p.stage === "generating" ? `${p.content}▍` : p.content} citations={p.citations} />
         ) : p.stage === "error" ? (
           <p className="text-[13px] text-notmet-fg">{p.error}</p>
         ) : (
           <div className="grid gap-2">
-            <p className="text-[13px] text-muted">{stages[p.stage]}</p>
+            <AiWorking label={stages[p.stage]} />
             <Skeleton className="h-3 w-4/5" />
             <Skeleton className="h-3 w-3/5" />
           </div>
