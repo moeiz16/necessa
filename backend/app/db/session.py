@@ -5,17 +5,30 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from functools import lru_cache
+from typing import Any
 
+import orjson
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
 
 
+def _json_dumps(value: Any) -> str:
+    """JSON for JSON/JSONB columns: dates, datetimes, UUIDs, enums and dataclasses serialize natively,
+    anything else (e.g. Decimal) falls back to str instead of failing the whole transaction."""
+    return orjson.dumps(value, default=str, option=orjson.OPT_NON_STR_KEYS).decode()
+
+
 @lru_cache
 def get_engine() -> AsyncEngine:
     s = get_settings()
-    kwargs: dict = {"echo": s.database_echo, "future": True}
+    kwargs: dict = {
+        "echo": s.database_echo,
+        "future": True,
+        "json_serializer": _json_dumps,
+        "json_deserializer": orjson.loads,
+    }
     if s.is_sqlite:
         kwargs["connect_args"] = {"check_same_thread": False}
     else:
