@@ -1,26 +1,6 @@
 "use client";
 
-import {
-  ArrowRight,
-  BadgeCheck,
-  CalendarRange,
-  Check,
-  Columns2,
-  Copy,
-  ExternalLink,
-  FileDiff,
-  GitCompare,
-  Hash,
-  Link2,
-  ListChecks,
-  MapPin,
-  Rows2,
-  ScrollText,
-  ShieldCheck,
-  Sparkles,
-  TriangleAlert,
-  Waypoints,
-} from "lucide-react";
+import { ArrowRight, Check, Columns2, Copy, ExternalLink, Link2, MessageCircle, Rows2, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -28,11 +8,11 @@ import { toast } from "sonner";
 import { usePolicy, usePolicyCodes, usePolicyCriteria, usePolicyDiff } from "@/lib/api/hooks";
 import type { CriteriaNode, CriteriaSet, DiffHunk, PolicyCode, PolicyDetail } from "@/lib/api/types";
 import { Can } from "@/lib/api/session";
-import { fmtDate, fmtNumber, fmtRelative, titleCase } from "@/lib/format";
+import { fmtDate, fmtNumber, fmtRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AppPage } from "@/components/shell/app-shell";
 import { CriteriaTreeView } from "@/components/policies/criteria-tree";
-import { DocTypeBadge } from "@/components/domain/verdict";
+import { DOC_LABEL } from "@/components/policies/labels";
 import { Button } from "@/components/ui/button";
 import { Segmented, Select, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/controls";
 import { Badge, Breadcrumb, Card, CardBody, CardHeader, DataList, Skeleton } from "@/components/ui/display";
@@ -52,54 +32,40 @@ function leaves(n: CriteriaNode): CriteriaNode[] {
   return n.children?.length ? n.children.flatMap(leaves) : [n];
 }
 
+const STATUS_LABEL: Record<string, string> = { approved: "Reviewed", needs_review: "Needs review", draft: "Draft", rejected: "Rejected", superseded: "Replaced" };
+
 function Provenance({ set }: { set: CriteriaSet }) {
   const n = leaves(set.tree).length;
-  const grounded = Math.round(set.groundingPassRate * n);
+  const matched = Math.round(set.groundingPassRate * n);
   const donor = set.extractorModel.startsWith("transfer:") ? set.extractorModel.slice("transfer:".length) : null;
-  const pct = Math.round(set.groundingPassRate * 100);
-  if (set.status === "approved" && donor)
-    return (
-      <Banner tone="met" icon={<Waypoints />} title={`Transferred from ${donor}, another contractor's edition`}>
-        All {n} quotes were re-verified verbatim against this policy&apos;s own text before approval. Nothing is evaluated on criteria that aren&apos;t grounded in the policy that applies.
-      </Banner>
-    );
   if (set.status === "needs_review")
     return (
-      <Banner tone="insufficient" icon={<TriangleAlert />} title={donor ? `Transferred from ${donor} — ${grounded}/${n} quotes re-verified; needs review` : `Awaiting clinical review — ${pct}% of quotes grounded`}>
+      <Banner tone="insufficient" icon={<TriangleAlert />} title={donor ? `Imported from a similar policy (${donor}). A reviewer must confirm it.` : "Waiting for a reviewer"}>
         {donor
-          ? "This edition words at least one requirement differently. A reviewer must re-anchor the unmatched quote before cases can be evaluated against it."
-          : "Model-compiled criteria are used only after a reviewer approves them. Unverified quotes are highlighted in the review editor."}
+          ? `${matched} of ${n} requirements match this policy's wording. A reviewer needs to update the rest before it's used to check cases.`
+          : "This checklist was prepared automatically. It's used to check cases only after a reviewer approves it."}
       </Banner>
     );
   if (set.status === "approved")
     return (
-      <Banner tone="met" icon={<ShieldCheck />} title={set.extractorModel === "curated" ? "Curated and approved by the clinical content team" : "Compiled, cross-verified and approved"}>
-        {pct}% of quotes verified verbatim
-        {set.extractorModel !== "curated" ? ` · extracted by ${set.extractorModel}, verified by ${set.verifierModel} (agreement ${Math.round(set.agreement * 100)}%)` : ""}
-        {set.reviewedBy ? ` · reviewed by ${set.reviewedBy.fullName} ${fmtRelative(set.reviewedAt)}` : ""}.
+      <Banner tone="met" icon={<Check />} title={donor ? "Imported from a similar policy and confirmed" : "Reviewed and approved"}>
+        All {n} requirements match this policy&apos;s wording
+        {set.reviewedBy ? `. Reviewed by ${set.reviewedBy.fullName} ${fmtRelative(set.reviewedAt)}` : ""}.
       </Banner>
     );
   return (
-    <Banner tone="neutral" icon={<ListChecks />} title={titleCase(set.status)}>
-      {set.notes ?? "This criteria set is not in use."}
+    <Banner tone="neutral" icon={<TriangleAlert />} title={STATUS_LABEL[set.status] ?? "Not in use"}>
+      {set.notes ?? "This checklist isn't being used."}
     </Banner>
   );
 }
 
 function Banner({ tone, icon, title, children }: { tone: "met" | "insufficient" | "neutral"; icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <div
-      role="status"
-      className={cn(
-        "flex gap-3 rounded-xl p-3.5 ring-1 ring-inset [&>span>svg]:size-4",
-        tone === "met" && "bg-met-soft/60 ring-met/20",
-        tone === "insufficient" && "bg-insufficient-soft/70 ring-insufficient/25",
-        tone === "neutral" && "bg-surface-2 ring-border",
-      )}
-    >
-      <span className={cn("mt-0.5", tone === "met" ? "text-met-fg" : tone === "insufficient" ? "text-insufficient-fg" : "text-muted")}>{icon}</span>
+    <div role="status" className="flex gap-3 rounded-lg border border-border bg-surface p-3.5 [&>span>svg]:size-4">
+      <span className={cn("mt-0.5", tone === "met" ? "text-met" : tone === "insufficient" ? "text-insufficient" : "text-muted")}>{icon}</span>
       <div className="grid gap-0.5">
-        <p className="text-[13px] font-semibold text-fg">{title}</p>
+        <p className="text-[13px] font-medium text-fg">{title}</p>
         <p className="text-[13px] leading-relaxed text-muted">{children}</p>
       </div>
     </div>
@@ -111,7 +77,7 @@ function SideBySide({ hunks }: { hunks: DiffHunk[] }) {
     <div className="grid gap-3 text-[13px] leading-relaxed md:grid-cols-2">
       {(["before", "after"] as const).map((side) => (
         <div key={side} className="rounded-lg border border-border bg-surface-2/40 p-3">
-          <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-subtle">{side === "before" ? "Before" : "After"}</p>
+          <p className="mb-1.5 text-[11px] font-medium text-subtle">{side === "before" ? "Before" : "After"}</p>
           <p className="text-fg">
             {hunks.map((h, i) =>
               h.op === "equal" ? (
@@ -241,12 +207,12 @@ function CriteriaTab({ id, sourceText }: { id: string; sourceText: string }) {
       <Card>
         <EmptyState
           art="spark"
-          title="Criteria not compiled yet"
-          description="An admin can compile this version from Knowledge ops. Compilation runs quota-paced on the long-context model group, every quote must match the policy verbatim, and a second model family cross-checks the result before review."
+          title="No requirements checklist yet"
+          description="A checklist turns this policy into items your team can check each case against. Your administrator prepares and reviews it."
           action={
             <Can perm="knowledge:admin">
               <Button asChild variant="secondary" size="sm">
-                <Link href="/knowledge">Open Knowledge ops</Link>
+                <Link href="/knowledge?tab=review">Open Policy updates</Link>
               </Button>
             </Can>
           }
@@ -260,25 +226,23 @@ function CriteriaTab({ id, sourceText }: { id: string; sourceText: string }) {
       <Provenance set={set} />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
         <Card>
-          <CardHeader title={`Compiled criteria · ${n}`} description="Atomic, checkable requirements — each grounded in a verbatim policy quote" />
+          <CardHeader title={`Requirements checklist · ${n}`} description="Each requirement quotes the part of the policy it comes from" />
           <CardBody>
             <CriteriaTreeView node={set.tree} sourceText={sourceText} />
           </CardBody>
         </Card>
         <Card className="h-fit lg:sticky lg:top-20">
-          <CardHeader title="Compilation record" />
+          <CardHeader title="Review status" />
           <CardBody>
             <DataList
               items={[
-                { label: "Status", value: <Badge tone={set.status === "approved" ? "met" : set.status === "needs_review" ? "insufficient" : "neutral"}>{titleCase(set.status)}</Badge> },
-                { label: "Source", value: <span className="font-mono text-xs">{set.extractorModel}</span> },
-                { label: "Verifier", value: <span className="font-mono text-xs">{set.verifierModel}</span> },
-                { label: "Agreement", value: `${Math.round(set.agreement * 100)}%` },
+                { label: "Status", value: <Badge tone={set.status === "approved" ? "met" : set.status === "needs_review" ? "insufficient" : "neutral"}>{STATUS_LABEL[set.status] ?? set.status}</Badge> },
+                { label: "Prepared by", value: set.extractorModel.startsWith("transfer:") ? `Imported from ${set.extractorModel.slice(9)}` : set.extractorModel === "curated" ? "Clinical content team" : "Prepared automatically" },
                 {
-                  label: "Grounding",
+                  label: "Matches the policy",
                   value: (
                     <span className={cn(set.groundingPassRate < 1 && "text-insufficient-fg")}>
-                      {Math.round(set.groundingPassRate * n)}/{n} quotes verbatim
+                      {Math.round(set.groundingPassRate * n)} of {n} requirements
                     </span>
                   ),
                 },
@@ -288,7 +252,7 @@ function CriteriaTab({ id, sourceText }: { id: string; sourceText: string }) {
             <Can perm="criteria:review">
               <Button asChild variant={set.status === "needs_review" ? "primary" : "secondary"} size="sm" className="mt-4 w-full">
                 <Link href={`/knowledge/criteria/${set.id}`}>
-                  {set.status === "needs_review" ? "Review now" : "Open in review editor"} <ArrowRight />
+                  {set.status === "needs_review" ? "Review now" : "Edit checklist"} <ArrowRight />
                 </Link>
               </Button>
             </Can>
@@ -307,21 +271,14 @@ function VersionsTab({ d }: { d: PolicyDetail }) {
   const diff = usePolicyDiff(d.id, from, to, from !== to);
   const summary = useMemo(() => {
     const sec = diff.data?.sections ?? [];
-    let ins = 0;
-    let del = 0;
-    for (const s of sec)
-      for (const h of s.hunks) {
-        if (h.op === "insert") ins += h.text.length;
-        else if (h.op === "delete") del += h.text.length;
-      }
-    return { changed: sec.filter((s) => s.status !== "same").length, total: sec.length, ins, del };
+    return { changed: sec.filter((s) => s.status !== "same").length, total: sec.length };
   }, [diff.data]);
   const versions = [...d.versions].sort((a, b) => b.version - a.version);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
       <Card className="h-fit">
-        <CardHeader title="Version history" description={`${d.versions.length} versions on record`} />
+        <CardHeader title="Version history" description={`${d.versions.length} ${d.versions.length === 1 ? "version" : "versions"} on record`} />
         <CardBody>
           <ol className="relative grid gap-4 border-l border-border pl-5">
             {versions.map((v) => {
@@ -332,7 +289,7 @@ function VersionsTab({ d }: { d: PolicyDetail }) {
                   <span className={cn("absolute -left-[26px] top-1 size-2.5 rounded-full ring-4 ring-surface", current ? "bg-brand" : selected ? "bg-fg" : "bg-border-strong")} aria-hidden />
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs font-semibold text-fg">v{v.version}</span>
-                    {current ? <Badge tone="brand" size="xs">current</Badge> : null}
+                    {current ? <Badge tone="brand" size="xs">Current</Badge> : null}
                     <span className="ml-auto text-xs text-subtle">{fmtDate(v.effectiveFrom)}</span>
                   </div>
                   {v.summary ? <p className="mt-1 text-xs leading-relaxed text-muted">{v.summary}</p> : null}
@@ -350,13 +307,12 @@ function VersionsTab({ d }: { d: PolicyDetail }) {
       <Card className="min-w-0">
         <CardHeader
           title="Compare versions"
-          description="Section-aligned diff — exactly what changed between the versions you select"
-          icon={<FileDiff />}
+          description="See exactly what changed between two versions"
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <Select size="sm" className="w-24" value={String(from)} onValueChange={(v) => setFrom(Number(v))} options={versions.map((v) => ({ value: String(v.version), label: `v${v.version}` }))} aria-label="From version" />
+              <Select size="sm" className="w-24" value={String(from)} onValueChange={(v) => setFrom(Number(v))} options={versions.map((v) => ({ value: String(v.version), label: `v${v.version}` }))} aria-label="Older version" />
               <ArrowRight className="size-3.5 text-subtle" aria-hidden />
-              <Select size="sm" className="w-24" value={String(to)} onValueChange={(v) => setTo(Number(v))} options={versions.map((v) => ({ value: String(v.version), label: `v${v.version}` }))} aria-label="To version" />
+              <Select size="sm" className="w-24" value={String(to)} onValueChange={(v) => setTo(Number(v))} options={versions.map((v) => ({ value: String(v.version), label: `v${v.version}` }))} aria-label="Newer version" />
               <Segmented
                 size="xs"
                 value={layout}
@@ -371,7 +327,7 @@ function VersionsTab({ d }: { d: PolicyDetail }) {
         />
         <CardBody className="grid gap-5">
           {from === to ? (
-            <EmptyState compact art="search" title="Pick two different versions" description="Choose an older version on the left, or use the selectors above." />
+            <EmptyState compact art="search" title="Choose two different versions" description="Pick an older version on the left, or use the menus above." />
           ) : diff.isPending ? (
             <Skeleton className="h-48" />
           ) : (
@@ -383,8 +339,6 @@ function VersionsTab({ d }: { d: PolicyDetail }) {
                 <span>
                   {summary.changed} of {summary.total} sections changed
                 </span>
-                <span className="text-met-fg">+{fmtNumber(summary.ins)} chars</span>
-                <span className="text-notmet-fg">−{fmtNumber(summary.del)} chars</span>
                 <button onClick={() => setShowSame((x) => !x)} className="ml-auto text-brand hover:underline">
                   {showSame ? "Hide unchanged" : "Show unchanged"}
                 </button>
@@ -396,7 +350,7 @@ function VersionsTab({ d }: { d: PolicyDetail }) {
                     <div className="flex items-center gap-2">
                       <h3 className="text-[13px] font-semibold text-fg">{s.title}</h3>
                       <Badge tone={s.status === "changed" ? "insufficient" : s.status === "added" ? "met" : s.status === "removed" ? "notmet" : "neutral"} size="xs">
-                        {s.status}
+                        {s.status === "changed" ? "Changed" : s.status === "added" ? "Added" : s.status === "removed" ? "Removed" : "Unchanged"}
                       </Badge>
                     </div>
                     {s.status === "same" ? <p className="line-clamp-2 text-[13px] text-subtle">{s.hunks[0]?.text}</p> : layout === "split" ? <SideBySide hunks={s.hunks} /> : <DiffViewer hunks={s.hunks} />}
@@ -411,9 +365,9 @@ function VersionsTab({ d }: { d: PolicyDetail }) {
 }
 
 const SYSTEMS: { value: PolicyCode["codeSystem"]; label: string; short: string }[] = [
-  { value: "HCPCS", label: "HCPCS / procedure", short: "Procedure" },
-  { value: "ICD10_COVERED", label: "ICD-10 covered", short: "Covered dx" },
-  { value: "ICD10_NONCOVERED", label: "ICD-10 non-covered", short: "Non-covered dx" },
+  { value: "HCPCS", label: "Procedure codes", short: "Procedures" },
+  { value: "ICD10_COVERED", label: "Covered diagnoses", short: "Covered diagnoses" },
+  { value: "ICD10_NONCOVERED", label: "Diagnoses not covered", short: "Not covered" },
 ];
 
 function CodesTab({ d }: { d: PolicyDetail }) {
@@ -430,8 +384,8 @@ function CodesTab({ d }: { d: PolicyDetail }) {
   return (
     <Card>
       <CardHeader
-        title="Code groups"
-        description="Procedure codes and ICD-10-CM groups from the related Billing & Coding article"
+        title="Codes"
+        description="Procedure and diagnosis codes listed in the related billing and coding article"
         actions={
           <Segmented
             size="xs"
@@ -449,7 +403,7 @@ function CodesTab({ d }: { d: PolicyDetail }) {
         {codes.isPending ? (
           <Skeleton className="h-40" />
         ) : total === 0 ? (
-          <EmptyState compact art="search" title="No codes in this group" description="Coverage criteria live in the LCD; code lists live in the linked Billing & Coding article." />
+          <EmptyState compact art="search" title="No codes in this group" description="Code lists are published in the linked billing and coding article." />
         ) : (
           <div className="grid gap-4">
             {groups.map(([group, list]) => (
@@ -457,7 +411,7 @@ function CodesTab({ d }: { d: PolicyDetail }) {
                 <div className="flex items-center gap-2 border-b border-border bg-surface-2 px-3 py-2 text-xs">
                   <span className="font-medium text-fg">Group {group}</span>
                   <span className="text-subtle">{list.length} codes</span>
-                  {system === "ICD10_NONCOVERED" ? <Badge tone="notmet" size="xs">does not support medical necessity</Badge> : system === "ICD10_COVERED" ? <Badge tone="met" size="xs">supports medical necessity</Badge> : null}
+                  {system === "ICD10_NONCOVERED" ? <Badge tone="notmet" size="xs">Not covered</Badge> : system === "ICD10_COVERED" ? <Badge tone="met" size="xs">Covered</Badge> : null}
                 </div>
                 <table className="w-full text-[13px]">
                   <caption className="sr-only">
@@ -481,7 +435,7 @@ function CodesTab({ d }: { d: PolicyDetail }) {
             ))}
           </div>
         )}
-        <p className="text-[11px] text-subtle">Procedure descriptions are Necessa-authored summaries; CPT® descriptors are licensed content and are not displayed.</p>
+        <p className="text-[11px] text-subtle">Procedure descriptions are summaries. Copyrighted CPT® descriptors are not shown.</p>
       </CardBody>
     </Card>
   );
@@ -492,16 +446,16 @@ function JurisdictionTab({ d }: { d: PolicyDetail }) {
   return (
     <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
       <Card>
-        <CardHeader title="Where this policy applies" description={national ? "National coverage determination — binding in every state" : `${d.states.length} states via ${d.contractors.length === 1 ? "one contractor" : `${d.contractors.length} contractors`}`} icon={<MapPin />} />
+        <CardHeader title="Where this policy applies" description={national ? "National policy. It applies in every state." : `${d.states.length} states, issued by ${d.contractors.length === 1 ? "one Medicare contractor" : `${d.contractors.length} Medicare contractors`}`} />
         <CardBody className="grid gap-4">
           {REGIONS.map((r) => (
             <div key={r.name} className="grid gap-1.5">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-subtle">{r.name}</p>
+              <p className="text-[11px] font-medium text-subtle">{r.name}</p>
               <div className="flex flex-wrap gap-1">
                 {r.states.map((s) => {
                   const on = national || d.states.includes(s);
                   return (
-                    <span key={s} title={on ? `${s}: applies` : `${s}: not in this contractor's jurisdiction`} className={cn("flex h-7 w-9 items-center justify-center rounded-md font-mono text-[11px] font-medium transition-colors", on ? "bg-brand text-brand-contrast" : "bg-surface-2 text-subtle")}>
+                    <span key={s} title={on ? `${s}: applies` : `${s}: not covered by this policy`} className={cn("flex h-7 w-9 items-center justify-center rounded-md font-mono text-[11px] font-medium transition-colors", on ? "bg-brand text-brand-contrast" : "bg-surface-2 text-subtle")}>
                       {s}
                     </span>
                   );
@@ -514,21 +468,21 @@ function JurisdictionTab({ d }: { d: PolicyDetail }) {
               <span className="size-2.5 rounded-sm bg-brand" /> Applies
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-sm bg-surface-3" /> Other contractor&apos;s jurisdiction
+              <span className="size-2.5 rounded-sm bg-surface-3" /> Not covered by this policy
             </span>
           </div>
         </CardBody>
       </Card>
       <div className="grid content-start gap-4">
         <Card>
-          <CardHeader title="Issued by" icon={<ShieldCheck />} />
+          <CardHeader title="Issued by" />
           <CardBody className="grid gap-2">
             {national ? (
-              <p className="text-[13px] text-muted">Centers for Medicare &amp; Medicaid Services (national).</p>
+              <p className="text-[13px] text-muted">Centers for Medicare &amp; Medicaid Services (national policy).</p>
             ) : (
               d.contractors.map((c) => (
                 <div key={c.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
-                  <span className="flex size-8 items-center justify-center rounded-md bg-surface-2 font-mono text-[11px] text-muted">MAC</span>
+                  <span className="text-[11px] text-subtle">Medicare contractor</span>
                   <span className="text-[13px] font-medium text-fg">{c.name}</span>
                 </div>
               ))
@@ -536,16 +490,15 @@ function JurisdictionTab({ d }: { d: PolicyDetail }) {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader title="Linked documents" icon={<Link2 />} description="Related LCDs, articles and NCDs from the MCD relationship tables" />
+          <CardHeader title="Related policies" description="Policies and articles this one works with" />
           <CardBody className="grid gap-2">
-            {d.linked.length === 0 ? <p className="text-[13px] text-muted">No linked documents.</p> : null}
+            {d.linked.length === 0 ? <p className="text-[13px] text-muted">No related policies.</p> : null}
             {d.linked.map((l) => (
               <Link key={`${l.policyId}-${l.relation}`} href={`/policies/${l.policyId}`} className="group flex items-start gap-3 rounded-lg border border-border p-3 transition-colors hover:border-border-strong hover:bg-surface-2/40">
-                <DocTypeBadge docType={l.docType} />
                 <span className="grid min-w-0">
                   <span className="flex items-center gap-2">
                     <span className="font-mono text-xs font-medium text-fg">{l.sourceKey}</span>
-                    <span className="text-[11px] text-subtle">{l.relation.replace(/_/g, " ")}</span>
+                    <span className="text-[11px] text-subtle">{DOC_LABEL[l.docType] ?? l.docType}</span>
                   </span>
                   <span className="line-clamp-2 text-[13px] text-muted">{l.title}</span>
                 </span>
@@ -590,19 +543,18 @@ export default function PolicyPage() {
       <div className="flex flex-col gap-4 pb-6 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <DocTypeBadge docType={d.docType} />
+            <span className="text-sm text-muted">{DOC_LABEL[d.docType] ?? d.docType}</span>
             <span className="font-mono text-sm font-medium text-fg">{d.sourceKey}</span>
             <Badge tone="outline" size="xs">
               v{d.version}
             </Badge>
             <Badge tone={d.status === "active" ? "met" : d.status === "future" ? "info" : "neutral"} size="xs" dot>
-              {d.status === "future" ? `Takes effect ${fmtDate(d.effectiveFrom)}` : titleCase(d.status)}
+              {d.status === "future" ? `Takes effect ${fmtDate(d.effectiveFrom)}` : d.status === "retired" ? "No longer in effect" : "In effect"}
             </Badge>
             {cs ? (
               <button onClick={() => setTab("criteria")} className="outline-none">
                 <Badge tone={cs.status === "approved" ? "met" : "insufficient"} size="xs">
-                  {cs.status === "approved" ? <BadgeCheck /> : <TriangleAlert />}
-                  {cs.status === "approved" ? `${leaves(cs.tree).length} criteria compiled` : "Criteria need review"}
+                  {cs.status === "approved" ? `${leaves(cs.tree).length} requirements` : "Checklist needs review"}
                 </Badge>
               </button>
             ) : null}
@@ -610,24 +562,21 @@ export default function PolicyPage() {
           <h1 className="mt-2 max-w-3xl text-[22px] font-semibold leading-tight tracking-[-0.02em] text-fg text-balance">{d.title}</h1>
           <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted">
             <span className="flex items-center gap-1.5">
-              <ShieldCheck className="size-3.5 text-subtle" />
-              {d.contractors[0]?.name ?? "National coverage determination"}
+              {d.contractors[0]?.name ?? "Medicare, nationwide"}
               {d.contractors.length > 1 ? ` +${d.contractors.length - 1}` : ""}
             </span>
             <span className="flex items-center gap-1.5">
-              <CalendarRange className="size-3.5 text-subtle" />
-              effective {fmtDate(d.effectiveFrom)}
+              In effect from {fmtDate(d.effectiveFrom)}
               {d.effectiveTo ? ` – ${fmtDate(d.effectiveTo)}` : ""}
             </span>
             <span className="flex items-center gap-1.5">
-              <MapPin className="size-3.5 text-subtle" />
-              {d.docType === "NCD" ? "all states" : `${d.states.length} states`}
+              {d.docType === "NCD" ? "All states" : `${d.states.length} states`}
             </span>
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => router.push(`/assistant?q=${encodeURIComponent(`Summarize the coverage indications and documentation requirements of ${d.sourceKey}`)}`)}>
-            <Sparkles className="text-ai-2" /> Ask about this policy
+            <MessageCircle /> Ask about this policy
           </Button>
           <Button
             variant="ghost"
@@ -646,7 +595,7 @@ export default function PolicyPage() {
           {d.url ? (
             <Button asChild variant="ghost">
               <a href={d.url} target="_blank" rel="noreferrer">
-                CMS MCD <ExternalLink />
+                View on CMS.gov <ExternalLink />
               </a>
             </Button>
           ) : null}
@@ -655,21 +604,17 @@ export default function PolicyPage() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="mb-4 max-w-full overflow-x-auto scrollbar-thin">
-          <TabsTrigger value="sections">
-            <ScrollText /> Policy text
-          </TabsTrigger>
+          <TabsTrigger value="sections">Policy text</TabsTrigger>
           <TabsTrigger value="criteria" count={cs ? leaves(cs.tree).length : null}>
-            <ListChecks /> Criteria
+            Requirements
           </TabsTrigger>
           <TabsTrigger value="versions" count={d.versions.length}>
-            <GitCompare /> Versions
+            What changed
           </TabsTrigger>
           <TabsTrigger value="codes" count={d.codeCount || null}>
-            <Hash /> Codes
+            Codes
           </TabsTrigger>
-          <TabsTrigger value="coverage">
-            <MapPin /> Jurisdiction &amp; links
-          </TabsTrigger>
+          <TabsTrigger value="coverage">Where it applies</TabsTrigger>
         </TabsList>
         <TabsContent value="sections">
           <TextTab d={d} />

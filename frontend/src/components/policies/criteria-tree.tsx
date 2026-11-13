@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/display";
 
 const KIND: Record<string, string> = {
   positive: "Clinical",
-  negative_attestation: "Attestation",
+  negative_attestation: "Must be confirmed",
   documentation: "Documentation",
   temporal: "Duration",
   numeric: "Measure",
@@ -13,8 +13,7 @@ const KIND: Record<string, string> = {
 
 const norm = (t: string) => t.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/\s+/g, " ").trim();
 
-/** Same rule the backend grounding check applies: a quote counts only if it appears verbatim
- *  (whitespace- and case-normalized) in the policy version being evaluated. */
+/** A quote counts only if it appears word for word (ignoring spacing and capitals) in the policy version. */
 export function quoteFound(quote: string, sourceText: string) {
   return norm(sourceText).includes(norm(quote));
 }
@@ -44,7 +43,7 @@ export function CriteriaTreeView({ node, depth = 0, onEdit, sourceText }: { node
             {KIND[node.kind]}
           </Badge>
         ) : null}
-        {node.lookbackDays ? <Badge size="xs">lookback {node.lookbackDays} d</Badge> : null}
+        {node.lookbackDays ? <Badge size="xs">within {node.lookbackDays} days</Badge> : null}
         {onEdit ? (
           <button onClick={() => onEdit(node)} className="text-xs text-brand hover:underline">
             Edit
@@ -62,7 +61,7 @@ export function CriteriaTreeView({ node, depth = 0, onEdit, sourceText }: { node
       {grounded !== null ? (
         <p className={cn("mt-1.5 flex items-center gap-1.5 pl-5 text-[11px]", grounded ? "text-met-fg" : "font-medium text-insufficient-fg")}>
           {grounded ? <CircleCheck className="size-3" /> : <CircleAlert className="size-3" />}
-          {grounded ? "Found verbatim in this edition" : "Not found in this edition — re-anchor before approval"}
+          {grounded ? "Quote matches this policy" : "This quote isn't in this policy's text. Update it before approving."}
         </p>
       ) : null}
     </div>
