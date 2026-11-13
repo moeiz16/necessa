@@ -1,0 +1,49 @@
+{
+  "source_key": "PAYER-SYNHP-MP0101",
+  "title": "Knee Arthroscopy for Meniscal Tears (Synthetic Health Plan — fictional policy)",
+  "payer": "Synthetic Health Plan",
+  "doc_type": "Payer Policy",
+  "version": 3,
+  "effective_from": "2026-01-01",
+  "national": true,
+  "url": null,
+  "sections": [
+    {
+      "key": "notice",
+      "title": "Synthetic Content Notice",
+      "text": "This document is a SYNTHETIC, fictional medical policy written for software testing and demonstration. It is not issued by any real health plan and must not be used for real coverage decisions."
+    },
+    {
+      "key": "indication",
+      "title": "Coverage Criteria",
+      "text": "Arthroscopic partial meniscectomy or meniscal repair of the knee is considered medically necessary when ALL of the following criteria are met:\n\n1. The member reports mechanical symptoms of the knee, such as locking, catching, or giving way, documented in the clinical record.\n2. The member has completed at least 6 weeks of conservative therapy within the past 12 months, including physical therapy or a supervised home exercise program, AND at least one of: oral anti-inflammatory medication, activity modification, or bracing, unless contraindicated.\n3. Magnetic resonance imaging (MRI) performed within the past 6 months demonstrates a meniscal tear that correlates with the clinical findings.\n4. Radiographs do not demonstrate advanced osteoarthritis of the affected compartment (Kellgren-Lawrence grade 3 or 4).\n5. A functional limitation attributable to the knee is documented, such as difficulty with stairs, ambulation, or work duties, using a validated score where available (for example, a KOOS or IKDC score).\n\nThe requirement for 6 weeks of conservative therapy does not apply when there is a locked knee that cannot be reduced, or an acute traumatic tear with a displaced bucket-handle fragment confirmed on MRI."
+    },
+    {
+      "key": "limitations",
+      "title": "Limitations and Exclusions",
+      "text": "Arthroscopic lavage and/or debridement as a treatment for osteoarthritis of the knee without mechanical symptoms is not medically necessary.\n\nArthroscopic meniscectomy is not medically necessary for degenerative meniscal tears in members with advanced osteoarthritis (Kellgren-Lawrence grade 3 or 4) of the same compartment.\n\nDiagnostic arthroscopy alone is not medically necessary when MRI findings are sufficient to establish the diagnosis."
+    },
+    {
+      "key": "doc_reqs",
+      "title": "Documentation Requirements",
+      "text": "The following documentation must accompany the prior authorization request:\n\n- Office notes from the treating clinician dated within the past 60 days describing the mechanical symptoms and examination findings (for example, joint line tenderness, a positive McMurray test).\n- Dates and outcomes of conservative therapy, including physical therapy visit dates or a home exercise log.\n- The MRI report, including the date of the study and the interpretation of the meniscal tear.\n- Radiograph report describing the degree of osteoarthritis in the affected compartment.\n- The documented functional limitation, including any validated outcome score."
+    },
+    {
+      "key": "coding",
+      "title": "Applicable Codes",
+      "text": "Procedure codes: 29880, 29881, 29882, 29883 (knee arthroscopy with meniscectomy or meniscal repair).\nSupporting diagnosis codes include: M23.2 (derangement of meniscus due to old tear or injury) and its subcodes; S83.2 (tear of meniscus, current injury) and its subcodes.\nNon-supporting diagnosis codes when billed alone: M17.0, M17.11, M17.12 (primary osteoarthritis of knee)."
+    }
+  ],
+  "codes": [
+    {"system": "HCPCS", "code": "29880", "group": 1},
+    {"system": "HCPCS", "code": "29881", "group": 1},
+    {"system": "HCPCS", "code": "29882", "group": 1},
+    {"system": "HCPCS", "code": "29883", "group": 1},
+    {"system": "ICD10_COVERED", "code": "M23.221", "group": 1, "description": "Derangement of posterior horn of medial meniscus due to old tear or injury, right knee"},
+    {"system": "ICD10_COVERED", "code": "M23.222", "group": 1, "description": "Derangement of posterior horn of medial meniscus due to old tear or injury, left knee"},
+    {"system": "ICD10_COVERED", "code": "S83.241A", "group": 1, "description": "Other tear of medial meniscus, current injury, right knee, initial encounter"},
+    {"system": "ICD10_COVERED", "code": "S83.242A", "group": 1, "description": "Other tear of medial meniscus, current injury, left knee, initial encounter"},
+    {"system": "ICD10_NONCOVERED", "code": "M17.11", "group": 1, "description": "Unilateral primary osteoarthritis, right knee"},
+    {"system": "ICD10_NONCOVERED", "code": "M17.12", "group": 1, "description": "Unilateral primary osteoarthritis, left knee"}
+  ]
+}

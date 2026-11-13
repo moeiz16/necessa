@@ -1,0 +1,41 @@
+{
+  "source_key": "PAYER-SYNHP-MP0207",
+  "title": "Positive Airway Pressure (PAP) Devices for Obstructive Sleep Apnea (Synthetic Health Plan — fictional policy)",
+  "payer": "Synthetic Health Plan",
+  "doc_type": "Payer Policy",
+  "version": 5,
+  "effective_from": "2025-07-01",
+  "national": true,
+  "sections": [
+    {
+      "key": "notice",
+      "title": "Synthetic Content Notice",
+      "text": "This document is a SYNTHETIC, fictional medical policy written for software testing and demonstration. It is not issued by any real health plan and must not be used for real coverage decisions."
+    },
+    {
+      "key": "indication",
+      "title": "Initial Coverage (First 3 Months)",
+      "text": "A continuous positive airway pressure device (E0601) is covered for an initial 3-month trial period when ALL of the following are met:\n\n1. The member had a face-to-face clinical evaluation by the treating practitioner before the sleep test, documenting signs and symptoms of sleep-disordered breathing (for example, snoring, witnessed apneas, daytime sleepiness with an Epworth Sleepiness Scale score).\n2. A facility-based polysomnogram or an approved home sleep apnea test demonstrates EITHER an apnea-hypopnea index (AHI) of 15 or more events per hour, OR an AHI of 5 to 14 events per hour with documented excessive daytime sleepiness, impaired cognition, mood disorder, insomnia, hypertension, ischemic heart disease, or history of stroke.\n3. The member and/or caregiver received instruction on the proper use and care of the device.\n\nA bi-level device without a backup rate (E0470) is covered when the above criteria are met AND a CPAP device has been tried and proven ineffective based on a therapeutic trial conducted in a facility or home setting."
+    },
+    {
+      "key": "continued_coverage",
+      "title": "Continued Coverage Beyond 3 Months",
+      "text": "Coverage continues beyond the initial 3 months only when, no sooner than the 31st day and no later than the 91st day after starting therapy, BOTH of the following are documented:\n\n1. A clinical re-evaluation in which the treating practitioner documents that symptoms of obstructive sleep apnea are improved.\n2. Objective evidence of adherence: use of the device for 4 or more hours per night on at least 70% of nights during a consecutive 30-day period within the first 3 months, obtained from the device's download data."
+    },
+    {
+      "key": "doc_reqs",
+      "title": "Documentation Requirements",
+      "text": "Submit the face-to-face evaluation note, the complete sleep study report including AHI, the adherence download covering a consecutive 30-day period, and the re-evaluation note. Statements from the supplier alone are not sufficient documentation of medical necessity."
+    },
+    {
+      "key": "coding",
+      "title": "Applicable Codes",
+      "text": "Device codes: E0601 (continuous positive airway pressure device), E0470 (respiratory assist device, bi-level pressure capability, without backup rate). Supporting diagnosis: G47.33 (obstructive sleep apnea, adult or pediatric)."
+    }
+  ],
+  "codes": [
+    {"system": "HCPCS", "code": "E0601", "group": 1, "description": "Continuous positive airway pressure (CPAP) device"},
+    {"system": "HCPCS", "code": "E0470", "group": 1, "description": "Respiratory assist device, bi-level pressure capability, without backup rate feature"},
+    {"system": "ICD10_COVERED", "code": "G47.33", "group": 1, "description": "Obstructive sleep apnea (adult) (pediatric)"}
+  ]
+}

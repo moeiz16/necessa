@@ -1,0 +1,47 @@
+{
+  "source_key": "PAYER-SYNHP-MP0315",
+  "title": "Lumbar Epidural Steroid Injections (Synthetic Health Plan — fictional policy)",
+  "payer": "Synthetic Health Plan",
+  "doc_type": "Payer Policy",
+  "version": 2,
+  "effective_from": "2026-03-01",
+  "national": true,
+  "sections": [
+    {
+      "key": "notice",
+      "title": "Synthetic Content Notice",
+      "text": "This document is a SYNTHETIC, fictional medical policy written for software testing and demonstration. It is not issued by any real health plan and must not be used for real coverage decisions."
+    },
+    {
+      "key": "indication",
+      "title": "Coverage Criteria",
+      "text": "A lumbar epidural steroid injection (ESI) is considered medically necessary for radicular pain when ALL of the following are met:\n\n1. Radicular pain in a dermatomal distribution has been present for at least 4 weeks, with pain intensity of 4 or greater on a 0-10 numeric rating scale, and is causing documented functional impairment.\n2. The member has failed at least 4 weeks of conservative care, which may include physical therapy, a home exercise program, and analgesic or anti-inflammatory medication, unless contraindicated.\n3. Clinical findings are corroborated by imaging (MRI or CT) showing nerve root compression or spinal stenosis at a level consistent with the symptoms, unless imaging is contraindicated.\n4. The injection is performed under fluoroscopic or CT image guidance with contrast confirmation.\n\nRepeat injections: a second injection is covered only if the first produced at least 50% pain relief or functional improvement lasting at least 3 weeks. No more than 4 injection sessions per region are covered in a rolling 12-month period."
+    },
+    {
+      "key": "limitations",
+      "title": "Limitations",
+      "text": "Epidural steroid injections are not medically necessary for axial low back pain without radicular symptoms, for non-specific back pain, or when performed without image guidance. Injections at more than two levels in a single session are not medically necessary."
+    },
+    {
+      "key": "doc_reqs",
+      "title": "Documentation Requirements",
+      "text": "Documentation must include the duration and character of radicular symptoms, pain scores, the conservative treatments tried with dates, the imaging report, and for repeat injections the percentage and duration of relief from the prior injection."
+    },
+    {
+      "key": "coding",
+      "title": "Applicable Codes",
+      "text": "Procedure codes: 62322, 62323 (interlaminar lumbar/sacral epidural), 64483, 64484 (transforaminal lumbar/sacral). Supporting diagnosis codes include M54.16 and M54.17 (radiculopathy, lumbar / lumbosacral region), M51.16 and M51.17 (intervertebral disc disorders with radiculopathy), M48.06 (spinal stenosis, lumbar region)."
+    }
+  ],
+  "codes": [
+    {"system": "HCPCS", "code": "62322", "group": 1},
+    {"system": "HCPCS", "code": "62323", "group": 1},
+    {"system": "HCPCS", "code": "64483", "group": 1},
+    {"system": "HCPCS", "code": "64484", "group": 1},
+    {"system": "ICD10_COVERED", "code": "M54.16", "group": 1, "description": "Radiculopathy, lumbar region"},
+    {"system": "ICD10_COVERED", "code": "M54.17", "group": 1, "description": "Radiculopathy, lumbosacral region"},
+    {"system": "ICD10_COVERED", "code": "M51.16", "group": 1, "description": "Intervertebral disc disorders with radiculopathy, lumbar region"},
+    {"system": "ICD10_COVERED", "code": "M48.06", "group": 1, "description": "Spinal stenosis, lumbar region"},
+    {"system": "ICD10_NONCOVERED", "code": "M54.50", "group": 1, "description": "Low back pain, unspecified"}
+  ]
+}

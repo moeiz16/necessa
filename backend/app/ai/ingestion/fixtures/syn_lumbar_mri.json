@@ -1,0 +1,39 @@
+{
+  "source_key": "PAYER-SYNHP-MP0510",
+  "title": "MRI of the Lumbar Spine for Low Back Pain (Synthetic Health Plan — fictional policy)",
+  "payer": "Synthetic Health Plan",
+  "doc_type": "Payer Policy",
+  "version": 1,
+  "effective_from": "2026-01-01",
+  "national": true,
+  "sections": [
+    {
+      "key": "notice",
+      "title": "Synthetic Content Notice",
+      "text": "This document is a SYNTHETIC, fictional medical policy written for software testing and demonstration. It is not issued by any real health plan and must not be used for real coverage decisions."
+    },
+    {
+      "key": "indication",
+      "title": "Coverage Criteria",
+      "text": "Synthetic Health Plan considers MRI of the lumbar spine medically necessary when either of the following applies. Red flag findings are present, such as suspected cauda equina syndrome, progressive neurologic deficit, suspected spinal infection, or a history of cancer with new back pain. OR the member has low back pain with radiculopathy that persists after at least six weeks of documented conservative care and the member is a candidate for surgery or interventional treatment. Imaging is not medically necessary for uncomplicated acute low back pain of less than six weeks without red flags."
+    },
+    {
+      "key": "doc_reqs",
+      "title": "Documentation Requirements",
+      "text": "Submit the office note documenting the history and neurologic examination, any red flag findings, the onset date of symptoms, the dates and type of conservative care (for example physical therapy, home exercise and anti-inflammatory medication) with the response to treatment, and the treatment plan that the imaging result would change (surgical consultation or an interventional procedure such as an epidural steroid injection)."
+    },
+    {
+      "key": "coding",
+      "title": "Applicable Codes",
+      "text": "Procedure code: 72148 (MRI of the lumbar spine without contrast). Supporting diagnosis codes include M54.16 and M54.17 (radiculopathy, lumbar / lumbosacral region), M51.16 (intervertebral disc disorder with radiculopathy, lumbar region), G83.4 (cauda equina syndrome). Non-supporting when billed alone: M54.50 (low back pain, unspecified)."
+    }
+  ],
+  "codes": [
+    {"system": "HCPCS", "code": "72148", "group": 1},
+    {"system": "ICD10_COVERED", "code": "M54.16", "group": 1, "description": "Radiculopathy, lumbar region"},
+    {"system": "ICD10_COVERED", "code": "M54.17", "group": 1, "description": "Radiculopathy, lumbosacral region"},
+    {"system": "ICD10_COVERED", "code": "M51.16", "group": 1, "description": "Intervertebral disc disorders with radiculopathy, lumbar region"},
+    {"system": "ICD10_COVERED", "code": "G83.4", "group": 1, "description": "Cauda equina syndrome"},
+    {"system": "ICD10_NONCOVERED", "code": "M54.50", "group": 1, "description": "Low back pain, unspecified"}
+  ]
+}
