@@ -13,6 +13,8 @@ export const PERMISSIONS: Record<Permission, Role[]> = {
   "audit:read": ["owner", "admin", "auditor"],
   "org:admin": ["owner", "admin"],
   "evals:read": ["owner", "admin"],
+  "phi:reveal": ["owner", "admin", "coordinator", "clinician"],
+  "assistant:use": ["owner", "admin", "coordinator", "clinician", "reviewer", "rcm_manager", "auditor"],
 };
 
 export function permissionsFor(role: Role): Permission[] {

@@ -15,6 +15,7 @@ import type {
   CodeResult,
   Conversation,
   CoverageGraph,
+  CriteriaNode,
   CriteriaSet,
   CriterionResult,
   Denial,
@@ -393,11 +394,16 @@ export const usePolicies = (q: Query = {}) =>
   useQuery({ queryKey: qk.policies(q), queryFn: () => api.get<Page<PolicySummary>>("/policies", { limit: 50, ...q }), placeholderData: keepPreviousData });
 export const usePolicy = (id: string) => useQuery({ queryKey: qk.policy(id), queryFn: () => api.get<PolicyDetail>(`/policies/${id}`), enabled: !!id });
 export const usePolicyCodes = (id: string, system?: string) =>
-  useQuery({ queryKey: qk.policyCodes(id, system), queryFn: () => api.get<Page<PolicyCode>>(`/policies/${id}/codes`, { system, limit: 200 }) });
+  useQuery({ queryKey: qk.policyCodes(id, system), queryFn: () => api.get<Page<PolicyCode>>(`/policies/${id}/codes`, { system, limit: 200 }), enabled: !!id });
 export const usePolicyDiff = (id: string, from: number, to: number, enabled = true) =>
   useQuery({ queryKey: qk.policyDiff(id, from, to), queryFn: () => api.get<PolicyDiff>(`/policies/${id}/diff`, { from, to }), enabled });
 export const usePolicyCriteria = (id: string) =>
-  useQuery({ queryKey: qk.policyCriteria(id), queryFn: () => api.get<CriteriaSet>(`/policies/${id}/criteria`), retry: false, enabled: !!id });
+  useQuery({
+    queryKey: qk.policyCriteria(id),
+    queryFn: async () => normalizeCriteriaSet(await api.get<CriteriaSet>(`/policies/${id}/criteria`)),
+    retry: false,
+    enabled: !!id,
+  });
 export const useCodeSearch = (q: string, system?: string) =>
   useQuery({ queryKey: qk.codeSearch(q, system), queryFn: () => api.get<CodeResult[]>("/codes/search", { q, system }), placeholderData: keepPreviousData });
 export const useCodeGraph = (system: string, code: string | null, state?: string) =>
@@ -442,7 +448,13 @@ export function useAskAnalytics() {
 export const useAnalytics = (range = "30d") => useQuery({ queryKey: qk.analytics(range), queryFn: () => api.get<AnalyticsOverview>("/analytics/overview", { range }) });
 export const useTeam = () => useQuery({ queryKey: qk.team, queryFn: () => api.get<TeamLoad[]>("/analytics/team") });
 export const useActivity = () => useQuery({ queryKey: qk.activity, queryFn: () => api.get<ActivityItem[]>("/activity") });
-export const useNotifications = () => useQuery({ queryKey: qk.notifications, queryFn: () => api.get<NotificationItem[]>("/notifications"), refetchInterval: 30_000 });
+export const useNotifications = () =>
+  useQuery({
+    queryKey: qk.notifications,
+    // The API returns `{ items, unread }`; the demo backend returns a bare array. Normalize to an array.
+    queryFn: () => api.get<NotificationItem[] | { items: NotificationItem[] }>("/notifications").then((r) => (Array.isArray(r) ? r : (r?.items ?? []))),
+    refetchInterval: 30_000,
+  });
 export function useMarkNotifications() {
   const inv = useInvalidate();
   return useMutation({
@@ -463,8 +475,33 @@ export const useModels = () => useQuery({ queryKey: qk.models, queryFn: () => ap
 export const useModelUsage = (range = "7d") => useQuery({ queryKey: qk.modelUsage(range), queryFn: () => api.get<ModelUsage>("/admin/models/usage", { range }) });
 export const useCacheStats = () =>
   useQuery({ queryKey: qk.cache, queryFn: () => api.get<{ hits: number; misses: number; hitRate: number; layers: { name: string; entries: number; hitRate: number }[] }>("/admin/cache/stats") });
-export const useCriteriaSets = (status?: string) => useQuery({ queryKey: qk.criteria(status), queryFn: () => api.get<Page<CriteriaSet>>("/admin/criteria", { status }) });
-export const useCriteriaSet = (id: string) => useQuery({ queryKey: qk.criteriaSet(id), queryFn: () => api.get<CriteriaSet>(`/admin/criteria/${id}`) });
+/** The API stores a full criteria tree (`{ root, title, … }`, spans keyed `sectionKey`); the editor works on
+ *  the root node with `sourceSpan.section`. Normalizing here keeps every screen on one shape. Idempotent. */
+type ApiSpan = { section?: string; sectionKey?: string; quote: string };
+type ApiNode = Omit<CriteriaNode, "sourceSpan" | "children"> & { sourceSpan?: ApiSpan; children?: ApiNode[] };
+function toEditorNode(node: ApiNode): CriteriaNode {
+  const { sourceSpan, children, ...rest } = node;
+  return {
+    ...rest,
+    ...(sourceSpan ? { sourceSpan: { section: sourceSpan.section ?? sourceSpan.sectionKey ?? "", quote: sourceSpan.quote } } : {}),
+    ...(children ? { children: children.map(toEditorNode) } : {}),
+  };
+}
+export function normalizeCriteriaSet<T extends { tree?: unknown }>(set: T): T {
+  const tree = set?.tree as (ApiNode & { root?: ApiNode }) | undefined;
+  if (!tree) return set;
+  return { ...set, tree: toEditorNode(tree.root ?? tree) };
+}
+export const useCriteriaSets = (status?: string) =>
+  useQuery({
+    queryKey: qk.criteria(status),
+    queryFn: async () => {
+      const page = await api.get<Page<CriteriaSet>>("/admin/criteria", { status });
+      return { ...page, items: page.items.map(normalizeCriteriaSet) };
+    },
+  });
+export const useCriteriaSet = (id: string) =>
+  useQuery({ queryKey: qk.criteriaSet(id), queryFn: async () => normalizeCriteriaSet(await api.get<CriteriaSet>(`/admin/criteria/${id}`)) });
 export const useEvalRuns = () => useQuery({ queryKey: qk.evalRuns, queryFn: () => api.get<EvalRun[]>("/admin/evals/runs"), refetchInterval: 6000 });
 export const useSystemInfo = () => useQuery({ queryKey: qk.system, queryFn: () => api.get<Record<string, unknown>>("/admin/system") });
 
@@ -518,7 +555,7 @@ export function useFlushCache() {
 export function useUpdateCriteriaSet(id: string) {
   const inv = useInvalidate();
   return useMutation({
-    mutationFn: (body: Partial<CriteriaSet>) => api.patch<CriteriaSet>(`/admin/criteria/${id}`, body),
+    mutationFn: async (body: Partial<CriteriaSet>) => normalizeCriteriaSet(await api.patch<CriteriaSet>(`/admin/criteria/${id}`, body)),
     onSuccess: () => inv(qk.criteriaSet(id), ["admin", "criteria"], ["policy"]),
     onError,
   });

@@ -17,7 +17,9 @@ export type Permission =
   | "analytics:read"
   | "audit:read"
   | "org:admin"
-  | "evals:read";
+  | "evals:read"
+  | "phi:reveal"
+  | "assistant:use";
 
 export interface Page<T> {
   items: T[];
@@ -285,6 +287,8 @@ export interface TreeResult {
   n?: number;
   criterionId?: string;
   text?: string;
+  /** Group label from the criteria set (e.g. "Initial E0601 coverage"). */
+  label?: string;
   verdict: Verdict;
   children?: TreeResult[];
 }
@@ -295,7 +299,8 @@ export interface Gap {
   detail: string;
   severity: "blocker" | "major" | "minor";
   suggestedFix: string;
-  policyQuote: string;
+  /** Absent for policy-level gaps (e.g. "No approved criteria for the applicable policy"). */
+  policyQuote?: string | null;
 }
 
 export type EvaluationStatus = "running" | "awaiting_review" | "completed" | "failed" | "cancelled";
