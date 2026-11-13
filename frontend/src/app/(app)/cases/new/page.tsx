@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, BookOpen, CircleDashed, ClipboardPaste, FileJson, FileText, Flame, Lightbulb, Sparkles, Trash2, UserRound, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, CircleAlert, CircleDashed, ClipboardPaste, FileJson, FileText, Flame, History, Lightbulb, Loader2, ShieldAlert, ShieldCheck, Sparkles, Trash2, UserRound, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/lib/api/client";
@@ -15,11 +16,44 @@ import { CodeChip, DocTypeBadge } from "@/components/domain/verdict";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/command";
 import { Checkbox, RadioCards, Segmented, Select } from "@/components/ui/controls";
-import { Badge, Breadcrumb, Card, CardBody, CardHeader, SectionLabel, Skeleton } from "@/components/ui/display";
+import { Breadcrumb, Card, CardBody, CardHeader, SectionLabel, Skeleton } from "@/components/ui/display";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Dropzone } from "@/components/ui/widgets";
+import { AiBadge } from "@/components/domain/trust";
+import { Callout } from "@/components/ui/empty";
 
 type PatientMode = "synthetic" | "fhir" | "manual";
+type StepState = "pending" | "running" | "done" | "warn" | "error";
+interface SubmitStep {
+  id: string;
+  label: string;
+  state: StepState;
+  detail?: string;
+}
+
+/** Drafts keep only non-identifying fields — names, DOBs, member IDs and chart text never touch browser storage. */
+const DRAFT_KEY = "necessa.newcase.draft";
+interface Draft {
+  mode: PatientMode;
+  patientId: string;
+  service: string[];
+  dx: string[];
+  payerType: PayerType;
+  payerName: string;
+  state: string;
+  dos: string;
+  priority: "standard" | "expedited";
+  title: string;
+  savedAt: number;
+}
+
+const STEP_ICON: Record<StepState, React.ReactNode> = {
+  pending: <CircleDashed className="size-4 text-subtle" />,
+  running: <Loader2 className="size-4 animate-spin text-brand" />,
+  done: <Check className="size-4 text-met" />,
+  warn: <ShieldAlert className="size-4 text-insufficient" />,
+  error: <CircleAlert className="size-4 text-notmet" />,
+};
 interface Staged {
   id: string;
   kind: DocumentKind;
@@ -64,6 +98,13 @@ function CodePicker({ system, value, onChange, placeholder }: { system: "HCPCS" 
   );
 }
 
+const matchingBadge = (loading: boolean) =>
+  loading ? (
+    <span className="flex items-center gap-1 text-[11px] text-subtle">
+      <Loader2 className="size-3 animate-spin" /> Matching…
+    </span>
+  ) : null;
+
 function AssistPanel({ matches, loading, ready }: { matches: PolicyMatch[]; loading: boolean; ready: boolean }) {
   const top = matches[0];
   const criteria = usePolicyCriteria(top?.policyId ?? "");
@@ -71,7 +112,7 @@ function AssistPanel({ matches, loading, ready }: { matches: PolicyMatch[]; load
   return (
     <div className="grid gap-4 lg:sticky lg:top-20">
       <Card className="ai-border">
-        <CardHeader title="Policy match" description="Resolved deterministically from codes, state and date of service" icon={<Sparkles className="text-ai-2" />} />
+        <CardHeader title="Policy match" description="Resolved deterministically from codes, jurisdiction and date of service — no model involved" icon={<Sparkles className="text-ai-2" />} actions={matchingBadge(loading)} />
         <CardBody className="grid gap-2">
           {!ready ? (
             <p className="flex items-center gap-2 rounded-md bg-surface-2 px-3 py-3 text-[13px] text-muted">
@@ -92,13 +133,21 @@ function AssistPanel({ matches, loading, ready }: { matches: PolicyMatch[]; load
                 </div>
                 <p className="mt-1.5 text-[13px] font-medium leading-snug text-fg">{m.title}</p>
                 <p className="mt-1 text-xs text-muted">{m.contractor?.name ?? "National"} · effective {fmtDate(m.effectiveFrom)}</p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {m.matchReasons.map((r) => (
-                    <Badge key={`${r.type}-${r.value}`} tone={r.detail.startsWith("Outside") ? "notmet" : "neutral"} size="xs" title={r.detail}>
-                      {r.type.toUpperCase()} {r.value}
-                    </Badge>
+                <ul className="mt-2 grid gap-1">
+                  {m.matchReasons.slice(0, 4).map((r) => (
+                    <li key={`${r.type}-${r.value}`} className="flex items-start gap-1.5 text-xs text-muted">
+                      {r.detail.startsWith("Outside") ? <CircleAlert className="mt-0.5 size-3 shrink-0 text-notmet" /> : <Check className="mt-0.5 size-3 shrink-0 text-met" />}
+                      <span>
+                        <span className="font-mono font-medium text-fg">{r.value}</span> — {r.detail}
+                      </span>
+                    </li>
                   ))}
-                </div>
+                </ul>
+                {m.criteriaSetStatus && m.criteriaSetStatus !== "approved" ? (
+                  <p className="mt-2 flex items-center gap-1.5 text-xs text-insufficient-fg">
+                    <CircleAlert className="size-3" /> Criteria {String(m.criteriaSetStatus) === "missing" ? "not compiled yet" : "pending review"} — verdicts may be unavailable
+                  </p>
+                ) : null}
               </div>
             ))
           )}
@@ -106,19 +155,24 @@ function AssistPanel({ matches, loading, ready }: { matches: PolicyMatch[]; load
       </Card>
       {top ? (
         <Card>
-          <CardHeader title="Documentation you'll likely need" description={`From ${top.sourceKey}'s compiled criteria`} icon={<Lightbulb />} />
+          <CardHeader
+            title="Documentation you'll likely need"
+            description={`From ${top.sourceKey}'s reviewed criteria — attach these to avoid gaps`}
+            icon={<Lightbulb />}
+            actions={<AiBadge label="Preview" detail="Derived from the policy's approved criteria set. The full check runs after the case is created." />}
+          />
           <CardBody>
             {criteria.isPending ? (
               <Skeleton className="h-24" />
             ) : needs.length ? (
-              <ul className="grid gap-2">
-                {needs.map((t) => (
-                  <li key={t} className="flex gap-2 text-[13px] text-fg">
-                    <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand" />
+              <ol className="grid gap-2">
+                {needs.map((t, i) => (
+                  <li key={t} className="flex gap-2.5 text-[13px] text-fg">
+                    <span className="tabular mt-px flex size-[18px] shrink-0 items-center justify-center rounded-full bg-brand-soft text-[10px] font-semibold text-brand-fg">{i + 1}</span>
                     {t}
                   </li>
                 ))}
-              </ul>
+              </ol>
             ) : (
               <p className="text-[13px] text-muted">Criteria for this policy haven&apos;t been compiled yet. An admin can compile them from Knowledge ops.</p>
             )}
@@ -156,7 +210,64 @@ export default function NewCasePage() {
   const [matches, setMatches] = useState<PolicyMatch[]>([]);
   const [matching, setMatching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState<SubmitStep[] | null>(null);
+  const [restored, setRestored] = useState<number | null>(null);
+  const [draftReady, setDraftReady] = useState(false);
+  const reduce = useReducedMotion();
   const codeSearch = useCodeSearch(service[0] ?? "", "HCPCS");
+
+  // Restore a recent draft once, then autosave non-PHI fields.
+  useEffect(() => {
+    try {
+      const d = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "null") as Draft | null;
+      if (d && Date.now() - d.savedAt < 7 * 86400_000 && (d.service.length || d.patientId)) {
+        setMode(d.mode === "manual" || d.mode === "fhir" ? "synthetic" : d.mode);
+        setPatientId(d.patientId);
+        setService(d.service);
+        setDx(d.dx);
+        setPayerType(d.payerType);
+        setPayerName(d.payerName);
+        setState(d.state);
+        setDos(d.dos);
+        setPriority(d.priority);
+        setTitle(d.title);
+        setRestored(d.savedAt);
+      }
+    } catch {
+      /* ignore corrupt drafts */
+    }
+    setDraftReady(true);
+  }, []);
+  useEffect(() => {
+    if (!draftReady || progress) return;
+    const t = setTimeout(() => {
+      try {
+        const empty = !service.length && !dx.length && !patientId && !title;
+        if (empty) localStorage.removeItem(DRAFT_KEY);
+        else localStorage.setItem(DRAFT_KEY, JSON.stringify({ mode, patientId, service, dx, payerType, payerName, state, dos, priority, title, savedAt: Date.now() } satisfies Draft));
+      } catch {
+        /* storage unavailable */
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [draftReady, progress, mode, patientId, service, dx, payerType, payerName, state, dos, priority, title]);
+  const discardDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
+    setPatientId("");
+    setService([]);
+    setDx([]);
+    setPayerType("medicare_ffs");
+    setPayerName("Medicare Part B");
+    setState("");
+    setPriority("standard");
+    setTitle("");
+    setStep(0);
+    setRestored(null);
+  };
 
   const selectedPatient = patients.data?.find((p) => p.id === patientId);
   const effectiveState = state || selectedPatient?.state || fhirInfo?.state || manual.state;
@@ -209,8 +320,13 @@ export default function NewCasePage() {
     }
   };
 
-  const patientValid = mode === "synthetic" ? !!patientId : mode === "fhir" ? !!fhirInfo : manual.fullName.trim().length > 1 && !!manual.dob && !!manual.state;
-  const serviceValid = service.length > 0 && dx.length > 0 && !!effectiveState && !!dos && !!payerName;
+  const missing0 = (
+    mode === "synthetic" ? [!patientId && "a patient"] : mode === "fhir" ? [!fhirInfo && "a FHIR bundle"] : [manual.fullName.trim().length < 2 && "full name", !manual.dob && "date of birth", !manual.state && "state"]
+  ).filter(Boolean) as string[];
+  const missing1 = [!service.length && "a service code", !dx.length && "a diagnosis code", !payerName && "a plan", !effectiveState && "jurisdiction", !dos && "date of service"].filter(Boolean) as string[];
+  const patientValid = missing0.length === 0;
+  const serviceValid = missing1.length === 0;
+  const missing = step === 0 ? missing0 : step === 1 ? missing1 : [];
   const payerOptions = useMemo(() => {
     const fromOrg = (org.data?.payers ?? []).filter((p) => p.type === payerType).map((p) => p.name);
     const defaults: Record<PayerType, string[]> = {
@@ -224,18 +340,40 @@ export default function NewCasePage() {
 
   const submit = async () => {
     setSubmitting(true);
+    const plan: SubmitStep[] = [
+      { id: "case", label: "Create case and encrypt demographics", state: "running" },
+      ...(mode === "fhir" && fhirInfo ? [{ id: "fhir", label: `Import ${fhirInfo.file.name}`, state: "pending" as StepState }] : []),
+      ...docs.map((d) => ({ id: d.id, label: `De-identify and screen ${d.title}`, state: "pending" as StepState })),
+      ...(evaluateAfter ? [{ id: "eval", label: "Start the medical-necessity check", state: "pending" as StepState }] : []),
+    ];
+    setProgress(plan);
+    const mark = (id: string, state: StepState, detail?: string) => setProgress((p) => (p ? p.map((x) => (x.id === id ? { ...x, state, detail } : x)) : p));
     try {
       const body: Record<string, unknown> = { title: title || "Prior authorization", priority, payerType, payerName, state: effectiveState, serviceCodes: service, dxCodes: dx, dateOfService: dos };
       if (mode === "synthetic") body.patientId = patientId;
       else if (mode === "fhir" && fhirInfo) body.patient = { fullName: fhirInfo.name, dob: fhirInfo.dob, sex: fhirInfo.sex, state: fhirInfo.state || effectiveState };
       else body.patient = manual;
       const c = await create.mutateAsync(body);
-      const uploads: Promise<CaseDocument>[] = [];
+      mark("case", "done", c.number);
+      const track = (id: string, run: () => Promise<CaseDocument>) => {
+        mark(id, "running");
+        return run().then(
+          (r) => {
+            mark(id, r.quarantined ? "warn" : "done", r.quarantined ? "Quarantined — possible prompt injection; excluded from evidence" : "PHI tokenized · injection screen passed");
+            return r;
+          },
+          (e) => {
+            mark(id, "error", errorMessage(e));
+            return null;
+          },
+        );
+      };
+      const uploads: Promise<CaseDocument | null>[] = [];
       if (mode === "fhir" && fhirInfo) {
         const form = new FormData();
         form.set("file", fhirInfo.file);
         form.set("kind", "fhir_bundle");
-        uploads.push(api.upload<CaseDocument>(`/cases/${c.id}/documents`, form));
+        uploads.push(track("fhir", () => api.upload<CaseDocument>(`/cases/${c.id}/documents`, form)));
       }
       for (const d of docs) {
         if (d.file) {
@@ -243,16 +381,22 @@ export default function NewCasePage() {
           form.set("file", d.file);
           form.set("kind", d.kind);
           if (d.noteDate) form.set("noteDate", d.noteDate);
-          uploads.push(api.upload<CaseDocument>(`/cases/${c.id}/documents`, form));
-        } else if (d.text) uploads.push(api.post<CaseDocument>(`/cases/${c.id}/documents/text`, { kind: d.kind, text: d.text, title: d.title, noteDate: d.noteDate }));
+          uploads.push(track(d.id, () => api.upload<CaseDocument>(`/cases/${c.id}/documents`, form)));
+        } else if (d.text) uploads.push(track(d.id, () => api.post<CaseDocument>(`/cases/${c.id}/documents/text`, { kind: d.kind, text: d.text, title: d.title, noteDate: d.noteDate })));
       }
-      const results = await Promise.all(uploads);
+      const results = (await Promise.all(uploads)).filter(Boolean) as CaseDocument[];
       const q = results.filter((r) => r.quarantined).length;
+      if (evaluateAfter) mark("eval", "running", "Opening the case workspace…");
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* ignore */
+      }
       toast.success(`${c.number} created`, { description: `${results.length} document${results.length === 1 ? "" : "s"} attached${q ? ` · ${q} quarantined for review` : ""}` });
       router.push(`/cases/${c.id}${evaluateAfter ? "?evaluate=1" : ""}`);
     } catch (e) {
+      mark("case", "error", errorMessage(e));
       toast.error(errorMessage(e));
-    } finally {
       setSubmitting(false);
     }
   };
@@ -263,18 +407,94 @@ export default function NewCasePage() {
     <AppPage crumbs={<Breadcrumb items={[{ label: "Cases", href: "/cases" }, { label: "New case" }]} />} wide>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div>
-          <div className="mb-6 flex items-center gap-3">
-            {steps.map((s, i) => (
-              <button key={s} onClick={() => i < step && setStep(i)} className={cn("flex items-center gap-2 text-[13px]", i <= step ? "text-fg" : "text-subtle")} disabled={i > step}>
-                <span className={cn("flex size-6 items-center justify-center rounded-full text-[11px] font-semibold", i < step ? "bg-met text-white" : i === step ? "bg-brand text-brand-contrast" : "bg-surface-3 text-subtle")}>{i + 1}</span>
-                <span className="hidden font-medium sm:inline">{s}</span>
-                {i < steps.length - 1 ? <span className="mx-1 h-px w-8 bg-border" /> : null}
-              </button>
+          <ol className="mb-6 flex items-center gap-3" aria-label="Steps">
+            {steps.map((label, i) => (
+              <li key={label} className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => i < step && !progress && setStep(i)}
+                  aria-current={i === step ? "step" : undefined}
+                  className={cn("flex items-center gap-2 rounded-md text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-brand/30", i <= step ? "text-fg" : "text-subtle", i < step && "hover:text-brand-fg")}
+                  disabled={i > step}
+                >
+                  <span
+                    className={cn(
+                      "flex size-6 items-center justify-center rounded-full text-[11px] font-semibold transition-colors duration-300",
+                      i < step ? "bg-met text-white" : i === step ? "bg-brand text-brand-contrast shadow-[0_0_0_4px_color-mix(in_oklab,var(--brand)_18%,transparent)]" : "bg-surface-3 text-subtle",
+                    )}
+                  >
+                    {i < step ? <Check className="size-3.5" strokeWidth={3} /> : i + 1}
+                  </span>
+                  <span className="hidden font-medium sm:inline">{label}</span>
+                </button>
+                {i < steps.length - 1 ? (
+                  <span className="relative h-px w-10 bg-border" aria-hidden>
+                    <span className="absolute inset-y-0 left-0 bg-met transition-[width] duration-500 ease-out" style={{ width: i < step ? "100%" : "0%" }} />
+                  </span>
+                ) : null}
+              </li>
             ))}
-          </div>
+          </ol>
+
+          {restored && !progress ? (
+            <Callout
+              tone="neutral"
+              icon={<History className="size-4" />}
+              className="mb-4"
+              title="Draft restored"
+              action={
+                <Button size="xs" variant="ghost" onClick={discardDraft}>
+                  Start over
+                </Button>
+              }
+            >
+              Saved {new Date(restored).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}. Patient identifiers and chart text are never saved in drafts.
+            </Callout>
+          ) : null}
 
           <Card>
             <CardBody className="grid gap-6 pt-5">
+              {progress ? (
+                <div className="grid gap-4" role="status" aria-live="polite">
+                  <div>
+                    <h1 className="text-lg font-semibold tracking-tight">Creating the case</h1>
+                    <p className="text-[13px] text-muted">Each document is de-identified and screened for prompt injection before it can be used as evidence.</p>
+                  </div>
+                  <ol className="grid gap-1.5">
+                    {progress.map((p) => (
+                      <motion.li
+                        key={p.id}
+                        layout={!reduce}
+                        className={cn("flex items-start gap-3 rounded-lg border px-3 py-2.5 text-[13px] transition-colors", p.state === "running" ? "border-brand/30 bg-brand-soft/20" : p.state === "warn" ? "border-insufficient/30 bg-insufficient-soft/30" : p.state === "error" ? "border-notmet/30 bg-notmet-soft/30" : "border-border")}
+                      >
+                        <span className="mt-px">{STEP_ICON[p.state]}</span>
+                        <span className="grid min-w-0 flex-1 gap-0.5">
+                          <span className={cn("text-fg", p.state === "pending" && "text-muted")}>{p.label}</span>
+                          {p.detail ? <span className="text-xs text-muted">{p.detail}</span> : null}
+                        </span>
+                      </motion.li>
+                    ))}
+                  </ol>
+                  {progress.some((p) => p.state === "error") ? (
+                    <Button variant="secondary" className="w-fit" onClick={() => setProgress(null)}>
+                      <ArrowLeft /> Back to the form
+                    </Button>
+                  ) : (
+                    <p className="flex items-center gap-1.5 text-xs text-subtle">
+                      <ShieldCheck className="size-3.5 text-met" /> Raw text is encrypted at rest; only de-identified text is indexed.
+                    </p>
+                  )}
+                </div>
+              ) : (
+              <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={step}
+                className="grid gap-6"
+                initial={reduce ? false : { opacity: 0, x: 14 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0, x: -14 }}
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              >
               {step === 0 ? (
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -386,8 +606,8 @@ export default function NewCasePage() {
                         value={priority}
                         onValueChange={(v) => setPriority(v as "standard" | "expedited")}
                         options={[
-                          { value: "standard", label: "Standard", description: `${org.data?.settings.slaHoursStandard ?? 168} h payer clock` },
-                          { value: "expedited", label: "Expedited", description: `${org.data?.settings.slaHoursExpedited ?? 72} h — health or function at risk`, icon: <Flame /> },
+                          { value: "standard", label: "Standard", description: `${Math.round((org.data?.settings.slaHoursStandard ?? 168) / 24)}-day payer clock` },
+                          { value: "expedited", label: "Expedited", description: `${org.data?.settings.slaHoursExpedited ?? 72}-hour clock — health or function at risk`, icon: <Flame /> },
                         ]}
                       />
                     </Field>
@@ -454,7 +674,12 @@ export default function NewCasePage() {
                 </>
               ) : null}
 
-              <div className="flex items-center justify-between border-t border-border pt-4">
+              </motion.div>
+              </AnimatePresence>
+              )}
+
+              {progress ? null : (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
                 {step === 0 ? (
                   <Button asChild variant="ghost">
                     <Link href="/cases">Cancel</Link>
@@ -464,6 +689,11 @@ export default function NewCasePage() {
                     <ArrowLeft /> Back
                   </Button>
                 )}
+                {missing.length ? (
+                  <p className="ml-auto text-xs text-subtle" aria-live="polite">
+                    Still needed: {missing.join(", ")}
+                  </p>
+                ) : null}
                 {step < 2 ? (
                   <Button variant="primary" disabled={step === 0 ? !patientValid : !serviceValid} onClick={() => setStep(step + 1)}>
                     Continue <ArrowRight />
@@ -477,6 +707,7 @@ export default function NewCasePage() {
                   </Button>
                 )}
               </div>
+              )}
             </CardBody>
           </Card>
         </div>
