@@ -21,15 +21,19 @@ from app.schemas.evals import CompileIn, CriteriaPatch
 router = APIRouter(prefix="/admin/criteria", tags=["admin-criteria"])
 
 
-def criteria_set_api(cs: CriteriaSet, *, full: bool = False) -> dict:
+def criteria_set_api(cs: CriteriaSet, *, full: bool = False, people: dict[str, dict] | None = None) -> dict:
     tree = cs.tree or {}
     leaves = _count_leaves(tree.get("root", {}))
+    reviewer = str(cs.reviewed_by) if cs.reviewed_by else None
     out = {
         "id": str(cs.id),
         "policyKey": cs.policy_key,
+        "sourceKey": cs.policy_key,
         "policyVersionId": cs.policy_version_id,
         "policyVersion": cs.policy_version,
+        "version": cs.policy_version,
         "title": cs.title,
+        "policyTitle": cs.title,
         "status": cs.status,
         "source": cs.source,
         "criteriaCount": leaves,
@@ -39,7 +43,7 @@ def criteria_set_api(cs: CriteriaSet, *, full: bool = False) -> dict:
         "groundingPassRate": cs.grounding_pass_rate,
         "notes": cs.notes,
         "synthetic": bool(tree.get("synthetic")),
-        "reviewedBy": str(cs.reviewed_by) if cs.reviewed_by else None,
+        "reviewedBy": (people or {}).get(reviewer, {"id": reviewer, "fullName": None}) if reviewer else None,
         "reviewedAt": cs.reviewed_at.isoformat() if cs.reviewed_at else None,
         "createdAt": cs.created_at.isoformat() if cs.created_at else None,
     }
@@ -47,6 +51,36 @@ def criteria_set_api(cs: CriteriaSet, *, full: bool = False) -> dict:
         out["tree"] = tree
         out["grounding"] = cs.grounding
     return out
+
+
+async def _people(db: AsyncSession, rows: list[CriteriaSet]) -> dict[str, dict]:
+    from app.db.models.platform import User
+
+    ids = {r.reviewed_by for r in rows if r.reviewed_by}
+    if not ids:
+        return {}
+    users = (await db.execute(select(User.id, User.full_name).where(User.id.in_(ids)))).all()
+    return {str(uid): {"id": str(uid), "fullName": name} for uid, name in users}
+
+
+def _normalize_tree_input(tree: dict, existing: dict | None) -> dict:
+    """Accept either a full criteria tree or just its root node (as the review editor sends it),
+    and the editor's `sourceSpan.section` spelling of `sectionKey`."""
+
+    def fix(node: dict) -> dict:
+        node = dict(node)
+        span = node.get("sourceSpan")
+        if isinstance(span, dict) and "sectionKey" not in span and "section" in span:
+            span = {**span, "sectionKey": span["section"]}
+            span.pop("section", None)
+            node["sourceSpan"] = span
+        if isinstance(node.get("children"), list):
+            node["children"] = [fix(c) for c in node["children"]]
+        return node
+
+    if "root" in tree:
+        return {**tree, "root": fix(tree["root"])}
+    return {**(existing or {}), "root": fix(tree)}
 
 
 def _count_leaves(node: dict) -> int:
@@ -82,8 +116,9 @@ async def list_criteria_sets(
         .all()
     )
     nxt = cursor + limit if cursor + limit < total else None
+    people = await _people(db, list(rows))
     return {
-        "items": [criteria_set_api(r) for r in rows],
+        "items": [criteria_set_api(r, people=people) for r in rows],
         "nextCursor": str(nxt) if nxt is not None else None,
         "total": total,
     }
@@ -117,7 +152,8 @@ async def get_criteria_set(
     ctx: RequestContext = Depends(require_perm("criteria:review")),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    return criteria_set_api(await _get(db, set_id), full=True)
+    cs = await _get(db, set_id)
+    return criteria_set_api(cs, full=True, people=await _people(db, [cs]))
 
 
 @router.patch("/{set_id}")
@@ -132,7 +168,9 @@ async def update_criteria_set(
     cs = await _get(db, set_id)
     if body.tree is not None:
         try:
-            tree = CriteriaTree.model_validate({**body.tree, "policyKey": cs.policy_key})
+            tree = CriteriaTree.model_validate(
+                {**_normalize_tree_input(body.tree, cs.tree), "policyKey": cs.policy_key}
+            )
         except ValidationError as exc:
             raise bad_request(
                 "invalid_tree",
@@ -182,7 +220,7 @@ async def update_criteria_set(
         resource_id=cs.id,
         metadata={"status": cs.status, "policyKey": cs.policy_key, "force": body.force},
     )
-    return criteria_set_api(cs, full=True)
+    return criteria_set_api(cs, full=True, people=await _people(db, [cs]))
 
 
 @router.post("/compile", status_code=202)
