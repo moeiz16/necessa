@@ -157,3 +157,24 @@ async def test_admin_endpoints_and_rbac(client, make_client, fixtures_index):
     ).status_code == 403
     assert (await auditor.get("/api/v1/admin/models")).status_code == 403
     assert (await auditor.get("/api/v1/policies")).status_code == 200
+
+
+async def test_model_usage_is_scoped_to_the_callers_org(client, make_client):
+    import uuid as _uuid
+
+    from app.db.models.knowledge import LLMCall
+    from app.db.session import session_scope
+
+    owner = await signup_with_org(client)
+    other = await signup_with_org(make_client(), org_name="Other Practice")
+    other_org = _uuid.UUID(other.org["id"])
+    async with session_scope() as db:
+        db.add(
+            LLMCall(
+                org_id=other_org, group="judge", purpose="case.judge", provider="groq", model="secret-model"
+            )
+        )
+    mine = (await owner.get("/api/v1/admin/models/usage", params={"range": "7d"})).json()
+    assert all(d["model"] != "secret-model" for d in mine["byDeployment"])
+    theirs = (await other.get("/api/v1/admin/models/usage", params={"range": "7d"})).json()
+    assert any(d["model"] == "secret-model" for d in theirs["byDeployment"])

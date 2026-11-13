@@ -41,6 +41,8 @@ async def models_usage(
     n = int(range_[:-1])
     since = datetime.now(UTC) - (timedelta(days=n) if range_.endswith("d") else timedelta(hours=n))
     base = [LLMCall.created_at >= since]
+    if not ctx.user.is_superuser:  # tenants see their own usage; platform totals are operator-only
+        base.append(LLMCall.org_id == ctx.org_id)
     by = (
         await db.execute(
             select(
