@@ -9,7 +9,7 @@ import { fmtRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AppPage } from "@/components/shell/app-shell";
 import { AssistantIntro, ChatThread, Composer } from "@/components/assistant/chat";
-import { RetrievalInspector } from "@/components/assistant/inspector";
+import { SourcesPanel } from "@/components/assistant/inspector";
 import { useChat } from "@/components/assistant/use-chat";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/controls";
@@ -30,7 +30,7 @@ function AssistantInner() {
   const [mode, setMode] = useState<Mode>("auto");
   const [asOf, setAsOf] = useState("");
   const [filter, setFilter] = useState("");
-  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [sourcesOpen, setSourcesOpen] = useState(true);
   const [selected, setSelected] = useState<Message | null>(null);
   const chat = useChat(activeId);
   const busy = !!chat.pending && chat.pending.stage !== "done" && chat.pending.stage !== "error";
@@ -61,7 +61,12 @@ function AssistantInner() {
   }, [params]);
 
   const lastAssistant = [...chat.messages].reverse().find((m) => m.role === "assistant");
-  const inspected = chat.pending?.route ? { route: chat.pending.route, chunks: chat.pending.retrieval?.chunks, timings: chat.pending.retrieval?.timings } : (selected ?? lastAssistant) ? { route: (selected ?? lastAssistant)!.route, chunks: (selected ?? lastAssistant)!.retrieval?.chunks, timings: (selected ?? lastAssistant)!.retrieval?.timings } : null;
+  const shownMsg = selected ?? lastAssistant;
+  const shown = chat.pending?.route
+    ? { route: chat.pending.route, chunks: chat.pending.retrieval?.chunks, citations: chat.pending.citations }
+    : shownMsg
+      ? { route: shownMsg.route, chunks: shownMsg.retrieval?.chunks, citations: shownMsg.citations }
+      : null;
 
   return (
     <AppPage crumbs={<Breadcrumb items={[{ label: "Ask Necessa" }]} />} flush>
@@ -76,7 +81,7 @@ function AssistantInner() {
           <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 scrollbar-thin" aria-label="Conversations">
             {convs.isPending ? <Skeleton className="mx-1 h-40" /> : null}
             {list.map((c) => (
-              <div key={c.id} className={cn("group flex items-center gap-1 rounded-md pr-1 transition-colors", c.id === activeId ? "bg-surface shadow-e1" : "hover:bg-surface-2")}>
+              <div key={c.id} className={cn("group flex items-center gap-1 rounded-md pr-1 transition-colors", c.id === activeId ? "bg-surface-2" : "hover:bg-surface-2")}>
                 <button
                   onClick={() => {
                     setActiveId(c.id);
@@ -126,20 +131,20 @@ function AssistantInner() {
               value={mode}
               onValueChange={setMode}
               options={[
-                { value: "auto", label: "Auto" },
-                { value: "policy", label: "Policy" },
-                { value: "analytics", label: "Analytics" },
+                { value: "auto", label: "Anything" },
+                { value: "policy", label: "Policies" },
+                { value: "analytics", label: "My cases" },
                 { value: "codes", label: "Codes" },
               ]}
             />
             <label className="flex items-center gap-1.5 text-xs text-muted">
               <CalendarDays className="size-3.5" />
               <span className="hidden sm:inline">As of</span>
-              <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} className="h-7 rounded-md border border-border bg-surface px-1.5 text-xs text-fg outline-none focus:border-brand" aria-label="Policy as-of date" />
+              <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} className="h-7 rounded-md border border-border bg-surface px-1.5 text-xs text-fg outline-none focus:border-brand" aria-label="Show policies as of this date" />
             </label>
-            <Tooltip content={inspectorOpen ? "Hide retrieval inspector" : "Show retrieval inspector"}>
-              <Button variant="ghost" size="icon-sm" className="hidden lg:inline-flex" onClick={() => setInspectorOpen(!inspectorOpen)} aria-label="Toggle inspector">
-                {inspectorOpen ? <PanelRightClose /> : <PanelRightOpen />}
+            <Tooltip content={sourcesOpen ? "Hide sources" : "Show sources"}>
+              <Button variant="ghost" size="icon-sm" className="hidden lg:inline-flex" onClick={() => setSourcesOpen(!sourcesOpen)} aria-label={sourcesOpen ? "Hide sources" : "Show sources"}>
+                {sourcesOpen ? <PanelRightClose /> : <PanelRightOpen />}
               </Button>
             </Tooltip>
             <Button variant="ghost" size="icon-sm" className="lg:hidden" onClick={() => startNew()} aria-label="New conversation">
@@ -161,14 +166,14 @@ function AssistantInner() {
                   selectedId={selected?.id ?? lastAssistant?.id}
                   onSelect={(m) => {
                     setSelected(m);
-                    setInspectorOpen(true);
+                    setSourcesOpen(true);
                   }}
                   empty={<AssistantIntro />}
                 />
               )}
             </div>
           </div>
-          <div className="border-t border-border bg-bg/80 px-4 py-3 backdrop-blur">
+          <div className="border-t border-border bg-bg px-4 py-3">
             <div className="mx-auto max-w-3xl">
               <Composer
                 autoFocus
@@ -180,20 +185,20 @@ function AssistantInner() {
                   if (activeId) void chat.send(t, { mode, asOf: asOf || undefined, conversationId: id });
                   else void chat.send(t, { mode, asOf: asOf || undefined, conversationId: id });
                 }}
-                footer={<span className="text-[11px] text-subtle">Enter to send · Shift+Enter for a new line · cites every claim</span>}
+                footer={<span className="text-[11px] text-subtle">Enter to send · Shift+Enter for a new line · Answers cite your payer policies</span>}
               />
             </div>
           </div>
         </section>
 
-        {inspectorOpen ? (
-          <aside className="hidden min-h-0 w-[340px] flex-col border-l border-border bg-surface-2/30 lg:flex">
+        {sourcesOpen ? (
+          <aside className="hidden min-h-0 w-[320px] flex-col border-l border-border lg:flex">
             <div className="border-b border-border px-4 py-3">
-              <p className="text-[13px] font-semibold">Retrieval inspector</p>
-              <p className="text-xs text-muted">How the selected answer was routed, retrieved and ranked</p>
+              <p className="text-[13px] font-semibold">Sources</p>
+              <p className="text-xs text-muted">The policies behind the selected answer</p>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-thin">
-              <RetrievalInspector route={inspected?.route} chunks={inspected?.chunks} timings={inspected?.timings} />
+              <SourcesPanel route={shown?.route} chunks={shown?.chunks} citations={shown?.citations} hasAnswer={!!shown} />
             </div>
           </aside>
         ) : null}

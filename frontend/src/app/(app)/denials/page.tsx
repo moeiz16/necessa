@@ -26,7 +26,7 @@ function DenialCard({ d }: { d: Denial }) {
   const left = daysLeft(d.appealDeadline);
   const closed = ["overturned", "upheld"].includes(d.status);
   return (
-    <Link href={`/cases/${d.caseId}?tab=denials`} className="grid gap-2 rounded-lg border border-border bg-surface p-3 shadow-e1 outline-none transition-[box-shadow,transform] duration-200 hover:-translate-y-px hover:shadow-e2 focus-visible:ring-2 focus-visible:ring-brand/30">
+    <Link href={`/cases/${d.caseId}?tab=denials`} className="grid gap-2 rounded-lg border border-border bg-surface p-3 outline-none transition-colors hover:border-border-strong focus-visible:ring-2 focus-visible:ring-brand/30">
       <div className="flex items-center gap-1.5">
         <span className="font-mono text-[11px] text-subtle">{d.caseNumber}</span>
         <span className="ml-auto flex gap-1">
@@ -41,7 +41,7 @@ function DenialCard({ d }: { d: Denial }) {
       <p className="line-clamp-2 text-xs text-muted">{d.reasonText}</p>
       {d.mappedCriteria[0] ? (
         <p className="flex items-center gap-1.5 text-xs text-brand-fg">
-          <Target className="size-3" /> {d.mappedCriteria[0].criterionId} · {d.mappedCriteria[0].text}
+          <Target className="size-3" /> {d.mappedCriteria[0].text}
         </p>
       ) : null}
       <div className="flex items-center justify-between border-t border-border/70 pt-2 text-xs">
@@ -71,7 +71,7 @@ export default function DenialsPage() {
     <AppPage crumbs={<Breadcrumb items={[{ label: "Denials & appeals" }]} />} wide>
       <PageHeader
         title="Denials & appeals"
-        description="Every denial mapped to the policy criteria it cites, with redetermination deadlines and drafted appeals."
+        description="Every denial matched to the policy requirement it cites, with appeal deadlines and drafted appeals."
         actions={
           <Segmented
             value={view}
@@ -92,34 +92,34 @@ export default function DenialsPage() {
           note={dueSoon ? { text: "Redetermination window closing", tone: "warn" } : { text: "No deadlines at risk", tone: "good" }}
         />
         {overturnRate === null ? (
-          <KpiTile label="Overturn rate" value={0} format={() => "—"} icon={<TrendingUp />} note={{ text: "No decided appeals yet" }} />
+          <KpiTile label="Appeals overturned" value={null} icon={<TrendingUp />} note={{ text: "No decided appeals yet" }} />
         ) : (
           <KpiTile
-            label="Overturn rate"
+            label="Appeals overturned"
             value={Math.round(overturnRate * 100)}
             format={(n) => `${Math.round(n)}%`}
             icon={<TrendingUp />}
             note={{ text: `${decided.filter((d) => d.status === "overturned").length} of ${decided.length} decided appeal${decided.length === 1 ? "" : "s"}${decided.length < 5 ? " · small sample" : ""}` }}
-            hint="Decided appeals only — overturned ÷ (overturned + upheld)"
+            hint="Decided appeals only: overturned out of overturned plus upheld"
           />
         )}
       </div>
 
       {denials.isPending ? (
-        <div className="grid gap-3 md:grid-cols-5">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-72 rounded-xl" />)}</div>
+        <div className="grid gap-3 md:grid-cols-5">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-72 rounded-lg" />)}</div>
       ) : list.length === 0 ? (
         <Card>
-          <EmptyState art="inbox" title="No denials" description="When a payer denies a case, record the notice on the case. It will appear here with its mapped criteria." />
+          <EmptyState art="inbox" title="No denials" description="When a payer denies a case, record the notice on the case. It will appear here with the policy requirement it relates to." />
         </Card>
       ) : view === "board" ? (
         <div className="grid auto-cols-[minmax(200px,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2 scrollbar-thin">
           {COLUMNS.map((col) => {
             const items = list.filter((d) => col.status.includes(d.status));
             return (
-              <div key={col.label} className="flex flex-col gap-2 rounded-xl bg-surface-2/50 p-2">
+              <div key={col.label} className="flex flex-col gap-2 rounded-lg bg-surface-2/50 p-2">
                 <div className="flex items-center justify-between px-1.5 py-1">
                   <span className="text-xs font-semibold text-fg">{col.label}</span>
-                  <span className="tabular rounded-full bg-surface px-1.5 text-[11px] text-muted shadow-e1">{items.length}</span>
+                  <span className="tabular rounded-full bg-surface px-1.5 text-[11px] text-muted">{items.length}</span>
                 </div>
                 {items.map((d) => (
                   <DenialCard key={d.id} d={d} />
@@ -134,7 +134,7 @@ export default function DenialsPage() {
           <table className="w-full min-w-[720px] text-[13px]">
             <thead className="bg-surface-2 text-xs text-muted">
               <tr>
-                {["Case", "Category", "Codes", "Mapped criterion", "Status", "Deadline"].map((h) => (
+                {["Case", "Category", "Codes", "Related requirement", "Status", "Deadline"].map((h) => (
                   <th key={h} className="px-3 py-2 text-left font-medium">
                     {h}
                   </th>
@@ -152,7 +152,7 @@ export default function DenialsPage() {
                   </td>
                   <td className="px-3 py-2.5 text-muted">{titleCase(d.category)}</td>
                   <td className="px-3 py-2.5 font-mono text-xs">{[...d.carcCodes.map((c) => `CARC ${c}`), ...d.rarcCodes].join(" · ")}</td>
-                  <td className="px-3 py-2.5 text-muted">{d.mappedCriteria[0] ? `${d.mappedCriteria[0].criterionId} · ${d.mappedCriteria[0].text}` : "—"}</td>
+                  <td className="px-3 py-2.5 text-muted">{d.mappedCriteria[0]?.text ?? "—"}</td>
                   <td className="px-3 py-2.5">
                     <Badge tone={DENIAL_STATUS_TONE[d.status]} dot>
                       {titleCase(d.status)}

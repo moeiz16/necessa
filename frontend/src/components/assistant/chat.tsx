@@ -1,22 +1,21 @@
 "use client";
 
-import { ArrowUp, Bot, ChevronDown, CircleSlash, Code2, Copy, Database, ShieldAlert, ShieldCheck, Sparkles, Square, ThumbsDown, ThumbsUp, Wrench } from "lucide-react";
+import { ArrowUp, BookOpen, CircleSlash, Copy, ShieldAlert, ShieldCheck, Square, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { useMessageFeedback, useSuggestions } from "@/lib/api/hooks";
 import type { Citation, Message, SqlResult } from "@/lib/api/types";
-import { fmtMs } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SqlChart } from "@/components/charts/charts";
 import { CitationChip } from "@/components/domain/verdict";
 import { AiWorking } from "@/components/domain/trust";
 import { LogoMark } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
-import { Badge, CodeBlock, Skeleton } from "@/components/ui/display";
+import { Skeleton } from "@/components/ui/display";
 import { Tooltip } from "@/components/ui/overlays";
-import { strategyLabel } from "./inspector";
+import { SourcesPanel } from "./inspector";
 import type { PendingMessage } from "./use-chat";
 
 function withCitationLinks(md: string) {
@@ -49,26 +48,20 @@ export function Answer({ content, citations }: { content: string; citations: Cit
   );
 }
 
+const columnLabel = (c: string) => c.replace(/_/g, " ").replace(/^./, (ch) => ch.toUpperCase());
+
+/** A data question's answer: the chart and the table only. */
 export function SqlAnswer({ sql }: { sql: SqlResult }) {
-  const [showSql, setShowSql] = useState(false);
   return (
-    <div className="mt-3 grid gap-3 rounded-xl border border-border bg-surface p-3">
-      <div className="flex items-center gap-2 text-xs text-muted">
-        <Database className="size-3.5" /> {sql.rows.length} row{sql.rows.length === 1 ? "" : "s"} · read-only · tenant-scoped views
-        <button onClick={() => setShowSql(!showSql)} className="ml-auto inline-flex items-center gap-1 text-brand hover:underline">
-          <Code2 className="size-3.5" /> {showSql ? "Hide" : "Show"} SQL
-          <ChevronDown className={cn("size-3 transition-transform", showSql && "rotate-180")} />
-        </button>
-      </div>
-      {showSql ? <CodeBlock code={sql.sql} language="sql" /> : null}
+    <div className="mt-3 grid gap-3 rounded-lg border border-border bg-surface p-3">
       <SqlChart result={sql} height={200} />
-      <div className="overflow-x-auto rounded-lg border border-border scrollbar-thin">
+      <div className="overflow-x-auto rounded-md border border-border scrollbar-thin">
         <table className="w-full text-[12.5px]">
           <thead className="bg-surface-2">
             <tr>
               {sql.columns.map((c) => (
-                <th key={c} className="px-3 py-1.5 text-left font-mono text-[11px] font-medium text-muted">
-                  {c}
+                <th key={c} className="px-3 py-1.5 text-left text-[11px] font-medium text-muted">
+                  {columnLabel(c)}
                 </th>
               ))}
             </tr>
@@ -86,7 +79,9 @@ export function SqlAnswer({ sql }: { sql: SqlResult }) {
           </tbody>
         </table>
       </div>
-      {sql.warnings?.length ? <p className="text-[11px] text-subtle">{sql.warnings.join(" ")}</p> : null}
+      <p className="text-[11px] text-subtle">
+        {sql.rows.length} row{sql.rows.length === 1 ? "" : "s"} from your practice&apos;s own cases.
+      </p>
     </div>
   );
 }
@@ -98,14 +93,14 @@ function Guardrails({ items }: { items: { kind: string; message: string }[] }) {
       {items.map((g, i) => (
         <p key={i} className={cn("flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs", g.kind === "injection" ? "bg-notmet-soft text-notmet-fg" : g.kind === "abstain" ? "bg-insufficient-soft text-insufficient-fg" : "bg-surface-2 text-muted")}>
           <ShieldAlert className="size-3.5 shrink-0" />
-          <span className="font-medium capitalize">{g.kind}</span> · {g.message}
+          {g.message}
         </p>
       ))}
     </div>
   );
 }
 
-function AssistantBubble({ m, selected, onSelect }: { m: Message; selected: boolean; onSelect: () => void }) {
+function AssistantBubble({ m, selected, onSelect, inlineSources }: { m: Message; selected: boolean; onSelect: () => void; inlineSources?: boolean }) {
   const feedback = useMessageFeedback();
   const [rated, setRated] = useState<1 | -1 | null>(m.feedback ?? null);
   return (
@@ -118,26 +113,18 @@ function AssistantBubble({ m, selected, onSelect }: { m: Message; selected: bool
         <Answer content={m.content} citations={m.citations} />
         {m.sql ? <SqlAnswer sql={m.sql} /> : null}
         <div className="mt-2 flex flex-wrap items-center gap-1 text-xs text-subtle">
-          {m.route ? (
-            <button onClick={onSelect} className={cn("inline-flex h-6 items-center gap-1 rounded-md px-1.5 transition-colors hover:bg-surface-2 hover:text-fg", selected && "bg-brand-soft text-brand-fg")} title="Show how this answer was retrieved">
-              <Sparkles className="size-3" /> {strategyLabel(m.route.strategy)}
-            </button>
-          ) : null}
           {m.citations.length ? (
-            <span className="inline-flex items-center gap-1 px-1 text-met-fg">
-              <ShieldCheck className="size-3" /> Grounded in {new Set(m.citations.map((c) => c.sourceKey)).size} source{new Set(m.citations.map((c) => c.sourceKey)).size === 1 ? "" : "s"}
-            </span>
+            <button onClick={onSelect} className={cn("inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-met-fg transition-colors hover:bg-surface-2", selected && "bg-surface-2")} title="Show the sources for this answer">
+              <ShieldCheck className="size-3" /> Based on {new Set(m.citations.map((c) => c.sourceKey)).size} policy source{new Set(m.citations.map((c) => c.sourceKey)).size === 1 ? "" : "s"}
+            </button>
           ) : m.route?.abstained ? (
-            <span className="inline-flex items-center gap-1 px-1 text-insufficient-fg">
-              <CircleSlash className="size-3" /> Abstained — not enough evidence
-            </span>
-          ) : null}
-          {m.usage && (m.usage.model || m.usage.latencyMs) ? (
-            <span className="px-1">
-              {m.usage.model ? `${m.usage.provider ? `${m.usage.provider}/` : ""}${m.usage.model}` : ""}
-              {m.usage.model && m.usage.latencyMs ? " · " : ""}
-              {m.usage.latencyMs ? fmtMs(m.usage.latencyMs) : ""}
-            </span>
+            <button onClick={onSelect} className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-insufficient-fg transition-colors hover:bg-surface-2">
+              <CircleSlash className="size-3" /> Not enough information in your policies
+            </button>
+          ) : m.retrieval?.chunks?.length ? (
+            <button onClick={onSelect} className={cn("inline-flex h-6 items-center gap-1 rounded-md px-1.5 transition-colors hover:bg-surface-2 hover:text-fg", selected && "bg-surface-2")}>
+              <BookOpen className="size-3" /> View sources
+            </button>
           ) : null}
           <span className="ml-auto flex items-center gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
             <Tooltip content="Copy">
@@ -165,13 +152,21 @@ function AssistantBubble({ m, selected, onSelect }: { m: Message; selected: bool
             </Tooltip>
           </span>
         </div>
+        {m.citations.length || m.retrieval?.chunks?.length ? (
+          <details className={cn("mt-2 text-xs", !inlineSources && "lg:hidden")}>
+            <summary className="cursor-pointer text-muted hover:text-fg">Show sources</summary>
+            <div className="mt-2">
+              <SourcesPanel route={m.route} chunks={m.retrieval?.chunks} citations={m.citations} hasAnswer />
+            </div>
+          </details>
+        ) : null}
       </div>
     </div>
   );
 }
 
 function PendingBubble({ p }: { p: PendingMessage }) {
-  const stages = { routing: "Understanding the question…", retrieving: `Retrieving · ${p.route ? strategyLabel(p.route.strategy) : "choosing a route…"}`, generating: "Writing a grounded answer…", done: "", error: "" };
+  const stages = { routing: "Reading your question…", retrieving: "Looking through your policies…", generating: "Writing the answer…", done: "", error: "" };
   return (
     <div className="flex gap-3">
       <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-soft">
@@ -179,11 +174,6 @@ function PendingBubble({ p }: { p: PendingMessage }) {
       </span>
       <div className="min-w-0 flex-1">
         <Guardrails items={p.guardrails} />
-        {p.tools.map((t, i) => (
-          <p key={i} className="mb-2 flex items-center gap-1.5 font-mono text-[11px] text-muted">
-            <Wrench className="size-3" /> {t.name}({Object.entries(t.args).filter(([, v]) => v != null && !Array.isArray(v)).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(", ")})
-          </p>
-        ))}
         {p.content ? (
           <Answer content={p.stage === "generating" ? `${p.content}▍` : p.content} citations={p.citations} />
         ) : p.stage === "error" ? (
@@ -230,15 +220,15 @@ export function ChatThread({
       {messages.map((m) =>
         m.role === "user" ? (
           <div key={m.id} className="flex justify-end">
-            <p className="max-w-[85%] rounded-2xl rounded-br-md bg-fg px-3.5 py-2 text-[14px] text-bg">{m.content}</p>
+            <p className="max-w-[85%] rounded-lg bg-surface-2 px-3.5 py-2 text-[14px] text-fg">{m.content}</p>
           </div>
         ) : (
-          <AssistantBubble key={m.id} m={m} selected={selectedId === m.id} onSelect={() => onSelect?.(m)} />
+          <AssistantBubble key={m.id} m={m} selected={selectedId === m.id} onSelect={() => onSelect?.(m)} inlineSources={compact} />
         ),
       )}
       {showPendingUser ? (
         <div className="flex justify-end">
-          <p className="max-w-[85%] rounded-2xl rounded-br-md bg-fg px-3.5 py-2 text-[14px] text-bg">{pendingUser}</p>
+          <p className="max-w-[85%] rounded-lg bg-surface-2 px-3.5 py-2 text-[14px] text-fg">{pendingUser}</p>
         </div>
       ) : null}
       {pending ? <PendingBubble p={pending} /> : null}
@@ -251,7 +241,7 @@ export function Composer({
   onSend,
   onStop,
   busy,
-  placeholder = "Ask about coverage criteria, codes, a policy — or your own data…",
+  placeholder = "Ask about a policy, a code or your cases…",
   context = "dashboard",
   showSuggestions,
   footer,
@@ -287,13 +277,13 @@ export function Composer({
       {showSuggestions && sugg.data?.length ? (
         <div className="flex flex-wrap gap-1.5">
           {sugg.data.map((s) => (
-            <button key={s.label} onClick={() => onSend(s.prompt)} disabled={busy} className="rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted shadow-e1 transition-colors hover:border-border-strong hover:text-fg disabled:opacity-50">
+            <button key={s.label} onClick={() => onSend(s.prompt)} disabled={busy} className="rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted transition-colors hover:border-border-strong hover:text-fg disabled:opacity-50">
               {s.label}
             </button>
           ))}
         </div>
       ) : null}
-      <div className="rounded-2xl border border-border bg-surface p-2 shadow-e2 focus-within:border-brand/50 focus-within:ring-3 focus-within:ring-brand/10">
+      <div className="rounded-lg border border-border bg-surface p-2 focus-within:border-brand/60">
         <textarea
           ref={ref}
           rows={1}
@@ -330,19 +320,13 @@ export function Composer({
 export function AssistantIntro({ title = "Ask Necessa", children }: { title?: string; children?: React.ReactNode }) {
   return (
     <div className="flex flex-col items-center px-4 py-14 text-center">
-      <span className="ai-gradient flex size-12 items-center justify-center rounded-2xl text-white shadow-e2">
-        <Bot className="size-5" />
+      <span className="flex size-10 items-center justify-center rounded-lg bg-brand-soft">
+        <LogoMark size={20} variant="glyph" className="text-brand" strokeWidth={3.6} />
       </span>
-      <h2 className="mt-5 font-display text-3xl tracking-tight text-fg">{title}</h2>
-      <p className="mt-2 max-w-md text-[13px] text-muted">
-        Grounded answers from LCDs, NCDs and billing articles — every claim cited, abstains when unsure. Ask about your own cases and it writes guarded, read-only SQL.
+      <h2 className="mt-5 text-xl font-semibold text-fg">{title}</h2>
+      <p className="mt-2 max-w-md text-[13px] leading-relaxed text-muted">
+        Ask about payer policies, billing codes or your own cases. Every answer points to the policy it came from, and Necessa says so when it isn&apos;t sure.
       </p>
-      <div className="mt-4 flex flex-wrap justify-center gap-1.5">
-        <Badge tone="outline">Hybrid retrieval</Badge>
-        <Badge tone="outline">Cross-encoder rerank</Badge>
-        <Badge tone="outline">Text-to-SQL</Badge>
-        <Badge tone="outline">Coverage graph</Badge>
-      </div>
       {children}
     </div>
   );

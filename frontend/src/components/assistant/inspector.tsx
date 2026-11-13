@@ -1,173 +1,88 @@
 "use client";
 
-import { CircleSlash, Filter, Gauge, Layers, Route, Timer, TriangleAlert, Wand2 } from "lucide-react";
-import type { RetrievalChunk, RouteTrace, StageScores } from "@/lib/api/types";
-import { fmtMs } from "@/lib/format";
+/** The policy sources behind an answer: which policy, which section, and the passage it relied on. */
+import { ArrowUpRight, BookOpen, CircleSlash } from "lucide-react";
+import Link from "next/link";
+import type { Citation, RetrievalChunk, RouteTrace } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
-import { Badge, SectionLabel } from "@/components/ui/display";
 import { EmptyState } from "@/components/ui/empty";
-import { Tooltip } from "@/components/ui/overlays";
 
-/** Plain-language names for the retrieval strategy matrix (docs/ARCHITECTURE.md §6.2). */
-export const STRATEGY_NAME: Record<string, string> = {
-  S1: "Exact identifier",
-  S2: "Coverage facts (tools/graph)",
-  S3: "Analytics (text-to-SQL)",
-  S4: "Hybrid + rerank",
-  S5: "Lay language (expanded)",
-  S6: "Keyword-weighted",
-  S7: "Chart evidence",
-  S8: "Multi-hop",
-  S9: "Version comparison",
-  S10: "Denial → criteria",
-  S11: "Out of scope · abstain",
+type Chunk = RetrievalChunk & { snippet?: string; sectionTitle?: string | null };
+
+type Source = { key: string; title: string; version?: number; section: string; quote?: string };
+
+const SECTION_NAMES: Record<string, string> = {
+  indication: "Covered indications",
+  doc_reqs: "Documentation requirements",
+  coding_guidelines: "Coding guidelines",
+  dx_support: "Diagnoses that support coverage",
+  dx_nonsupport: "Diagnoses that don't support coverage",
+  limitations: "Limitations",
+  description: "Description",
+  cms_cov_policy: "Coverage policy",
+  util_guide: "Utilization guidance",
+  summary_of_evidence: "Summary of evidence",
+  analysis_of_evidence: "Analysis of evidence",
+  associated_info: "Related information",
+  revision_history: "What changed",
 };
-export function strategyLabel(strategy?: string | null) {
-  if (!strategy) return "—";
-  const code = /S\d{1,2}/.exec(strategy)?.[0];
-  return code && STRATEGY_NAME[code] ? `${code} · ${STRATEGY_NAME[code]}` : strategy;
+
+function sectionName(key: string, title?: string | null) {
+  const raw = SECTION_NAMES[key] ?? title ?? key.replace(/_/g, " ");
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
-const STAGES: { key: keyof StageScores; label: string; max: number; color: string }[] = [
-  { key: "dense", label: "Dense", max: 1, color: "var(--ai-1)" },
-  { key: "sparse", label: "Sparse", max: 1, color: "var(--ai-3)" },
-  { key: "bm25", label: "BM25", max: 20, color: "var(--insufficient)" },
-  { key: "fused", label: "RRF", max: 1, color: "var(--ai-2)" },
-  { key: "rerank", label: "Rerank", max: 1, color: "var(--met)" },
-];
+/** Cited passages first (what the answer actually used); otherwise the top retrieved passages. */
+function toSources(chunks: Chunk[] | undefined, citations: Citation[] | undefined): Source[] {
+  const out: Source[] = [];
+  const seen = new Set<string>();
+  const push = (s: Source) => {
+    const id = `${s.key}|${s.section}`;
+    if (seen.has(id)) return;
+    seen.add(id);
+    out.push(s);
+  };
+  for (const c of citations ?? []) push({ key: c.sourceKey, title: c.title, version: c.version, section: sectionName(c.sectionKey), quote: c.quote });
+  if (!out.length) for (const c of (chunks ?? []).slice(0, 5)) push({ key: c.sourceKey, title: c.title, version: c.version, section: sectionName(c.sectionKey, c.sectionTitle), quote: c.snippet ?? c.text });
+  return out;
+}
 
-function ScoreBars({ scores }: { scores: StageScores }) {
+export function SourcesPanel({ route, chunks, citations, hasAnswer }: { route?: RouteTrace | null; chunks?: RetrievalChunk[]; citations?: Citation[]; hasAnswer: boolean }) {
+  if (!hasAnswer) return <EmptyState compact art="documents" title="No sources yet" description="The policies behind each answer will appear here." />;
+  const sources = toSources(chunks as Chunk[] | undefined, citations);
+  const unsure = route?.abstained || sources.length === 0;
+  if (unsure)
+    return (
+      <div className="flex items-start gap-2.5 rounded-md bg-surface-2 p-3 text-[13px] text-muted">
+        <CircleSlash className="mt-0.5 size-4 shrink-0" />
+        <p>Not enough information in your policies to answer this with confidence. Try naming the service, code or payer.</p>
+      </div>
+    );
   return (
-    <div className="grid grid-cols-5 gap-1">
-      {STAGES.map((s) => {
-        const v = scores[s.key];
-        return (
-          <Tooltip key={s.key} content={`${s.label}: ${v ?? "—"}`}>
-            <div className="grid gap-0.5">
-              <div className="h-1 overflow-hidden rounded-full bg-surface-3">
-                <div className="h-full rounded-full" style={{ width: `${v == null ? 0 : Math.min(1, v / s.max) * 100}%`, background: s.color }} />
+    <div className="grid gap-3">
+      <p className="text-xs text-muted">
+        Based on {sources.length} policy source{sources.length === 1 ? "" : "s"}
+      </p>
+      <ol className="grid gap-2.5">
+        {sources.map((s, i) => (
+          <li key={`${s.key}-${s.section}`} className={cn("grid gap-1.5 rounded-md border border-border bg-surface p-3")}>
+            <div className="flex items-start gap-2">
+              <span className="tabular mt-px flex size-[18px] shrink-0 items-center justify-center rounded-full bg-surface-2 text-[10px] font-semibold text-muted">{i + 1}</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-medium leading-snug text-fg">{s.title}</p>
+                <p className="mt-0.5 text-xs text-subtle">
+                  {s.key}
+                  {s.version ? ` · version ${s.version}` : ""} · {s.section}
+                </p>
               </div>
-              <span className="text-center text-[9px] uppercase tracking-wide text-subtle">{s.label}</span>
             </div>
-          </Tooltip>
-        );
-      })}
-    </div>
-  );
-}
-
-export function RetrievalInspector({ route, chunks, timings, className }: { route?: RouteTrace | null; chunks?: RetrievalChunk[]; timings?: Record<string, number>; className?: string }) {
-  if (!route) return <EmptyState compact art="search" title="Select an answer" description="The route, filters and per-stage scores behind each answer appear here." className={className} />;
-  const total = timings ? Object.values(timings).reduce((a, b) => a + b, 0) : 0;
-  return (
-    <div className={cn("grid gap-5", className)}>
-      <div className="grid gap-2">
-        <SectionLabel>Route</SectionLabel>
-        <div className="rounded-lg border border-border bg-surface p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="brand">
-              <Route /> {strategyLabel(route.strategy)}
-            </Badge>
-            <span className="text-xs text-muted">
-              intent <span className="font-mono text-fg">{route.intent}</span> · {Math.round(route.confidence * 100)}%
-            </span>
-          </div>
-          <p className="mt-2 text-xs leading-relaxed text-muted">{route.reason}</p>
-          {route.abstained ? (
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-insufficient-fg">
-              <CircleSlash className="size-3.5" /> Abstained — confidence below the calibrated threshold
-            </p>
-          ) : null}
-          {route.degraded?.length ? (
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-degraded-fg">
-              <TriangleAlert className="size-3.5" /> Degraded: {route.degraded.join(", ")}
-            </p>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="grid gap-2">
-        <SectionLabel>Flow</SectionLabel>
-        <ol className="flex flex-wrap items-center gap-1 text-[11px]" aria-label="Retrieval pipeline">
-          {[
-            { k: "Understand", on: true },
-            ...(route.retrievers?.length ? route.retrievers : ["retrieve"]).map((r) => ({ k: r, on: !route.degraded?.includes(r) })),
-            { k: route.fusion ? "Fuse" : "Fuse", on: !!route.fusion },
-            { k: "Rerank", on: !!route.rerank && !route.degraded?.includes("rerank") },
-            { k: route.abstained ? "Abstain" : "Answer", on: true },
-          ].map((step, i, arr) => (
-            <li key={`${step.k}-${i}`} className="flex items-center gap-1">
-              <span className={cn("rounded-md px-1.5 py-0.5 font-medium ring-1 ring-inset", step.on ? "bg-brand-soft text-brand-fg ring-brand/20" : "bg-surface-2 text-subtle line-through ring-border")}>{step.k}</span>
-              {i < arr.length - 1 ? <span className="text-subtle">→</span> : null}
-            </li>
-          ))}
-        </ol>
-      </div>
-
-      <div className="grid gap-2">
-        <SectionLabel>Pipeline</SectionLabel>
-        <dl className="grid gap-1.5 text-xs">
-          {[
-            { icon: Wand2, k: "Transforms", v: route.transforms.length ? route.transforms.join(" → ") : "none" },
-            { icon: Filter, k: "Filters", v: Object.entries(route.filters ?? {}).filter(([, v]) => (Array.isArray(v) ? v.length : v)).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(",") : v}`).join(" · ") || "none" },
-            { icon: Layers, k: "Retrievers", v: route.retrievers?.join(" + ") || "—" },
-            { icon: Gauge, k: "Fusion → rerank", v: `${route.fusion ?? "—"} → ${route.rerank ?? "—"}` },
-            { icon: Route, k: "Corrective passes", v: String(route.correctiveIterations ?? 0) },
-          ].map((row) => (
-            <div key={row.k} className="grid grid-cols-[18px_96px_1fr] items-baseline gap-2">
-              <row.icon className="size-3.5 translate-y-0.5 text-subtle" />
-              <dt className="text-subtle">{row.k}</dt>
-              <dd className="break-words font-mono text-[11px] text-fg">{row.v}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
-
-      {timings && total ? (
-        <div className="grid gap-2">
-          <SectionLabel action={<span className="tabular text-xs text-muted">{fmtMs(total)}</span>}>
-            <span className="flex items-center gap-1.5">
-              <Timer className="size-3" /> Latency
-            </span>
-          </SectionLabel>
-          <div className="flex h-2 overflow-hidden rounded-full bg-surface-3">
-            {Object.entries(timings).map(([k, v], i) => (
-              <Tooltip key={k} content={`${k.replace(/Ms$/, "")}: ${fmtMs(v)}`}>
-                <div style={{ width: `${(v / total) * 100}%`, background: ["var(--ai-1)", "var(--ai-3)", "var(--met)"][i % 3] }} />
-              </Tooltip>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-3 text-[11px] text-muted">
-            {Object.entries(timings).map(([k, v]) => (
-              <span key={k}>
-                {k.replace(/Ms$/, "")} <span className="tabular text-fg">{fmtMs(v)}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {chunks?.length ? (
-        <div className="grid gap-2">
-          <SectionLabel>Retrieved passages · top {chunks.length}</SectionLabel>
-          <ol className="grid gap-2">
-            {chunks.map((c, i) => (
-              <li key={c.chunkId} className="rounded-lg border border-border bg-surface p-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="tabular font-mono text-[11px] text-subtle">#{i + 1}</span>
-                  <span className="font-mono text-xs font-medium text-fg">{c.sourceKey}</span>
-                  <span className="truncate text-[11px] text-muted">{c.sectionKey.replace(/_/g, " ")}</span>
-                  <span className="tabular ml-auto text-xs font-medium text-fg">{c.score.toFixed(2)}</span>
-                </div>
-                {c.text || (c as { snippet?: string }).snippet ? <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-muted">{c.text ?? (c as { snippet?: string }).snippet}</p> : null}
-                <div className="mt-2">
-                  <ScoreBars scores={c.scores} />
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
-      ) : null}
+            {s.quote ? <p className="line-clamp-4 border-l-2 border-border-strong pl-2.5 text-xs leading-relaxed text-muted">“{s.quote}”</p> : null}
+            <Link href={`/policies/${encodeURIComponent(s.key)}`} className="inline-flex w-fit items-center gap-1 text-xs font-medium text-brand-fg hover:underline">
+              <BookOpen className="size-3" /> Open policy <ArrowUpRight className="size-3" />
+            </Link>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
