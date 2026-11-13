@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "policyKey": "PAYER-SYNHP-MP0510",
+  "policyVersion": 1,
+  "title": "MRI of the Lumbar Spine for Low Back Pain (Synthetic Health Plan — fictional policy)",
+  "scope": "Non-contrast lumbar spine MRI",
+  "services": [
+    "72148"
+  ],
+  "synthetic": true,
+  "notes": "SYNTHETIC POLICY written for the Necessa demo (text embedded below). Not issued by any real payer.",
+  "sections": {
+    "indication": "Synthetic Health Plan considers MRI of the lumbar spine medically necessary when either of the following applies. Red flag findings are present, such as suspected cauda equina syndrome, progressive neurologic deficit, suspected spinal infection, or a history of cancer with new back pain. OR the member has low back pain with radiculopathy that persists after at least six weeks of documented conservative care and the member is a candidate for surgery or interventional treatment. Imaging is not medically necessary for uncomplicated acute low back pain of less than six weeks without red flags."
+  },
+  "root": {
+    "type": "node",
+    "op": "OR",
+    "label": "Red flags OR persistent radiculopathy after conservative care",
+    "children": [
+      {
+        "type": "criterion",
+        "id": "C1",
+        "kind": "positive",
+        "text": "Red flag findings (suspected cauda equina, progressive neurologic deficit, suspected infection, or cancer history with new pain)",
+        "keywords": [
+          "cauda equina",
+          "saddle anesthesia",
+          "progressive weakness",
+          "fever",
+          "cancer",
+          "red flag"
+        ],
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "Red flag findings are present, such as suspected cauda equina syndrome, progressive neurologic deficit, suspected spinal infection, or a history of cancer with new back pain."
+        },
+        "synthetic": {
+          "present": [
+            "{date}: New urinary retention and saddle anesthesia; concern for cauda equina syndrome."
+          ],
+          "negated": [
+            "{date}: No red flags: no fever, weight loss, cancer history, saddle anesthesia or bowel/bladder changes."
+          ]
+        }
+      },
+      {
+        "type": "node",
+        "op": "AND",
+        "label": "Persistent radiculopathy path",
+        "children": [
+          {
+            "type": "criterion",
+            "id": "C2",
+            "kind": "temporal",
+            "text": "Radiculopathy persisting after at least six weeks of documented conservative care",
+            "keywords": [
+              "radiculopathy",
+              "six weeks",
+              "physical therapy",
+              "conservative",
+              "sciatica"
+            ],
+            "numeric": {
+              "measure": "conservative_care_weeks",
+              "op": ">=",
+              "value": 6,
+              "unit": "weeks",
+              "patterns": [
+                "(\\d+)\\s*(?:weeks?|wks?)\\b"
+              ]
+            },
+            "sourceSpan": {
+              "sectionKey": "indication",
+              "quote": "the member has low back pain with radiculopathy that persists after at least six weeks of documented conservative care"
+            },
+            "synthetic": {
+              "present": [
+                "{date}: Right S1 radiculopathy persisting after 7 weeks of physical therapy and NSAIDs."
+              ],
+              "negated": [
+                "{date}: Back pain began 10 days ago without leg symptoms."
+              ],
+              "contradicted": [
+                "{date}: Radicular symptoms resolved after 2 weeks of therapy."
+              ]
+            }
+          },
+          {
+            "type": "criterion",
+            "id": "C3",
+            "kind": "positive",
+            "text": "Member is a candidate for surgery or interventional treatment",
+            "keywords": [
+              "surgical candidate",
+              "epidural",
+              "injection",
+              "surgery",
+              "interventional"
+            ],
+            "sourceSpan": {
+              "sectionKey": "indication",
+              "quote": "the member is a candidate for surgery or interventional treatment"
+            },
+            "synthetic": {
+              "present": [
+                "{date}: Patient wishes to proceed with epidural steroid injection or surgical consultation if imaging confirms compression."
+              ],
+              "negated": [
+                "{date}: Patient declines any procedures or surgery."
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

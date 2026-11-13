@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "policyKey": "PAYER-SYNHP-MP0420",
+  "policyVersion": 1,
+  "title": "Spinal Cord Stimulation: Trial and Permanent Implantation (Synthetic Health Plan — fictional policy)",
+  "scope": "Spinal cord stimulator trial",
+  "services": [
+    "63650"
+  ],
+  "synthetic": true,
+  "notes": "Curated against workstream B fixture syn_spinal_cord_stimulation.json (synthetic policy).",
+  "root": {
+    "type": "node",
+    "op": "AND",
+    "label": "SCS trial (ALL)",
+    "children": [
+      {
+        "type": "criterion",
+        "id": "C1",
+        "text": "Chronic neuropathic trunk/limb pain present at least 6 months",
+        "kind": "temporal",
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "Chronic neuropathic pain of the trunk or limbs (for example, persistent pain after spinal surgery or complex regional pain syndrome) has been present for at least 6 months."
+        },
+        "numeric": {
+          "measure": "pain_duration_months",
+          "op": ">=",
+          "value": 6,
+          "unit": "months",
+          "patterns": [
+            "(\\d+(?:\\.\\d+)?)\\s*(?:months?|mos?)\\b"
+          ]
+        },
+        "keywords": [
+          "neuropathic",
+          "CRPS",
+          "post-laminectomy",
+          "months",
+          "chronic"
+        ],
+        "synthetic": {
+          "present": [
+            "{date}: Persistent neuropathic left leg pain for 18 months following L4-5 laminectomy."
+          ],
+          "contradicted": [
+            "{date}: Leg pain began 6 weeks ago."
+          ]
+        }
+      },
+      {
+        "type": "criterion",
+        "id": "C2",
+        "text": "Failed at least 6 months of multidisciplinary conservative treatment",
+        "kind": "temporal",
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "The member has failed at least 6 months of multidisciplinary conservative treatment, including physical therapy, medication management, and when appropriate interventional procedures."
+        },
+        "numeric": {
+          "measure": "pain_duration_months",
+          "op": ">=",
+          "value": 6,
+          "unit": "months",
+          "patterns": [
+            "(\\d+(?:\\.\\d+)?)\\s*(?:months?|mos?)\\b"
+          ]
+        },
+        "keywords": [
+          "physical therapy",
+          "medication management",
+          "injections",
+          "multidisciplinary",
+          "months"
+        ],
+        "synthetic": {
+          "present": [
+            "{date}: Over 9 months of PT, gabapentin and duloxetine trials, and two epidural injections without durable relief."
+          ],
+          "negated": [
+            "{date}: Conservative treatment not yet attempted."
+          ]
+        }
+      },
+      {
+        "type": "criterion",
+        "id": "C3",
+        "text": "Psychological evaluation within 12 months found no untreated psychiatric condition, active substance use disorder or unrealistic expectations",
+        "kind": "documentation",
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "A psychological evaluation by a licensed mental health professional within the past 12 months has found no untreated psychiatric condition, active substance use disorder, or unrealistic expectations that would preclude a successful outcome."
+        },
+        "lookbackDays": 365,
+        "keywords": [
+          "psychological evaluation",
+          "psychologist",
+          "cleared",
+          "substance use"
+        ],
+        "suggestedFix": "Attach the psychological evaluation (within 12 months) clearing the patient for neuromodulation.",
+        "synthetic": {
+          "present": [
+            "{date}: Psychological evaluation by licensed psychologist: no untreated psychiatric condition or substance use disorder; realistic expectations. Cleared for SCS trial."
+          ],
+          "negated": [
+            "{date}: Psychology referral placed; evaluation not yet completed."
+          ],
+          "contradicted": [
+            "{date}: Psychological evaluation: active untreated major depression; not cleared."
+          ]
+        }
+      },
+      {
+        "type": "criterion",
+        "id": "C4",
+        "text": "Further surgery is not indicated or the member is not a surgical candidate",
+        "kind": "positive",
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "Further surgical intervention is not indicated or the member is not a surgical candidate."
+        },
+        "keywords": [
+          "surgical candidate",
+          "neurosurgery opinion",
+          "not indicated"
+        ],
+        "synthetic": {
+          "present": [
+            "{date}: Spine surgery consult: no further surgical options indicated."
+          ]
+        }
+      },
+      {
+        "type": "criterion",
+        "id": "C5",
+        "text": "No contraindication to implantation (e.g., active infection, uncorrected coagulopathy)",
+        "kind": "negative_attestation",
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "The member has no contraindication to implantation, such as active infection or uncorrected coagulopathy."
+        },
+        "keywords": [
+          "infection",
+          "coagulopathy",
+          "anticoagulation",
+          "contraindication"
+        ],
+        "synthetic": {
+          "present": [
+            "{date}: No active infection; INR 1.0, platelets normal; no anticoagulants."
+          ],
+          "contradicted": [
+            "{date}: Active cellulitis at the planned implant site."
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "policyKey": "PAYER-SYNHP-MP0207",
+  "policyVersion": 5,
+  "title": "Positive Airway Pressure (PAP) Devices for Obstructive Sleep Apnea (Synthetic Health Plan — fictional policy)",
+  "scope": "Initial 3-month CPAP (E0601) trial",
+  "services": [
+    "E0601",
+    "E0470"
+  ],
+  "synthetic": true,
+  "notes": "Curated against workstream B fixture syn_pap_devices.json (synthetic policy).",
+  "root": {
+    "type": "node",
+    "op": "AND",
+    "label": "Initial coverage (ALL)",
+    "children": [
+      {
+        "type": "criterion",
+        "id": "C1",
+        "text": "Face-to-face evaluation by the treating practitioner before the sleep test documenting sleep-disordered breathing symptoms",
+        "kind": "temporal",
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "The member had a face-to-face clinical evaluation by the treating practitioner before the sleep test, documenting signs and symptoms of sleep-disordered breathing"
+        },
+        "keywords": [
+          "face-to-face",
+          "snoring",
+          "witnessed apneas",
+          "Epworth",
+          "evaluation"
+        ],
+        "synthetic": {
+          "present": [
+            "{date}: In-person visit for suspected sleep apnea: loud snoring, witnessed apneas, Epworth Sleepiness Scale 15. Home sleep test ordered."
+          ],
+          "negated": [
+            "{date}: Telephone outreach only; no face-to-face sleep evaluation documented."
+          ],
+          "paraphrased": [
+            "{date}: Seen in clinic before testing; bed partner reports gasping and snoring nightly, Epworth 13."
+          ]
+        }
+      },
+      {
+        "type": "node",
+        "op": "OR",
+        "label": "Qualifying sleep study",
+        "children": [
+          {
+            "type": "criterion",
+            "id": "C2",
+            "text": "Polysomnogram or approved home sleep test with AHI of 15 or more events per hour",
+            "kind": "numeric",
+            "sourceSpan": {
+              "sectionKey": "indication",
+              "quote": "an apnea-hypopnea index (AHI) of 15 or more events per hour"
+            },
+            "evidenceType": [
+              "sleep_study",
+              "report"
+            ],
+            "numeric": {
+              "measure": "ahi",
+              "op": ">=",
+              "value": 15,
+              "unit": "events/hour",
+              "patterns": [
+                "(?:AHI|RDI|apnea[- ]hypopnea index|respiratory disturbance index)[^0-9]{0,30}(\\d+(?:\\.\\d+)?)"
+              ]
+            },
+            "keywords": [
+              "AHI",
+              "apnea-hypopnea index",
+              "events per hour",
+              "polysomnogram",
+              "home sleep apnea test"
+            ],
+            "synthetic": {
+              "present": [
+                "{date}: Home sleep apnea test: AHI 23.4 events/hour over 6.1 hours of recording."
+              ],
+              "negated": [
+                "{date}: Sleep study pending; no results available yet."
+              ],
+              "contradicted": [
+                "{date}: Home sleep apnea test: AHI 3.1 events/hour; no significant sleep-disordered breathing."
+              ],
+              "paraphrased": [
+                "{date}: Polysomnography shows severe obstructive sleep apnea with an apnea-hypopnea index of 31 per hour."
+              ]
+            }
+          },
+          {
+            "type": "node",
+            "op": "AND",
+            "label": "AHI 5-14 with symptom or comorbidity",
+            "children": [
+              {
+                "type": "criterion",
+                "id": "C3",
+                "text": "AHI of 5 to 14 events per hour",
+                "kind": "numeric",
+                "sourceSpan": {
+                  "sectionKey": "indication",
+                  "quote": "an AHI of 5 to 14 events per hour"
+                },
+                "evidenceType": [
+                  "sleep_study",
+                  "report"
+                ],
+                "numeric": {
+                  "measure": "ahi",
+                  "op": "between",
+                  "value": 5,
+                  "valueHigh": 14,
+                  "unit": "events/hour",
+                  "patterns": [
+                    "(?:AHI|RDI|apnea[- ]hypopnea index|respiratory disturbance index)[^0-9]{0,30}(\\d+(?:\\.\\d+)?)"
+                  ]
+                },
+                "keywords": [
+                  "AHI",
+                  "mild",
+                  "events per hour"
+                ]
+              },
+              {
+                "type": "criterion",
+                "id": "C4",
+                "text": "Documented excessive daytime sleepiness, impaired cognition, mood disorder, insomnia, hypertension, ischemic heart disease or stroke",
+                "kind": "positive",
+                "sourceSpan": {
+                  "sectionKey": "indication",
+                  "quote": "documented excessive daytime sleepiness, impaired cognition, mood disorder, insomnia, hypertension, ischemic heart disease, or history of stroke"
+                },
+                "keywords": [
+                  "daytime sleepiness",
+                  "insomnia",
+                  "hypertension",
+                  "stroke",
+                  "ischemic heart disease"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "criterion",
+        "id": "C5",
+        "text": "Member and/or caregiver instructed on proper use and care of the device",
+        "kind": "documentation",
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "The member and/or caregiver received instruction on the proper use and care of the device."
+        },
+        "evidenceType": [
+          "supplier_note",
+          "note"
+        ],
+        "keywords": [
+          "instruction",
+          "education",
+          "mask fitting",
+          "use and care"
+        ],
+        "synthetic": {
+          "present": [
+            "{date}: CPAP setup visit: patient instructed on device use, cleaning and mask care; teach-back completed."
+          ],
+          "negated": [
+            "{date}: Device shipped; no setup or education visit documented."
+          ]
+        }
+      }
+    ]
+  }
+}

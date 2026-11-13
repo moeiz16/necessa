@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "policyKey": "L33930",
+  "policyVersion": 54,
+  "title": "Facet Joint Interventions for Pain Management",
+  "scope": "First diagnostic facet joint procedure (medial branch block)",
+  "services": ["64490", "64493"],
+  "root": {
+    "type": "node", "op": "AND", "label": "Indications for facet joint interventions (ALL)",
+    "children": [
+      {
+        "type": "criterion", "id": "C1", "kind": "numeric",
+        "text": "Moderate to severe chronic, predominantly axial neck or low back pain causing functional deficit measured on a pain or disability scale",
+        "keywords": ["axial", "low back pain", "neck pain", "Oswestry", "NDI", "NRS", "functional deficit"],
+        "numeric": {"measure": "pain_score", "op": ">=", "value": 4, "unit": "0-10",
+                    "patterns": ["(?:NRS|VAS|pain(?: score)?)[^0-9]{0,12}(\\d{1,2})\\s*/\\s*10"]},
+        "sourceSpan": {"sectionKey": "indication", "quote": "Moderate to severe chronic neck or low back pain, predominantly axial, that causes functional deficit measured on pain or disability scale"},
+        "synthetic": {
+          "present": ["{date}: Axial low back pain, non-radiating, NRS 7/10; Oswestry 38% with difficulty standing and lifting."],
+          "negated": ["{date}: Back pain mild, 2/10, no functional limitation."],
+          "contradicted": ["{date}: Pain is predominantly radiating leg pain rather than axial back pain."],
+          "paraphrased": ["{date}: Midline lumbar pain worse with extension, rated 6 out of 10, limiting housework (ODI 32%)."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C2", "kind": "temporal",
+        "text": "Pain present at least three months with documented failure of noninvasive conservative care",
+        "keywords": ["months", "physical therapy", "conservative", "NSAID", "failed"],
+        "numeric": {"measure": "pain_duration_months", "op": ">=", "value": 3, "unit": "months",
+                    "patterns": ["(\\d+(?:\\.\\d+)?)\\s*(?:months?|mos?)\\b"]},
+        "sourceSpan": {"sectionKey": "indication", "quote": "Pain that has been present for a minimum of three months with documented failure to respond to noninvasive conservative care management (as tolerated)"},
+        "synthetic": {
+          "present": ["{date}: Low back pain for 9 months; failed 8 weeks of physical therapy, home exercise program and NSAIDs."],
+          "negated": ["{date}: Back pain started 5 weeks ago."],
+          "contradicted": ["{date}: Back pain for 1 month, improving with physical therapy."],
+          "paraphrased": ["{date}: Since January (about half a year) axial pain has not responded to PT or medications."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C3", "kind": "negative_attestation",
+        "text": "Absence of untreated radiculopathy or neurogenic claudication",
+        "keywords": ["radiculopathy", "radicular", "neurogenic claudication", "straight leg raise", "neurologic exam"],
+        "sourceSpan": {"sectionKey": "indication", "quote": "Absence of untreated radiculopathy or neurogenic claudication (except for radiculopathy caused by facet joint synovial cyst)"},
+        "synthetic": {
+          "present": ["{date}: Neurologic exam intact; negative straight leg raise bilaterally; no radicular symptoms or neurogenic claudication."],
+          "contradicted": ["{date}: Untreated left L5 radiculopathy with positive straight leg raise."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C4", "kind": "negative_attestation",
+        "text": "No non-facet pathology (fracture, tumor, infection, significant deformity) explaining the pain",
+        "keywords": ["fracture", "tumor", "infection", "deformity", "imaging", "X-ray"],
+        "sourceSpan": {"sectionKey": "indication", "quote": "There is no non-facet pathology per clinical assessment or radiology studies that could explain the source of the patient's pain, including but not limited to fracture, tumor, infection, or significant deformity."},
+        "synthetic": {
+          "present": ["{date}: Lumbar X-rays show facet arthropathy at L4-S1; no fracture, tumor, infection or significant deformity."],
+          "contradicted": ["{date}: Imaging shows an acute L2 compression fracture."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C5", "kind": "documentation",
+        "text": "Baseline pain assessment documented, with the same pain scale used after each diagnostic procedure",
+        "keywords": ["baseline", "pain scale", "NRS", "pain diary"],
+        "suggestedFix": "Record the baseline pain score using the scale that will be reused after each diagnostic block.",
+        "sourceSpan": {"sectionKey": "indication", "quote": "Pain assessment must be performed and documented at baseline, after each diagnostic procedure using the same pain scale for each assessment."}
+      }
+    ]
+  }
+}

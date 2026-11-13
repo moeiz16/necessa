@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "policyKey": "L35136",
+  "policyVersion": 37,
+  "title": "Spinal Cord Stimulators for Chronic Pain",
+  "scope": "Percutaneous SCS trial prior to permanent implantation",
+  "services": ["63650"],
+  "root": {
+    "type": "node", "op": "AND", "label": "SCS trial patient selection",
+    "children": [
+      {
+        "type": "criterion", "id": "C1", "kind": "positive",
+        "text": "Chronic intractable pain",
+        "keywords": ["chronic", "intractable", "neuropathic", "failed back surgery", "CRPS"],
+        "sourceSpan": {"sectionKey": "indication", "quote": "The implantation of spinal cord stimulators (SCS) may be covered as therapies for the relief of chronic intractable pain."},
+        "synthetic": {
+          "present": ["{date}: Chronic intractable neuropathic leg pain for 2 years following lumbar laminectomy (failed back surgery syndrome)."],
+          "contradicted": ["{date}: Acute low back strain of 10 days duration."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C2", "kind": "positive",
+        "text": "More conservative therapies (medications, physical therapy, psychological therapy or other modalities) tried first",
+        "keywords": ["physical therapy", "gabapentin", "medications", "CBT", "psychological therapy", "injections"],
+        "sourceSpan": {"sectionKey": "indication", "quote": "SCS therapy should be considered as a late option after more conservative attempts such as medications, physical therapy, psychological therapy or other modalities have been tried."},
+        "synthetic": {
+          "present": ["{date}: Prior treatments: gabapentin and duloxetine, 12 weeks of PT, cognitive behavioral therapy and two epidural injections, all without durable relief."],
+          "negated": ["{date}: No prior pain treatments have been tried."],
+          "paraphrased": ["{date}: Has exhausted medication trials, therapy and pain psychology without adequate control."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C3", "kind": "documentation",
+        "text": "Careful screening, evaluation and diagnosis by a multidisciplinary team prior to implantation",
+        "keywords": ["multidisciplinary", "team", "screening", "evaluation"],
+        "sourceSpan": {"sectionKey": "indication", "quote": "Patients must have undergone careful screening, evaluation and diagnosis by a multidisciplinary team prior to implantation."},
+        "synthetic": {
+          "present": ["{date}: Reviewed at multidisciplinary spine/pain conference (pain medicine, neurosurgery, psychology): appropriate SCS trial candidate."],
+          "negated": ["{date}: No multidisciplinary review has taken place."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C4", "kind": "documentation",
+        "text": "Appropriate psychological screening completed",
+        "keywords": ["psychological evaluation", "psychology", "psych screening", "cleared"],
+        "suggestedFix": "Attach the psychological evaluation clearing the patient for a neurostimulator trial.",
+        "sourceSpan": {"sectionKey": "indication", "quote": "Must undergo appropriate psychological screening"},
+        "synthetic": {
+          "present": ["{date}: Psychological evaluation completed; no contraindications to neuromodulation identified. Cleared for SCS trial."],
+          "negated": ["{date}: Psychology referral placed; evaluation not yet completed."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C5", "kind": "negative_attestation",
+        "text": "No active substance abuse issues",
+        "keywords": ["substance", "opioid use disorder", "alcohol", "drug screen", "urine drug screen"],
+        "sourceSpan": {"sectionKey": "indication", "quote": "Must not have active substance abuse issues."},
+        "synthetic": {
+          "present": ["{date}: No history of substance use disorder; urine drug screen consistent with prescribed medications only."],
+          "contradicted": ["{date}: Active alcohol use disorder, currently drinking daily."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C6", "kind": "documentation",
+        "text": "Patient education and discussion of risks and benefits documented",
+        "keywords": ["risks and benefits", "education", "informed consent", "discussed"],
+        "sourceSpan": {"sectionKey": "indication", "quote": "Must undergo proper patient education, discussion, and disclosure including an extensive discussion of the risks and benefits of this therapy."},
+        "synthetic": {
+          "present": ["{date}: Extensive discussion of SCS trial risks (infection, lead migration, bleeding) and benefits; patient verbalized understanding."]
+        }
+      }
+    ]
+  }
+}

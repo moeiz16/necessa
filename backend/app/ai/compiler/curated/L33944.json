@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "policyKey": "L33944",
+  "policyVersion": 28,
+  "title": "Blepharoplasty",
+  "scope": "Functional upper eyelid blepharoplasty / blepharoptosis repair for visual impairment",
+  "services": ["15822", "15823", "67904"],
+  "root": {
+    "type": "node", "op": "AND", "label": "Functional (non-cosmetic) upper lid surgery",
+    "children": [
+      {
+        "type": "criterion", "id": "C1", "kind": "positive",
+        "text": "Documented patient complaints justifying functional surgery (visual field interference, reading difficulty, looking through lashes)",
+        "keywords": ["visual field", "difficulty reading", "peripheral vision", "eyelashes", "heavy eyelids"],
+        "sourceSpan": {"sectionKey": "indication", "quote": "Any procedure(s) involving blepharoplasty and billed to this contractor must be supported by documented patient complaints which justify functional surgery."},
+        "synthetic": {
+          "present": ["{date}: Patient reports difficulty seeing objects approaching from the side and must lift her eyelids to read."],
+          "negated": ["{date}: Patient has no visual complaints; desires a more rested appearance."],
+          "contradicted": ["{date}: Procedure requested for cosmetic reasons only."],
+          "paraphrased": ["{date}: Upper lid skin obstructs her upper vision, making driving and reading difficult."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C2", "kind": "positive",
+        "text": "Visual impairment caused by dermatochalasis, blepharochalasis, blepharoptosis or brow ptosis on examination",
+        "evidenceType": ["exam", "note"],
+        "keywords": ["dermatochalasis", "blepharoptosis", "ptosis", "MRD1", "brow ptosis", "pseudoptosis"],
+        "sourceSpan": {"sectionKey": "indication", "quote": "Dermatochalasis, including symptomatic redundant skin weighing down on the upper eyelashes (i.e., pseudoptosis) and surgically induced dermatochalasis after ptosis repair."},
+        "synthetic": {
+          "present": ["{date}: Exam: bilateral dermatochalasis with redundant upper lid skin resting on the lashes; MRD1 0.5 mm OU."],
+          "contradicted": ["{date}: Exam: normal upper lid position, MRD1 4 mm OU, no redundant skin."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C3", "kind": "numeric",
+        "text": "Visual fields show at least 12 degrees or 30 percent superior field loss, with improvement when the lid is taped/elevated",
+        "evidenceType": ["visual_field", "report"],
+        "keywords": ["visual field", "taped", "untaped", "degrees", "superior field", "Goldmann", "Humphrey"],
+        "numeric": {"measure": "visual_field_loss_degrees", "op": ">=", "value": 12, "unit": "degrees",
+                    "patterns": ["(\\d+(?:\\.\\d+)?)\\s*(?:degrees?|°)\\s*(?:of\\s*)?(?:superior|upper)?\\s*(?:field\\s*)?(?:loss|restriction|deficit)"]},
+        "suggestedFix": "Attach taped and untaped visual field tests showing the superior field loss and its correction.",
+        "sourceSpan": {"sectionKey": "indication", "quote": "A minimum 12 degree or 30 percent loss of upper field of vision with upper lid skin and/or upper lid margin in repose and elevated (by taping of the lid) to demonstrate potential correction by the proposed procedure or procedures is required."},
+        "synthetic": {
+          "present": ["{date}: Visual field testing: 24 degrees superior field loss untaped OU, improving to within 5 degrees of normal with lids taped."],
+          "negated": ["{date}: Visual field testing not performed."],
+          "contradicted": ["{date}: Visual fields: 4 degrees superior field loss untaped; no meaningful change with taping."],
+          "paraphrased": ["{date}: Automated perimetry demonstrates a 35 percent upper field restriction that resolves when the lids are elevated with tape."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C4", "kind": "documentation",
+        "text": "Photographs demonstrate the eyelid abnormality",
+        "evidenceType": ["photo", "note"],
+        "keywords": ["photographs", "photos", "external photography", "frontal view"],
+        "sourceSpan": {"sectionKey": "indication", "quote": "Photographs may be used to demonstrate the eyelid abnormality(ies) necessitating the procedures(s)"},
+        "synthetic": {
+          "present": ["{date}: External photographs (frontal, primary gaze) obtained showing upper lid skin overhanging the lid margin."],
+          "negated": ["{date}: No photographs taken."]
+        }
+      }
+    ]
+  }
+}

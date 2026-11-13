@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "policyKey": "L33906",
+  "policyVersion": 75,
+  "title": "Epidural Steroid Injections for Pain Management",
+  "scope": "Initial epidural steroid injection (ESI)",
+  "services": ["62321", "62323", "64479", "64483"],
+  "root": {
+    "type": "node", "op": "AND", "label": "Initial ESI requirements",
+    "children": [
+      {
+        "type": "criterion", "id": "C1", "kind": "positive",
+        "text": "History, physical exam and concordant imaging support radiculopathy, radicular pain or neurogenic claudication (or post-laminectomy syndrome)",
+        "evidenceType": ["note", "imaging_report"],
+        "keywords": ["radiculopathy", "radicular", "MRI", "disc herniation", "stenosis", "dermatomal", "concordant"],
+        "suggestedFix": "Add the imaging report (MRI/CT) and an exam note showing findings concordant with the radicular symptoms.",
+        "sourceSpan": {"sectionKey": "indication", "quote": "History, physical examination, and concordant radiological image-based diagnostic testing that supports one of the following"},
+        "synthetic": {
+          "present": ["{date}: Left L5 radicular pain radiating to the dorsum of the foot; positive straight leg raise. MRI lumbar spine: L4-5 disc herniation compressing the left L5 nerve root, concordant with symptoms."],
+          "negated": ["{date}: No imaging has been obtained; exam without radicular findings."],
+          "contradicted": ["{date}: MRI lumbar spine unremarkable; no foraminal or central stenosis. Exam without radicular signs."],
+          "paraphrased": ["{date}: Sciatica in an L5 distribution; MRI demonstrates a paracentral L4-L5 protrusion contacting the traversing L5 root, matching the clinical picture."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C2", "kind": "numeric",
+        "text": "Baseline objective pain scale or functional assessment documented before the intervention",
+        "evidenceType": ["note", "questionnaire"],
+        "keywords": ["NRS", "VAS", "Oswestry", "ODI", "pain scale", "baseline", "/10"],
+        "numeric": {"measure": "pain_score", "op": ">=", "value": 0, "unit": "0-10",
+                    "patterns": ["(?:NRS|VAS|pain(?: score)?)[^0-9]{0,12}(\\d{1,2})\\s*/\\s*10"]},
+        "suggestedFix": "Record a baseline pain score (e.g., NRS 0-10) or disability index (e.g., ODI) before the first injection.",
+        "sourceSpan": {"sectionKey": "indication", "quote": "An objective pain scale or functional assessment must be performed at baseline (prior to interventions)."},
+        "synthetic": {
+          "present": ["{date}: Baseline NRS pain 8/10; Oswestry Disability Index 46%."],
+          "negated": ["{date}: Pain described as bad; no scale recorded."],
+          "contradicted": ["{date}: Pain scale deferred; to be completed after the procedure."],
+          "paraphrased": ["{date}: Pre-procedure numeric rating scale: 7 out of 10; ODI 40 percent."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C3", "kind": "positive",
+        "text": "Symptoms severe enough to greatly impact quality of life or function",
+        "keywords": ["function", "ADL", "quality of life", "work", "walking tolerance", "disability"],
+        "sourceSpan": {"sectionKey": "indication", "quote": "Radiculopathy, radicular pain and/or neurogenic claudication is severe enough to greatly impact quality of life or function."},
+        "synthetic": {
+          "present": ["{date}: Unable to walk more than one block or sit longer than 20 minutes; missed work for two weeks."],
+          "negated": ["{date}: Pain is a mild nuisance; no functional limitation."],
+          "contradicted": ["{date}: Fully active, playing tennis three times per week without limitation."],
+          "paraphrased": ["{date}: Leg pain severely limits daily activities including dressing and grocery shopping."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C4", "kind": "temporal",
+        "text": "Pain for at least 4 weeks with failure of (or inability to tolerate) 4 weeks of noninvasive conservative care",
+        "keywords": ["weeks", "physical therapy", "NSAID", "conservative", "home exercise", "failed"],
+        "numeric": {"measure": "conservative_care_weeks", "op": ">=", "value": 4, "unit": "weeks",
+                    "patterns": ["(\\d+)\\s*(?:weeks?|wks?)\\b"]},
+        "sourceSpan": {"sectionKey": "indication", "quote": "Pain duration of at least four (4) weeks, and the inability to tolerate noninvasive conservative care or medical documentation of failure to respond to four (4) weeks of noninvasive conservative care"},
+        "synthetic": {
+          "present": ["{date}: Symptoms for 10 weeks. Completed 6 weeks of physical therapy plus naproxen without improvement."],
+          "negated": ["{date}: Symptoms began 9 days ago; no treatment yet."],
+          "contradicted": ["{date}: Two weeks of physical therapy so far with steady improvement."],
+          "paraphrased": ["{date}: More than two months of leg pain despite a supervised PT program and anti-inflammatories."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C5", "kind": "documentation",
+        "text": "Injection planned under CT or fluoroscopic guidance with contrast (unless documented contrast allergy or pregnancy)",
+        "evidenceType": ["procedure_plan", "note"],
+        "keywords": ["fluoroscopy", "fluoroscopic", "CT guidance", "contrast", "image guidance"],
+        "sourceSpan": {"sectionKey": "indication", "quote": "The ESIs must be performed under computed tomography (CT) or fluoroscopy image guidance with contrast"},
+        "synthetic": {
+          "present": ["{date}: Plan: left L5 transforaminal ESI under fluoroscopic guidance with contrast."],
+          "contradicted": ["{date}: Plan: ESI under ultrasound guidance without contrast (no contrast allergy)."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C6", "kind": "negative_attestation",
+        "text": "No contraindication such as suspected/active spinal or significant systemic infection, cord compression or major cancer risk",
+        "keywords": ["infection", "fever", "malignancy", "cancer", "contraindication", "cauda equina"],
+        "suggestedFix": "Add an explicit statement that contraindications (infection, compressive lesion, malignancy) were assessed and are absent.",
+        "sourceSpan": {"sectionKey": "indication", "quote": "ESIs should not be performed when contraindicated, including but not limited to: Suspected or active localized spinal infection, significant systemic infection"},
+        "synthetic": {
+          "present": ["{date}: No fever, no signs of systemic or local infection, no history of malignancy; no saddle anesthesia or bowel/bladder changes."],
+          "contradicted": ["{date}: Febrile to 38.9 C with suspected discitis on MRI."]
+        }
+      }
+    ]
+  }
+}

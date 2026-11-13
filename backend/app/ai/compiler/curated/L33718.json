@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "policyKey": "L33718",
+  "policyVersion": 52,
+  "title": "Positive Airway Pressure (PAP) Devices for the Treatment of Obstructive Sleep Apnea",
+  "scope": "Initial coverage of a single-level CPAP device (E0601) for obstructive sleep apnea",
+  "services": ["E0601", "E0470"],
+  "root": {
+    "type": "node", "op": "AND", "label": "Initial E0601 coverage (criteria A-C)",
+    "children": [
+      {
+        "type": "criterion", "id": "C1", "kind": "temporal",
+        "text": "In-person clinical evaluation by the treating practitioner for OSA, performed before the sleep test",
+        "evidenceType": ["note", "encounter"],
+        "keywords": ["in-person", "face-to-face", "evaluation", "sleep apnea", "snoring", "sleep study ordered"],
+        "suggestedFix": "Attach the dated in-person evaluation note (before the sleep test date) documenting OSA signs/symptoms assessment.",
+        "sourceSpan": {"sectionKey": "indication", "quote": "The beneficiary has an in-person clinical evaluation by the treating practitioner prior to the sleep test to assess the beneficiary for obstructive sleep apnea."},
+        "synthetic": {
+          "present": ["{date}: In-person visit for evaluation of suspected obstructive sleep apnea. Reports loud snoring and witnessed apneas; Epworth score 14. Home sleep test ordered."],
+          "negated": ["{date}: Telephone outreach only; patient has not been seen in person for sleep complaints."],
+          "contradicted": ["{date}: First visit for sleep complaints occurred after the sleep study had already been performed."],
+          "paraphrased": ["{date}: Face-to-face assessment for OSA symptoms (snoring, gasping at night) completed prior to arranging diagnostic sleep testing."]
+        }
+      },
+      {
+        "type": "node", "op": "OR", "label": "Qualifying sleep test (criterion B)",
+        "children": [
+          {
+            "type": "criterion", "id": "C2", "kind": "numeric",
+            "text": "Sleep test AHI or RDI of at least 15 events per hour with a minimum of 30 events",
+            "evidenceType": ["sleep_study", "report"],
+            "keywords": ["AHI", "RDI", "apnea-hypopnea index", "events per hour", "polysomnogram", "home sleep test"],
+            "numeric": {"measure": "ahi", "op": ">=", "value": 15, "unit": "events/hour",
+                        "patterns": ["(?:AHI|RDI|apnea[- ]hypopnea index|respiratory disturbance index)[^0-9]{0,30}(\\d+(?:\\.\\d+)?)"]},
+            "suggestedFix": "Attach the full sleep study report showing AHI/RDI, total events and recording time.",
+            "sourceSpan": {"sectionKey": "indication", "quote": "The apnea-hypopnea index (AHI) or Respiratory Disturbance Index (RDI) is greater than or equal to 15 events per hour with a minimum of 30 events"},
+            "synthetic": {
+              "present": ["{date}: Home sleep apnea test report: AHI 23.4 events/hour, 142 total respiratory events over 6.1 hours of recording."],
+              "negated": ["{date}: Sleep study pending; no results available yet."],
+              "contradicted": ["{date}: Home sleep apnea test report: AHI 3.1 events/hour. No significant sleep-disordered breathing."],
+              "paraphrased": ["{date}: Polysomnography shows severe obstructive sleep apnea with an apnea-hypopnea index of 31 per hour (188 events)."]
+            }
+          },
+          {
+            "type": "node", "op": "AND", "label": "Mild OSA (AHI 5-14) with symptoms or comorbidity",
+            "children": [
+              {
+                "type": "criterion", "id": "C3", "kind": "numeric",
+                "text": "Sleep test AHI or RDI between 5 and 14 events per hour with a minimum of 10 events",
+                "evidenceType": ["sleep_study", "report"],
+                "keywords": ["AHI", "RDI", "events per hour", "mild"],
+                "numeric": {"measure": "ahi", "op": "between", "value": 5, "valueHigh": 14, "unit": "events/hour",
+                            "patterns": ["(?:AHI|RDI|apnea[- ]hypopnea index|respiratory disturbance index)[^0-9]{0,30}(\\d+(?:\\.\\d+)?)"]},
+                "sourceSpan": {"sectionKey": "indication", "quote": "The AHI or RDI is greater than or equal to 5 and less than or equal to 14 events per hour with a minimum of 10 events"}
+              },
+              {
+                "type": "node", "op": "OR", "label": "Symptom or comorbidity",
+                "children": [
+                  {
+                    "type": "criterion", "id": "C4", "kind": "positive",
+                    "text": "Documented excessive daytime sleepiness, impaired cognition, mood disorder, or insomnia",
+                    "keywords": ["daytime sleepiness", "Epworth", "cognition", "mood", "insomnia"],
+                    "sourceSpan": {"sectionKey": "indication", "quote": "Excessive daytime sleepiness, impaired cognition, mood disorders, or insomnia"}
+                  },
+                  {
+                    "type": "criterion", "id": "C5", "kind": "positive",
+                    "text": "Documented hypertension, ischemic heart disease, or history of stroke",
+                    "evidenceType": ["problem_list", "note"],
+                    "keywords": ["hypertension", "ischemic heart disease", "coronary", "stroke", "CVA"],
+                    "sourceSpan": {"sectionKey": "indication", "quote": "Hypertension, ischemic heart disease, or history of stroke."}
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "criterion", "id": "C6", "kind": "documentation",
+        "text": "The sleep test was ordered by the beneficiary's treating practitioner",
+        "evidenceType": ["order", "note"],
+        "keywords": ["sleep test ordered", "order", "HSAT", "polysomnography ordered"],
+        "suggestedFix": "Attach the sleep test order signed by the treating practitioner.",
+        "sourceSpan": {"sectionKey": "indication", "quote": "The sleep test is ordered by the beneficiary's treating practitioner"},
+        "synthetic": {
+          "present": ["{date}: Order placed by treating physician: home sleep apnea test (Type III)."],
+          "negated": ["{date}: Patient self-referred to a direct-to-consumer sleep test; no practitioner order on file."],
+          "contradicted": ["{date}: Sleep study was ordered by an online vendor without involvement of the treating practitioner."],
+          "paraphrased": ["{date}: Treating physician requested an overnight diagnostic sleep study."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C7", "kind": "documentation",
+        "text": "Beneficiary/caregiver received instruction from the supplier on proper use and care of the device",
+        "evidenceType": ["supplier_note", "note"],
+        "keywords": ["instruction", "education", "mask fitting", "use and care", "supplier"],
+        "suggestedFix": "Attach the DME supplier's setup/education note documenting instruction on device use and care.",
+        "sourceSpan": {"sectionKey": "indication", "quote": "The beneficiary and/or their caregiver has received instruction from the supplier of the device in the proper use and care of the equipment."},
+        "synthetic": {
+          "present": ["{date}: DME setup visit: patient instructed on CPAP use, cleaning and mask care; teach-back completed."],
+          "negated": ["{date}: Device shipped to patient; no setup or education visit documented."],
+          "contradicted": ["{date}: Patient declined supplier education and setup."],
+          "paraphrased": ["{date}: Supplier respiratory therapist trained patient and spouse on operating and maintaining the CPAP machine."]
+        }
+      }
+    ]
+  }
+}

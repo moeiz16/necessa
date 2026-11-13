@@ -1,0 +1,215 @@
+{
+  "schemaVersion": 1,
+  "policyKey": "PAYER-SYNHP-MP0101",
+  "policyVersion": 3,
+  "title": "Knee Arthroscopy for Meniscal Tears (Synthetic Health Plan — fictional policy)",
+  "scope": "Arthroscopic partial meniscectomy or meniscal repair",
+  "services": [
+    "29880",
+    "29881",
+    "29882",
+    "29883"
+  ],
+  "synthetic": true,
+  "notes": "Curated against workstream B fixture syn_knee_arthroscopy.json (synthetic policy).",
+  "root": {
+    "type": "node",
+    "op": "AND",
+    "label": "Meniscectomy / repair (ALL)",
+    "children": [
+      {
+        "type": "criterion",
+        "id": "C1",
+        "text": "Mechanical symptoms (locking, catching or giving way) documented in the clinical record",
+        "kind": "positive",
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "The member reports mechanical symptoms of the knee, such as locking, catching, or giving way, documented in the clinical record."
+        },
+        "keywords": [
+          "locking",
+          "catching",
+          "giving way",
+          "McMurray",
+          "joint line tenderness"
+        ],
+        "synthetic": {
+          "present": [
+            "{date}: Reports intermittent locking and catching of the right knee; McMurray positive medially."
+          ],
+          "negated": [
+            "{date}: Denies locking or catching; McMurray negative."
+          ],
+          "contradicted": [
+            "{date}: No mechanical symptoms; exam without joint line tenderness."
+          ],
+          "paraphrased": [
+            "{date}: Knee intermittently gets stuck and has to be wiggled free; medial joint line is tender to palpation."
+          ]
+        }
+      },
+      {
+        "type": "node",
+        "op": "OR",
+        "label": "Conservative therapy (or exception)",
+        "children": [
+          {
+            "type": "criterion",
+            "id": "C2",
+            "text": "At least 6 weeks of conservative therapy (PT or supervised home exercise plus NSAID, activity modification or bracing) within the past 12 months",
+            "kind": "temporal",
+            "sourceSpan": {
+              "sectionKey": "indication",
+              "quote": "The member has completed at least 6 weeks of conservative therapy within the past 12 months, including physical therapy or a supervised home exercise program"
+            },
+            "lookbackDays": 365,
+            "numeric": {
+              "measure": "conservative_care_weeks",
+              "op": ">=",
+              "value": 6,
+              "unit": "weeks",
+              "patterns": [
+                "(\\d+)\\s*(?:weeks?|wks?)\\b"
+              ]
+            },
+            "keywords": [
+              "physical therapy",
+              "home exercise",
+              "NSAID",
+              "weeks",
+              "bracing"
+            ],
+            "suggestedFix": "Document PT/home-exercise dates (start and end), medications or bracing tried and the response.",
+            "synthetic": {
+              "present": [
+                "{date}: Completed 8 weeks of physical therapy (2x weekly) and meloxicam 15 mg daily with minimal improvement."
+              ],
+              "negated": [
+                "{date}: Has not started physical therapy; no medications tried."
+              ],
+              "contradicted": [
+                "{date}: After 3 weeks of PT, symptoms markedly improved."
+              ],
+              "paraphrased": [
+                "{date}: Two months of supervised therapy and daily NSAIDs did not relieve the knee pain."
+              ]
+            }
+          },
+          {
+            "type": "criterion",
+            "id": "C2X",
+            "text": "Exception: locked knee that cannot be reduced, or acute displaced bucket-handle tear on MRI",
+            "kind": "positive",
+            "sourceSpan": {
+              "sectionKey": "indication",
+              "quote": "there is a locked knee that cannot be reduced, or an acute traumatic tear with a displaced bucket-handle fragment confirmed on MRI"
+            },
+            "keywords": [
+              "locked knee",
+              "bucket-handle",
+              "displaced fragment"
+            ],
+            "synthetic": {
+              "present": [
+                "{date}: Knee locked in 20 degrees of flexion, unable to reduce in clinic; MRI shows displaced bucket-handle fragment."
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "criterion",
+        "id": "C3",
+        "text": "MRI within the past 6 months shows a meniscal tear that correlates with clinical findings",
+        "kind": "documentation",
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "Magnetic resonance imaging (MRI) performed within the past 6 months demonstrates a meniscal tear that correlates with the clinical findings."
+        },
+        "lookbackDays": 183,
+        "evidenceType": [
+          "imaging_report"
+        ],
+        "keywords": [
+          "MRI",
+          "meniscal tear",
+          "medial meniscus",
+          "posterior horn"
+        ],
+        "suggestedFix": "Attach the knee MRI report (dated within 6 months) and an exam note correlating findings.",
+        "synthetic": {
+          "present": [
+            "{date}: MRI right knee: complex tear of the posterior horn of the medial meniscus; medial joint line tenderness on exam, concordant."
+          ],
+          "negated": [
+            "{date}: MRI has not been obtained."
+          ],
+          "contradicted": [
+            "{date}: MRI right knee: menisci intact; no tear identified."
+          ],
+          "paraphrased": [
+            "{date}: Knee MR imaging shows a horizontal cleavage tear of the medial meniscus posterior horn, matching the site of pain on examination."
+          ]
+        }
+      },
+      {
+        "type": "criterion",
+        "id": "C4",
+        "text": "No advanced osteoarthritis (Kellgren-Lawrence grade 3 or 4) of the affected compartment on radiographs",
+        "kind": "negative_attestation",
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "Radiographs do not demonstrate advanced osteoarthritis of the affected compartment (Kellgren-Lawrence grade 3 or 4)."
+        },
+        "evidenceType": [
+          "imaging_report"
+        ],
+        "keywords": [
+          "Kellgren-Lawrence",
+          "osteoarthritis",
+          "weight-bearing",
+          "X-ray",
+          "joint space"
+        ],
+        "suggestedFix": "Attach weight-bearing knee radiographs with an explicit Kellgren-Lawrence grade.",
+        "synthetic": {
+          "present": [
+            "{date}: Weight-bearing X-rays right knee: Kellgren-Lawrence grade 1, joint spaces preserved."
+          ],
+          "contradicted": [
+            "{date}: Weight-bearing X-rays: Kellgren-Lawrence grade 4 medial compartment osteoarthritis with bone-on-bone contact."
+          ]
+        }
+      },
+      {
+        "type": "criterion",
+        "id": "C5",
+        "text": "Functional limitation attributable to the knee documented (stairs, ambulation, work), with a validated score where available",
+        "kind": "positive",
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "A functional limitation attributable to the knee is documented, such as difficulty with stairs, ambulation, or work duties"
+        },
+        "keywords": [
+          "KOOS",
+          "IKDC",
+          "stairs",
+          "ambulation",
+          "work duties",
+          "functional"
+        ],
+        "synthetic": {
+          "present": [
+            "{date}: KOOS function score 41; unable to climb stairs or squat at work as a warehouse associate."
+          ],
+          "negated": [
+            "{date}: No limitations in daily activities."
+          ],
+          "paraphrased": [
+            "{date}: IKDC 48; cannot kneel or use stairs at home without assistance."
+          ]
+        }
+      }
+    ]
+  }
+}

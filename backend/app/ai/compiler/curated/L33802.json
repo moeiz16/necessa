@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "policyKey": "L33802",
+  "policyVersion": 35,
+  "title": "Transcutaneous Electrical Nerve Stimulators (TENS)",
+  "scope": "TENS for chronic, intractable pain other than low back pain (coverage criterion II)",
+  "services": ["E0720", "E0730"],
+  "root": {
+    "type": "node", "op": "AND", "label": "Chronic pain other than low back pain",
+    "children": [
+      {
+        "type": "criterion", "id": "C1", "kind": "documentation",
+        "text": "TENS ordered by the treating practitioner for the condition justifying the device",
+        "evidenceType": ["order", "note"],
+        "keywords": ["order", "TENS", "treating practitioner", "prescribed"],
+        "sourceSpan": {"sectionKey": "indication", "quote": "The practitioner ordering the Transcutaneous Electrical Nerve Stimulators (TENS) unit and related supplies must be the treating practitioner for the disease or condition justifying the need for the TENS unit."},
+        "synthetic": {
+          "present": ["{date}: Treating physician prescribes TENS unit for chronic knee osteoarthritis pain."],
+          "negated": ["{date}: TENS unit ordered by a vendor; treating physician not involved."],
+          "contradicted": ["{date}: Order signed by a practitioner who has never treated the patient's pain condition."],
+          "paraphrased": ["{date}: I am the treating physician for this pain condition and am ordering a TENS device."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C2", "kind": "temporal",
+        "text": "Pain present for at least three months",
+        "keywords": ["months", "chronic", "duration", "since"],
+        "numeric": {"measure": "pain_duration_months", "op": ">=", "value": 3, "unit": "months",
+                    "patterns": ["(\\d+(?:\\.\\d+)?)\\s*(?:months?|mos?)\\b"]},
+        "sourceSpan": {"sectionKey": "indication", "quote": "The pain must have been present for at least three months."},
+        "synthetic": {
+          "present": ["{date}: Chronic right knee pain for 8 months, worse with weight bearing."],
+          "negated": ["{date}: Pain onset 3 weeks ago after a fall."],
+          "contradicted": ["{date}: Acute knee pain of 2 weeks duration."],
+          "paraphrased": ["{date}: Knee pain has persisted since last spring (roughly seven months)."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C3", "kind": "positive",
+        "text": "Other appropriate treatment modalities have been tried and failed",
+        "keywords": ["physical therapy", "NSAID", "failed", "tried", "medication", "injection"],
+        "sourceSpan": {"sectionKey": "indication", "quote": "Other appropriate treatment modalities must have been tried and failed."},
+        "synthetic": {
+          "present": ["{date}: Completed 8 weeks of physical therapy and scheduled NSAIDs without meaningful relief."],
+          "negated": ["{date}: No prior treatments attempted for this pain."],
+          "contradicted": ["{date}: Pain well controlled with physical therapy; patient satisfied with current regimen."],
+          "paraphrased": ["{date}: Despite a course of PT and anti-inflammatory medication, pain persists."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C4", "kind": "positive",
+        "text": "Pain etiology is a type accepted as responding to TENS (not headache, visceral, pelvic or TMJ pain)",
+        "keywords": ["osteoarthritis", "neuropathic", "musculoskeletal", "etiology", "diagnosis"],
+        "sourceSpan": {"sectionKey": "indication", "quote": "The presumed etiology of the pain must be a type that is accepted as responding to TENS therapy."}
+      },
+      {
+        "type": "criterion", "id": "C5", "kind": "negative_attestation",
+        "text": "Pain being treated is not chronic low back pain",
+        "keywords": ["low back pain", "lumbar", "CLBP"],
+        "suggestedFix": "Document the anatomic site of the pain being treated; TENS for chronic low back pain is not covered.",
+        "sourceSpan": {"sectionKey": "indication", "quote": "TENS therapy for Chronic Low Back Pain (CLBP) will be denied as not reasonable and necessary."},
+        "synthetic": {
+          "present": ["{date}: TENS is for right knee pain only; patient has no low back pain complaints."],
+          "contradicted": ["{date}: TENS requested for chronic low back pain."]
+        }
+      },
+      {
+        "type": "criterion", "id": "C6", "kind": "temporal",
+        "text": "Trial use for a minimum of one month (30 days), not exceeding two months, monitored by the treating practitioner",
+        "keywords": ["trial", "30 days", "one month", "rental", "effectiveness"],
+        "suggestedFix": "Document the TENS rental trial dates and the practitioner's assessment of effectiveness.",
+        "sourceSpan": {"sectionKey": "indication", "quote": "the TENS unit must be used by the beneficiary on a trial basis for a minimum of one month (30 days), but not to exceed two months"},
+        "synthetic": {
+          "present": ["{date}: 30-day TENS rental trial completed; pain reduced from 7/10 to 4/10, practitioner recommends purchase."],
+          "negated": ["{date}: No trial period; purchase requested directly."],
+          "contradicted": ["{date}: TENS trial lasted 10 days and was discontinued."],
+          "paraphrased": ["{date}: After a month-long supervised trial with the rental unit, the patient reports meaningful benefit."]
+        }
+      }
+    ]
+  }
+}

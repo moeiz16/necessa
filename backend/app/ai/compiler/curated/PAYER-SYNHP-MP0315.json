@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "policyKey": "PAYER-SYNHP-MP0315",
+  "policyVersion": 2,
+  "title": "Lumbar Epidural Steroid Injections (Synthetic Health Plan — fictional policy)",
+  "scope": "Lumbar ESI for radicular pain",
+  "services": [
+    "62322",
+    "62323",
+    "64483",
+    "64484"
+  ],
+  "synthetic": true,
+  "notes": "Curated against workstream B fixture syn_epidural_injections.json (synthetic policy).",
+  "root": {
+    "type": "node",
+    "op": "AND",
+    "label": "Lumbar ESI (ALL)",
+    "children": [
+      {
+        "type": "criterion",
+        "id": "C1",
+        "text": "Dermatomal radicular pain for at least 4 weeks, intensity 4/10 or greater, causing documented functional impairment",
+        "kind": "numeric",
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "Radicular pain in a dermatomal distribution has been present for at least 4 weeks, with pain intensity of 4 or greater on a 0-10 numeric rating scale, and is causing documented functional impairment."
+        },
+        "numeric": {
+          "measure": "pain_score",
+          "op": ">=",
+          "value": 4,
+          "unit": "0-10",
+          "patterns": [
+            "(?:NRS|VAS|pain(?: score)?)[^0-9]{0,12}(\\d{1,2})\\s*/\\s*10"
+          ]
+        },
+        "keywords": [
+          "radicular",
+          "dermatomal",
+          "NRS",
+          "sciatica",
+          "functional impairment"
+        ],
+        "synthetic": {
+          "present": [
+            "{date}: Left L5 dermatomal radicular pain for 10 weeks, NRS 7/10, unable to stand more than 15 minutes at work."
+          ],
+          "negated": [
+            "{date}: Axial back pain only; no radiating leg symptoms."
+          ],
+          "contradicted": [
+            "{date}: Radicular pain rated 2/10 and not limiting activities."
+          ],
+          "paraphrased": [
+            "{date}: Sciatica down the left leg in an L5 pattern for over two months, pain score 6/10, limiting walking."
+          ]
+        }
+      },
+      {
+        "type": "criterion",
+        "id": "C2",
+        "text": "Failed at least 4 weeks of conservative care (PT, home exercise, analgesics or anti-inflammatories)",
+        "kind": "temporal",
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "The member has failed at least 4 weeks of conservative care, which may include physical therapy, a home exercise program, and analgesic or anti-inflammatory medication, unless contraindicated."
+        },
+        "numeric": {
+          "measure": "conservative_care_weeks",
+          "op": ">=",
+          "value": 4,
+          "unit": "weeks",
+          "patterns": [
+            "(\\d+)\\s*(?:weeks?|wks?)\\b"
+          ]
+        },
+        "keywords": [
+          "physical therapy",
+          "home exercise",
+          "NSAID",
+          "weeks",
+          "conservative care"
+        ],
+        "synthetic": {
+          "present": [
+            "{date}: Completed 6 weeks of physical therapy plus naproxen without improvement."
+          ],
+          "negated": [
+            "{date}: No conservative treatment attempted yet."
+          ],
+          "contradicted": [
+            "{date}: Two weeks of physical therapy so far with steady improvement."
+          ]
+        }
+      },
+      {
+        "type": "criterion",
+        "id": "C3",
+        "text": "Imaging (MRI or CT) shows nerve root compression or stenosis at a level consistent with symptoms",
+        "kind": "documentation",
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "Clinical findings are corroborated by imaging (MRI or CT) showing nerve root compression or spinal stenosis at a level consistent with the symptoms, unless imaging is contraindicated."
+        },
+        "evidenceType": [
+          "imaging_report"
+        ],
+        "keywords": [
+          "MRI",
+          "CT",
+          "nerve root compression",
+          "stenosis",
+          "foraminal"
+        ],
+        "synthetic": {
+          "present": [
+            "{date}: MRI lumbar spine: L4-5 left paracentral disc protrusion compressing the traversing left L5 nerve root."
+          ],
+          "negated": [
+            "{date}: No imaging obtained."
+          ],
+          "contradicted": [
+            "{date}: MRI lumbar spine without nerve root compression or stenosis."
+          ]
+        }
+      },
+      {
+        "type": "criterion",
+        "id": "C4",
+        "text": "Injection performed under fluoroscopic or CT guidance with contrast confirmation",
+        "kind": "documentation",
+        "sourceSpan": {
+          "sectionKey": "indication",
+          "quote": "The injection is performed under fluoroscopic or CT image guidance with contrast confirmation."
+        },
+        "evidenceType": [
+          "procedure_plan",
+          "note"
+        ],
+        "keywords": [
+          "fluoroscopic",
+          "CT guidance",
+          "contrast"
+        ],
+        "synthetic": {
+          "present": [
+            "{date}: Plan: left L5 transforaminal ESI under fluoroscopic guidance with contrast confirmation."
+          ],
+          "contradicted": [
+            "{date}: Plan: injection without image guidance."
+          ]
+        }
+      }
+    ]
+  }
+}
