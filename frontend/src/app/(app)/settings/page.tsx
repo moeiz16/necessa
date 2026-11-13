@@ -147,8 +147,10 @@ export default function SettingsPage() {
   return (
     <AppPage crumbs={<Breadcrumb items={[{ label: "Settings" }, { label: "Personal" }]} />}>
       <PageHeader title="Settings" description="Your profile, security and preferences." />
-      <div className="grid gap-6 lg:grid-cols-[200px_minmax(0,1fr)]">
-        <SettingsNav />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[200px_minmax(0,1fr)]">
+        <div className="min-w-0 overflow-x-auto scrollbar-thin lg:overflow-visible">
+          <SettingsNav />
+        </div>
         <Tabs defaultValue="profile">
           <TabsList className="mb-5">
             <TabsTrigger value="profile">Profile</TabsTrigger>

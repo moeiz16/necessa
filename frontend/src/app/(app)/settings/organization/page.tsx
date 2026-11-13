@@ -77,7 +77,7 @@ function MembersTab() {
   const [role, setRole] = useState<Role>("coordinator");
   const [devLink, setDevLink] = useState<string | null>(null);
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-1 gap-4">
       <Card>
         <CardHeader title="Invite a teammate" description="Invitations expire after 7 days." />
         <CardBody>
@@ -115,11 +115,11 @@ function MembersTab() {
       </Card>
       <Card className="overflow-hidden">
         <CardHeader title={`Members · ${members.data?.length ?? 0}`} />
-        <CardBody className="px-0">
+        <CardBody className="overflow-x-auto px-0">
           {members.isPending ? (
             <Skeleton className="mx-4 h-40" />
           ) : (
-            <table className="w-full text-[13px]">
+            <table className="w-full min-w-[600px] text-[13px]">
               <thead className="text-xs text-muted">
                 <tr>
                   {["Member", "Role", "MFA", "Last active", ""].map((h) => (
@@ -267,7 +267,7 @@ function ApiKeysTab() {
               </Button>
             </div>
           ) : (
-            <div className="grid gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <Field label="Name">
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Epic integration (prod)" autoFocus />
               </Field>
@@ -305,7 +305,7 @@ function PoliciesTab({ org }: { org: Org }) {
   const [s, setS] = useState(org.settings);
   useEffect(() => setS(org.settings), [org.settings]);
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-1 gap-4">
       <Card>
         <CardHeader title="Service levels" description="Drive case due dates and SLA alerts. Defaults mirror CMS-0057-F payer decision timeframes." />
         <CardBody className="grid max-w-2xl gap-4 sm:grid-cols-2">
@@ -388,8 +388,10 @@ export default function OrganizationSettingsPage() {
   return (
     <AppPage crumbs={<Breadcrumb items={[{ label: "Settings", href: "/settings" }, { label: "Organization" }]} />}>
       <PageHeader title="Organization" description="Practice profile, team, access and integrations." />
-      <div className="grid gap-6 lg:grid-cols-[200px_minmax(0,1fr)]">
-        <SettingsNav />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[200px_minmax(0,1fr)]">
+        <div className="min-w-0 overflow-x-auto scrollbar-thin lg:overflow-visible">
+          <SettingsNav />
+        </div>
         <Can perm="org:admin" fallback={<EmptyState art="shield" title="Admins only" description="Ask an owner or admin to change organization settings." />}>
           {org.data ? (
             <Tabs defaultValue="members">

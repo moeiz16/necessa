@@ -67,7 +67,7 @@ export default function ModelsPage() {
         <StatCard label="Error rate" value={u ? fmtPct(u.totals.errorRate, 1) : "—"} icon={<Gauge />} />
       </div>
 
-      <div className="mb-5 grid gap-4 lg:grid-cols-2">
+      <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader title="Calls by day" description="Successful calls, cache hits and fallbacks" />
           <CardBody>
@@ -92,11 +92,11 @@ export default function ModelsPage() {
         </Card>
       </div>
 
-      <div className="mb-5 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+      <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_1fr]">
         <Card>
           <CardHeader title="Providers" />
-          <CardBody className="px-0">
-            <table className="w-full text-[13px]">
+          <CardBody className="overflow-x-auto px-0">
+            <table className="w-full min-w-[460px] text-[13px]">
               <thead className="text-xs text-muted">
                 <tr>
                   {["Provider", "Calls", "Tokens", "p50 latency", "Error rate"].map((h) => (

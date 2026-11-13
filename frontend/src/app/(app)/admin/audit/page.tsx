@@ -14,6 +14,15 @@ import { EmptyState } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/overlays";
 
+const QUICK: { label: string; action: string }[] = [
+  { label: "PHI reveals", action: "reveal" },
+  { label: "Verdict overrides", action: "override" },
+  { label: "Quarantines", action: "quarantine" },
+  { label: "Sign-ins", action: "auth.login" },
+  { label: "Model fallbacks", action: "fallback" },
+  { label: "Index changes", action: "index" },
+];
+
 const RESOURCE_TYPES = ["case", "case_document", "letter", "patient", "session", "organization", "membership", "invitation", "api_key", "criteria_set", "index_version", "denial", "llm_call", "audit_log"];
 
 export default function AuditPage() {
@@ -73,6 +82,21 @@ export default function AuditPage() {
           </div>
           <Select size="sm" className="w-48" value={rt} onValueChange={setRt} aria-label="Resource type" options={[{ value: "all", label: "All resources" }, ...RESOURCE_TYPES.map((r) => ({ value: r, label: r }))]} />
           <Select size="sm" className="w-48" value={actor} onValueChange={setActor} aria-label="Actor" options={[{ value: "all", label: "Anyone" }, { value: "system", label: "System" }, ...(members.data ?? []).map((m) => ({ value: m.id, label: m.fullName }))]} />
+          <div className="flex flex-wrap gap-1.5 lg:ml-auto">
+            {QUICK.map((q) => {
+              const on = action === q.action;
+              return (
+                <button
+                  key={q.action}
+                  onClick={() => setAction(on ? "" : q.action)}
+                  aria-pressed={on}
+                  className={cn("h-7 rounded-full border px-2.5 text-xs transition-colors", on ? "border-brand bg-brand-soft text-brand-fg" : "border-border text-muted hover:border-border-strong hover:text-fg")}
+                >
+                  {q.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <CardBody className="px-0 pb-0">
           {audit.isPending ? (
@@ -84,6 +108,7 @@ export default function AuditPage() {
               <table className="w-full text-[13px]">
                 <thead className="text-xs text-muted">
                   <tr>
+                    <th className="w-6 pl-4" aria-label="Chain" />
                     {["#", "When", "Actor", "Action", "Resource", "Hash"].map((h) => (
                       <th key={h} className="px-4 py-2 text-left font-medium">
                         {h}
@@ -92,8 +117,22 @@ export default function AuditPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.id} onClick={() => setOpen(r)} className="cursor-pointer border-t border-border/70 hover:bg-surface-2/60">
+                  {rows.map((r, i) => {
+                    const broken = !!verify.data && !verify.data.valid && verify.data.brokenAt === r.id;
+                    const verified = !!verify.data?.valid;
+                    return (
+                    <tr
+                      key={r.id}
+                      onClick={() => setOpen(r)}
+                      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setOpen(r))}
+                      tabIndex={0}
+                      aria-label={`Audit entry ${r.id}: ${r.action}`}
+                      className={cn("cursor-pointer border-t border-border/70 outline-none hover:bg-surface-2/60 focus-visible:bg-surface-2", broken && "bg-notmet-soft/40")}
+                    >
+                      <td className="relative w-6 pl-4" aria-hidden>
+                        <span className={cn("absolute left-[19px] w-px", i === 0 ? "top-1/2 bottom-0" : i === rows.length - 1 ? "top-0 bottom-1/2" : "inset-y-0", verified ? "bg-met/50" : "bg-border-strong")} />
+                        <span className={cn("relative block size-2 rounded-full ring-2 ring-surface", broken ? "bg-notmet" : verified ? "bg-met" : "bg-border-strong")} />
+                      </td>
                       <td className="tabular px-4 py-2 font-mono text-xs text-subtle">{r.id}</td>
                       <td className="whitespace-nowrap px-4 py-2 text-xs text-muted" title={fmtDateTime(r.createdAt)}>
                         {fmtRelative(r.createdAt)}
@@ -113,9 +152,12 @@ export default function AuditPage() {
                         {r.resourceType}
                         {r.resourceId ? `/${r.resourceId}` : ""}
                       </td>
-                      <td className="px-4 py-2 font-mono text-[11px] text-subtle">{r.hash.slice(0, 12)}…</td>
+                      <td className="px-4 py-2 font-mono text-[11px] text-subtle" title={`prev ${r.prevHash ?? "GENESIS"}`}>
+                        {r.hash.slice(0, 12)}…
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
