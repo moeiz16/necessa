@@ -53,7 +53,7 @@ import {
 } from "./seed-ops";
 
 const KEY = "necessa.demo.db";
-const VERSION = 4;
+const VERSION = 5;
 const MAX_AGE_MS = 12 * 3600_000;
 
 export type DemoUser = User & { password: string };
@@ -127,7 +127,7 @@ export function seed(): DemoDB {
         token: "demo-invite-token",
         email: "nina@riverbend.demo",
         role: "coordinator",
-        invitedBy: { id: "u-maya", fullName: "Maya Okafor" },
+        invitedBy: { id: "u-maya", fullName: "Dr. Maya Okafor" },
         expiresAt: new Date(Date.now() + 5 * 86400_000).toISOString(),
         acceptedAt: null,
         createdAt: new Date(Date.now() - 26 * 3600_000).toISOString(),

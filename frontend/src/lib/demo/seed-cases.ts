@@ -56,12 +56,15 @@ export const ORG: Org = {
 type SeedUser = User & { password: string; role: Role };
 
 const people: [string, string, string, Role, string, string][] = [
-  ["u-maya", "Maya Okafor", "maya@riverbend.demo", "admin", "Practice Administrator", "#3e4bdb"],
-  ["u-jordan", "Jordan Ellis", "jordan@riverbend.demo", "coordinator", "Prior Authorization Coordinator", "#0f7a55"],
-  ["u-sam", "Dr. Samuel Reyes", "sreyes@riverbend.demo", "clinician", "Orthopedic Surgeon", "#b26b00"],
+  // The first five mirror backend/app/ai/synthetic/demo_seed.py (same emails, names and roles) so the
+  // sign-in picker works against both the in-browser demo and a seeded API. Priya Raman and Grace Liu
+  // exist only in the in-browser demo (clinician-provider and auditor-with-MFA personas).
+  ["u-maya", "Dr. Maya Okafor", "maya.okafor@riverbend.demo", "owner", "Medical Director", "#0f766e"],
+  ["u-jordan", "Jordan Reyes", "jordan.reyes@riverbend.demo", "coordinator", "Prior Authorization Coordinator", "#7c3aed"],
+  ["u-sam", "Dr. Sam Whitfield", "sam.whitfield@riverbend.demo", "clinician", "Physiatrist", "#2563eb"],
+  ["u-tessa", "Priya Natarajan, RN", "priya.natarajan@riverbend.demo", "reviewer", "Clinical Reviewer", "#db2777"],
+  ["u-luis", "Leo Martins", "leo.martins@riverbend.demo", "rcm_manager", "Revenue Cycle Manager", "#ea580c"],
   ["u-priya", "Dr. Priya Raman", "praman@riverbend.demo", "clinician", "Interventional Pain Medicine", "#8b5cf6"],
-  ["u-tessa", "Tessa Morgan, RN", "tessa@riverbend.demo", "reviewer", "Utilization Review Nurse", "#1fb5cc"],
-  ["u-luis", "Luis Herrera", "luis@riverbend.demo", "rcm_manager", "Revenue Cycle Manager", "#c0352b"],
   ["u-grace", "Grace Liu", "grace@riverbend.demo", "auditor", "Compliance Officer", "#565b64"],
 ];
 
@@ -75,7 +78,7 @@ export const USERS: SeedUser[] = people.map(([id, fullName, email, role, title, 
   mfaEnabled: id === "u-grace",
   preferences: { theme: "system", density: "comfortable" },
   createdAt: daysAgo(160 - i * 3),
-  password: "demo",
+  password: "Demo!Pass2026",
 }));
 
 export const ref = (id: string): PersonRef => {

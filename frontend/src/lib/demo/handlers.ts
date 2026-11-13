@@ -922,7 +922,7 @@ function toSummary(db: DemoDB, p: DemoDB["policies"][number], snippet?: string, 
     contractors: p.contractors,
     states: p.states,
     codeCount: p.codeCount,
-    hasCriteria: db.criteriaSets.some((s) => s.policyVersionId === p.currentVersionId),
+    hasCriteria: db.criteriaSets.some((s) => s.policyVersionId === p.currentVersionId && s.status === "approved"),
     snippet: snippet ?? null,
     score: score ?? null,
   };
@@ -935,6 +935,8 @@ route("GET", "/policies", ({ db, query }) => {
   if (state) items = items.filter((p) => p.states.includes(state) || p.docType === "NCD");
   const status = query.get("status");
   if (status) items = items.filter((p) => p.status === status);
+  const asOf = query.get("asOf");
+  if (asOf) items = items.filter((p) => p.effectiveFrom <= asOf && (!p.effectiveTo || p.effectiveTo >= asOf));
   const contractorId = query.get("contractorId");
   if (contractorId) items = items.filter((p) => p.contractors.some((c) => String(c.id) === contractorId));
   const code = query.get("code")?.toUpperCase();
@@ -968,7 +970,7 @@ route("GET", "/policies", ({ db, query }) => {
 route("GET", "/policies/:id", ({ db, params }) => {
   const p = db.policies.find((x) => x.id === params.id || x.sourceKey === params.id);
   if (!p) fail(404, "Policy not found");
-  return { ...p, hasCriteria: db.criteriaSets.some((s) => s.policyVersionId === p.currentVersionId) };
+  return { ...p, hasCriteria: db.criteriaSets.some((s) => s.policyVersionId === p.currentVersionId && s.status === "approved") };
 });
 route("GET", "/policies/:id/versions/:vid", ({ db, params }) => {
   const p = db.policies.find((x) => x.id === params.id);

@@ -110,7 +110,21 @@ interface Seed {
   codes?: number;
 }
 
+
+const FACET_TEXT = {
+  indication: `Facet joint interventions are considered reasonable and necessary for chronic axial neck or low back pain when all of the following are documented.
+1. Moderate to severe chronic neck or low back pain, predominantly axial, that causes functional deficit measured on pain or disability scale
+2. Pain present for minimum of 3 months with documented failure to respond to noninvasive conservative management (as tolerated)
+3. Absence of untreated radiculopathy or neurogenic claudication (except for radiculopathy caused by facet joint synovial cyst)
+4. There is no non-facet pathology per clinical assessment or radiology studies that could explain the source of the patient's pain, including but not limited to fracture, tumor, infection, or significant deformity.`,
+  limitations: `Diagnostic facet joint procedures require a minimum of 80% relief of primary (index) pain for a duration consistent with the agent used.
+No more than four (4) diagnostic joint sessions will be reimbursed per rolling 12 months.`,
+  doc_reqs: `Pain assessment must be performed and documented at baseline, after each diagnostic procedure using the same pain scale for each assessment.
+The medical record must document the duration of relief after each diagnostic procedure.`,
+};
+
 const SEEDS: Seed[] = [
+  { key: "L38801", title: "Facet Joint Interventions for Pain Management", docType: "LCD", version: 12, eff: "2026-04-16", contractor: "noridian", states: STATES.noridian, text: FACET_TEXT, linked: [], codes: 6 },
   { key: "L36920", title: "Epidural Steroid Injections for Pain Management", docType: "LCD", version: 107, eff: "2026-04-09", contractor: "novitas", states: STATES.novitas, text: ESI_POLICY_TEXT, linked: ["A56681"], hasCriteria: true, codes: 9 },
   { key: "A56681", title: "Billing and Coding: Epidural Steroid Injections for Pain Management", docType: "Billing and Coding", version: 31, eff: "2023-11-16", contractor: "novitas", states: STATES.novitas, linked: ["L36920"], codes: 184 },
   { key: "L36575", title: "Total Knee Arthroplasty", docType: "LCD", version: 21, eff: "2025-11-06", contractor: "noridian", states: STATES.noridian, text: TKA_TEXT, linked: ["A57685"], hasCriteria: true, codes: 2 },
@@ -311,7 +325,7 @@ export function buildCriteriaSets(policies: PolicyDetail[]): CriteriaSet[] {
       agreement: 0.94,
       groundingPassRate: 1,
       notes: "Frequency limit modeled as numeric criterion; anticoagulation folded into contraindication attestation.",
-      reviewedBy: { id: "u-tessa", fullName: "Tessa Morgan, RN" },
+      reviewedBy: { id: "u-tessa", fullName: "Priya Natarajan, RN" },
       reviewedAt: "2026-10-02T15:41:00Z",
       createdAt: "2026-10-01T09:12:00Z",
     },
@@ -324,7 +338,7 @@ export function buildCriteriaSets(policies: PolicyDetail[]): CriteriaSet[] {
       verifierModel: "groq/openai/gpt-oss-120b",
       agreement: 0.97,
       groundingPassRate: 1,
-      reviewedBy: { id: "u-sam", fullName: "Dr. Samuel Reyes" },
+      reviewedBy: { id: "u-sam", fullName: "Dr. Sam Whitfield" },
       reviewedAt: "2026-09-21T18:03:00Z",
       createdAt: "2026-09-20T08:00:00Z",
     },
@@ -337,7 +351,7 @@ export function buildCriteriaSets(policies: PolicyDetail[]): CriteriaSet[] {
       verifierModel: "groq/qwen/qwen3-32b",
       agreement: 0.91,
       groundingPassRate: 1,
-      reviewedBy: { id: "u-tessa", fullName: "Tessa Morgan, RN" },
+      reviewedBy: { id: "u-tessa", fullName: "Priya Natarajan, RN" },
       reviewedAt: "2026-08-14T12:00:00Z",
       createdAt: "2026-08-13T10:00:00Z",
     },
@@ -372,6 +386,27 @@ export function buildCriteriaSets(policies: PolicyDetail[]): CriteriaSet[] {
       createdAt: "2026-11-12T07:30:00Z",
     },
     {
+      id: "crit-facet-l38801",
+      ...base(byKey.get("L38801")!),
+      status: "needs_review",
+      tree: {
+        op: "AND",
+        children: [
+          { id: "C1", text: "Moderate to severe chronic axial pain causing functional deficit on a pain or disability scale", kind: "positive", sourceSpan: { section: "indication", quote: "Moderate to severe chronic neck or low back pain, predominantly axial, that causes functional deficit measured on pain or disability scale" } },
+          { id: "C2", text: "≥ 3 months of pain with failed noninvasive conservative care", kind: "temporal", lookbackDays: 365, sourceSpan: { section: "indication", quote: "Pain that has been present for a minimum of three months with documented failure to respond to noninvasive conservative care management (as tolerated)" } },
+          { id: "C3", text: "No untreated radiculopathy or neurogenic claudication", kind: "negative_attestation", sourceSpan: { section: "indication", quote: "Absence of untreated radiculopathy or neurogenic claudication (except for radiculopathy caused by facet joint synovial cyst)" } },
+          { id: "C4", text: "No non-facet pathology explains the pain", kind: "negative_attestation", sourceSpan: { section: "indication", quote: "There is no non-facet pathology per clinical assessment or radiology studies that could explain the source of the patient's pain" } },
+          { id: "C5", text: "Baseline and post-procedure pain scores on the same scale", kind: "documentation", sourceSpan: { section: "doc_reqs", quote: "Pain assessment must be performed and documented at baseline, after each diagnostic procedure using the same pain scale for each assessment." } },
+        ],
+      },
+      extractorModel: "transfer:L33930",
+      verifierModel: "verbatim-grounding",
+      agreement: 0.8,
+      groundingPassRate: 0.8,
+      notes: "Transferred from L33930, another contractor's edition of this policy: 4/5 quotes re-verified verbatim against L38801. C2 is worded differently in this edition and must be re-anchored by a reviewer.",
+      createdAt: "2026-11-13T06:10:00Z",
+    },
+    {
       id: "crit-mri",
       ...base(mri),
       status: "approved",
@@ -393,7 +428,7 @@ export function buildCriteriaSets(policies: PolicyDetail[]): CriteriaSet[] {
       verifierModel: "groq/openai/gpt-oss-120b",
       agreement: 0.95,
       groundingPassRate: 1,
-      reviewedBy: { id: "u-tessa", fullName: "Tessa Morgan, RN" },
+      reviewedBy: { id: "u-tessa", fullName: "Priya Natarajan, RN" },
       reviewedAt: "2026-10-30T10:00:00Z",
       createdAt: "2026-10-29T10:00:00Z",
     },

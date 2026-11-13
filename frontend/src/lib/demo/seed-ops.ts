@@ -206,7 +206,21 @@ export function buildEvalRuns(): EvalRun[] {
       const drift = (7 - w) * 0.006;
       const m: Record<string, number> =
         suite === "retrieval"
-          ? { "recall@10": 0.86 + drift + r() * 0.01, "mrr": 0.74 + drift + r() * 0.02, "ndcg@10": 0.72 + drift + r() * 0.02, "hit_rate@5": 0.88 + drift }
+          ? {
+              "recall@10": 0.86 + drift + r() * 0.01,
+              mrr: 0.74 + drift + r() * 0.02,
+              "ndcg@10": 0.72 + drift + r() * 0.02,
+              "hit_rate@5": 0.88 + drift,
+              "intent.S1": 1,
+              "intent.S2": 0.95 + drift * 0.5,
+              "intent.S4": 0.93 + drift * 0.5,
+              "intent.S5": 0.71 + drift * 1.5,
+              "intent.S6": 0.9 + drift * 0.5,
+              "intent.S8": 0.84 + drift,
+              "intent.S9": 1,
+              "intent.S10": 0.92 + drift * 0.5,
+              "intent.S11": 1,
+            }
           : suite === "verdicts"
             ? { macro_f1: 0.81 + drift + r() * 0.01, false_met_rate: Math.max(0.009, 0.034 - drift * 0.6), insufficient_recall: 0.86 + drift, ece: 0.07 - drift * 0.3 }
             : suite === "sql"

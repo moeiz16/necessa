@@ -9,6 +9,7 @@ import type {
   Evaluation,
   Gap,
   Message,
+  PolicyMatch,
   RetrievalChunk,
   RouteTrace,
   SqlResult,
@@ -350,6 +351,54 @@ function heuristicJudge(db: DemoDB, caseId: string, leaf: CriteriaNode): Pick<Cr
   return { verdict: "INSUFFICIENT", confidence: 0.72, rationale: docs.length ? "No chart passage supports this criterion after corrective retrieval." : "No clinical documents are attached to this case yet.", evidence: [] };
 }
 
+async function* unevaluableRun(db: DemoDB, caseId: string, evaluationId: string, matches: PolicyMatch[]): AsyncGenerator<StreamEvent> {
+  const c = db.cases.find((x) => x.id === caseId)!;
+  yield ev("evaluation.started", { evaluationId, policies: matches, criteriaCount: 0 });
+  yield ev("evaluation.phase", { phase: "loading_criteria", message: matches.length ? `${matches[0]!.sourceKey} v${matches[0]!.version} has no approved criteria set.` : "No active policy lists these codes in this jurisdiction." });
+  await sleep(450);
+  yield ev("evaluation.phase", { phase: "aggregating", message: "Nothing evaluable — readiness stays unknown." });
+  const keys = matches.map((m) => m.sourceKey).join(", ") || "none";
+  const gaps: Gap[] = [
+    {
+      criterionId: "policy:criteria",
+      title: matches.length ? "No approved criteria for the applicable policy" : "No applicable policy found",
+      detail: matches.length ? `Matched policies (${keys}) have no reviewed criteria set yet, so nothing was evaluated.` : "No active LCD, NCD or payer policy lists these service codes for this jurisdiction and date of service.",
+      severity: "blocker",
+      suggestedFix: matches.length ? "Compile or approve criteria in Knowledge → Criteria review, then re-run the evaluation." : "Check the service codes and state, or upload the payer's medical policy.",
+    },
+  ];
+  yield ev("evaluation.aggregate", { readiness: "unknown", readinessScore: null, tree: { verdict: "INSUFFICIENT", label: "No approved criteria for the applicable policies" } });
+  yield ev("evaluation.gaps", { gaps });
+  const evaluation: Evaluation = {
+    id: evaluationId,
+    caseId,
+    status: "awaiting_review",
+    readiness: "unknown",
+    readinessScore: null,
+    degraded: true,
+    policies: matches,
+    tree: { verdict: "INSUFFICIENT", label: "No approved criteria for the applicable policies" },
+    criteria: [],
+    gaps,
+    tokenUsage: { promptTokens: 0, completionTokens: 0 },
+    modelInfo: { degradedReasons: ["no_applicable_criteria"] } as unknown as Record<string, string>,
+    startedAt: new Date(Date.now() - 1500).toISOString(),
+    finishedAt: new Date().toISOString(),
+  };
+  db.evaluations = db.evaluations.filter((e) => e.id !== evaluationId);
+  db.evaluations.push(evaluation);
+  c.latestEvaluationId = evaluationId;
+  c.readiness = "unknown";
+  c.readinessScore = null;
+  c.status = "needs_review";
+  c.updatedAt = new Date().toISOString();
+  addEvent(caseId, "evaluation_completed", { readiness: "unknown", gaps: 1 }, true);
+  saveDB();
+  yield ev("evaluation.phase", { phase: "review", message: "Awaiting human review" });
+  yield ev("evaluation.awaiting_review", { evaluationId });
+  yield ev("evaluation.completed", { evaluation });
+}
+
 async function* evaluationStream(db: DemoDB, caseId: string, evaluationId: string, signal?: AbortSignal): AsyncGenerator<StreamEvent> {
   const c = db.cases.find((x) => x.id === caseId)!;
   const prior = db.evaluations.find((e) => e.id === c.latestEvaluationId);
@@ -357,17 +406,10 @@ async function* evaluationStream(db: DemoDB, caseId: string, evaluationId: strin
   await sleep(700);
   const matches = resolvePolicies(db, { serviceCodes: c.serviceCodes, dxCodes: c.dxCodes, state: c.state });
   const match = matches.find((m) => db.criteriaSets.some((s) => s.policyVersionId === m.policyVersionId)) ?? matches[0];
-  if (!match) {
-    yield ev("evaluation.failed", { error: "No active policy matches these service codes in this jurisdiction. Check the codes or add a payer policy.", retryable: false });
-    c.status = "draft";
-    saveDB();
-    return;
-  }
-  const set = db.criteriaSets.find((s) => s.policyVersionId === match.policyVersionId);
-  if (!set) {
-    yield ev("evaluation.failed", { error: `Criteria have not been compiled for ${match.sourceKey} v${match.version}. Ask an admin to compile and review them in Knowledge → Criteria.`, retryable: false });
-    c.status = "draft";
-    saveDB();
+  const set = match ? db.criteriaSets.find((s) => s.policyVersionId === match.policyVersionId && s.status === "approved") : undefined;
+  if (!match || !set) {
+    // Mirrors the API: nothing evaluable → readiness `unknown` with a blocker gap, never a guessed score.
+    yield* unevaluableRun(db, caseId, evaluationId, match ? [match] : []);
     return;
   }
   const ls = leaves(set.tree);
@@ -489,15 +531,15 @@ async function* letterStream(db: DemoDB, caseId: string, letterId: string, signa
   const citations = met.slice(0, 6).map((r, i) => ({ n: i + 1, label: `${r.criterionId} · ${r.text}`, quote: r.evidence[0]!.quote, source: r.evidence[0]!.documentId }));
   const intro =
     letter.kind === "appeal"
-      ? `We respectfully request redetermination of the denial for ${c.title.toLowerCase()} (date of service ${c.dateOfService}). The enclosed documentation shows that each coverage indication in ${pol ? `LCD ${pol.sourceKey}` : "the applicable policy"} was met at the time of service.`
+      ? `We respectfully request redetermination of the denial for the ${c.title} (date of service ${c.dateOfService}). The enclosed documentation shows that each coverage indication in ${pol ? `LCD ${pol.sourceKey}` : "the applicable policy"} was met at the time of service.`
       : letter.kind === "peer_to_peer_prep"
-        ? `Talking points for the peer-to-peer discussion on ${c.title.toLowerCase()}.`
-        : `I am requesting prior authorization for ${c.title.toLowerCase()} (${c.serviceCodes.join(", ")}) for my patient, diagnosed with ${c.dxCodes.join(", ")}.`;
+        ? `Talking points for the peer-to-peer discussion on the ${c.title}.`
+        : `I am requesting prior authorization for a ${c.title} (${c.serviceCodes.join(", ")}) for my patient, diagnosed with ${c.dxCodes.join(", ")}.`;
   const body = met.length
     ? met.slice(0, 6).map((r, i) => `**${r.text}.** ${r.evidence[0]!.quote.replace(/\.$/, "")} [${i + 1}].`).join("\n\n")
     : "_No criteria are currently supported by verified chart evidence. Resolve the gaps on the Criteria tab before drafting._";
   const openGaps = (e?.gaps ?? []).length;
-  const content = `**Re:** ${c.title} — ${c.payerName}\n**Patient:** [PATIENT_NAME] · DOB [DOB] · Member ID [MEMBER_ID]\n**Date of service:** ${c.dateOfService}\n\nTo the Medical Review Department,\n\n${intro}\n\n${body}\n\n${pol ? `The patient meets the documented coverage indications of ${pol.sourceKey} (${pol.title}, v${pol.version}).` : ""}${openGaps ? `\n\n> ⚠︎ ${openGaps} open gap${openGaps > 1 ? "s" : ""} remain on this case. Resolve before sending.` : ""}\n\nSincerely,\n\n[TREATING_CLINICIAN]`;
+  const content = `**Re:** ${c.title} — ${c.payerName}  \n**Patient:** [PATIENT_NAME] · DOB [DOB] · Member ID [MEMBER_ID]  \n**Date of service:** ${c.dateOfService}\n\nTo the Medical Review Department,\n\n${intro}\n\n${body}\n\n${pol ? `The patient meets the documented coverage indications of ${pol.sourceKey} (${pol.title}, v${pol.version}).` : ""}${openGaps ? `\n\n> ⚠︎ ${openGaps} open gap${openGaps > 1 ? "s" : ""} remain on this case. Resolve before sending.` : ""}\n\nSincerely,\n\n[TREATING_CLINICIAN]`;
   let acc = "";
   for (const piece of chunkText(content)) {
     if (signal?.aborted) return;
