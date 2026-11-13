@@ -47,6 +47,9 @@ import type {
   Verdict,
 } from "./types";
 
+/** The API rejects limits outside 1..max with a 422, so every list request is clamped to its cap. */
+const capLimit = (n: unknown, max = 100) => Math.min(Math.max(Math.trunc(Number(n) || 0), 1), max);
+
 export const qk = {
   me: ["me"] as const,
   org: ["org"] as const,
@@ -192,7 +195,11 @@ export function useUpdateMe() {
 
 /* ── Cases ──────────────────────────────────────────────────────────────── */
 export const useCases = (q: Query = {}) =>
-  useQuery({ queryKey: qk.cases(q), queryFn: () => api.get<Page<CaseSummary>>("/cases", { limit: 100, ...q }), placeholderData: keepPreviousData });
+  useQuery({
+    queryKey: qk.cases(q),
+    queryFn: () => api.get<Page<CaseSummary>>("/cases", { ...q, limit: capLimit(q.limit ?? 100) }),
+    placeholderData: keepPreviousData,
+  });
 export const useCaseStats = () =>
   useQuery({ queryKey: qk.caseStats, queryFn: () => api.get<{ byStatus: Record<string, number>; byReadiness: Record<string, number>; total: number }>("/cases/stats") });
 export const useCase = (id: string) => useQuery({ queryKey: qk.case(id), queryFn: () => api.get<Case>(`/cases/${id}`), enabled: !!id });
@@ -207,7 +214,27 @@ export const useTimeline = (id: string) => useQuery({ queryKey: qk.timeline(id),
 export const useEvaluations = (id: string) => useQuery({ queryKey: qk.evaluations(id), queryFn: () => api.get<EvaluationSummary[]>(`/cases/${id}/evaluations`) });
 export const useEvaluation = (id: string, evalId?: string | null) =>
   useQuery({ queryKey: qk.evaluation(id, evalId ?? ""), queryFn: () => api.get<Evaluation>(`/cases/${id}/evaluations/${evalId}`), enabled: !!evalId });
-export const useNextActions = (id: string) => useQuery({ queryKey: qk.nextActions(id), queryFn: () => api.get<NextAction[]>(`/cases/${id}/next-actions`) });
+/** The API names suggested steps by what the server checks; the UI groups them by where they lead. */
+const ACTION_TYPE: Record<string, NextAction["type"]> = {
+  run_evaluation: "evaluate",
+  rerun_evaluation: "evaluate",
+  complete_review: "review",
+  review_low_confidence: "review",
+  verify_citations: "review",
+  sla_risk: "review",
+  upload_documents: "upload_document",
+  review_quarantine: "upload_document",
+  resolve_gap: "fix_gap",
+  start_appeal: "appeal",
+};
+export const useNextActions = (id: string) =>
+  useQuery({
+    queryKey: qk.nextActions(id),
+    queryFn: async () => {
+      const rows = await api.get<NextAction[]>(`/cases/${id}/next-actions`);
+      return rows.map((a) => ({ ...a, type: ACTION_TYPE[a.type as string] ?? a.type }));
+    },
+  });
 export const useLetters = (id: string) => useQuery({ queryKey: qk.letters(id), queryFn: () => api.get<Letter[]>(`/cases/${id}/letters`) });
 export const useCaseDenials = (id: string) => useQuery({ queryKey: qk.denials(id), queryFn: () => api.get<Denial[]>(`/cases/${id}/denials`) });
 export const usePatients = () =>
@@ -217,11 +244,11 @@ export function useAllDenials() {
   return useQuery({
     queryKey: qk.allDenials,
     queryFn: async () => {
-      const page = await api.get<Page<CaseSummary>>("/cases", { limit: 200 });
-      const all = await Promise.all(
-        page.items.filter((c) => ["denied", "appealing", "closed", "approved"].includes(c.status)).map((c) => api.get<Denial[]>(`/cases/${c.id}/denials`)),
-      );
-      return all.flat().sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
+      // One org-wide request (the API caps case lists at 100, and per-case fetches don't scale).
+      const rows = await api.get<(Denial & { case?: CaseSummary | null })[]>("/denials", { limit: 200 });
+      return rows
+        .map(({ case: c, ...d }) => ({ ...d, caseNumber: d.caseNumber ?? c?.number, caseTitle: d.caseTitle ?? c?.title, payerName: d.payerName ?? c?.payerName }))
+        .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
     },
   });
 }
@@ -391,7 +418,12 @@ export const policySuggestions = (body: Record<string, unknown>) => api.post<{ m
 
 /* ── Knowledge ──────────────────────────────────────────────────────────── */
 export const usePolicies = (q: Query = {}) =>
-  useQuery({ queryKey: qk.policies(q), queryFn: () => api.get<Page<PolicySummary>>("/policies", { limit: 50, ...q }), placeholderData: keepPreviousData });
+  useQuery({
+    queryKey: qk.policies(q),
+    queryFn: () => api.get<Page<PolicySummary>>("/policies", { ...q, limit: capLimit(q.limit ?? 50) }),
+    enabled: q.limit !== 0,
+    placeholderData: keepPreviousData,
+  });
 export const usePolicy = (id: string) => useQuery({ queryKey: qk.policy(id), queryFn: () => api.get<PolicyDetail>(`/policies/${id}`), enabled: !!id });
 export const usePolicyCodes = (id: string, system?: string) =>
   useQuery({ queryKey: qk.policyCodes(id, system), queryFn: () => api.get<Page<PolicyCode>>(`/policies/${id}/codes`, { system, limit: 200 }), enabled: !!id });
@@ -405,9 +437,18 @@ export const usePolicyCriteria = (id: string) =>
     enabled: !!id,
   });
 export const useCodeSearch = (q: string, system?: string) =>
-  useQuery({ queryKey: qk.codeSearch(q, system), queryFn: () => api.get<CodeResult[]>("/codes/search", { q, system }), placeholderData: keepPreviousData });
-export const useCodeGraph = (system: string, code: string | null, state?: string) =>
-  useQuery({ queryKey: qk.codeGraph(system, code ?? "", state), queryFn: () => api.get<CoverageGraph>(`/codes/${system}/${code}/graph`, { state }), enabled: !!code });
+  useQuery({
+    queryKey: qk.codeSearch(q, system),
+    queryFn: () => api.get<CodeResult[]>("/codes/search", { q: q.trim(), system }),
+    enabled: q.trim().length > 0,
+    placeholderData: keepPreviousData,
+  });
+export const useCodeGraph = (system: string, code: string | null, state?: string, asOf?: string) =>
+  useQuery({
+    queryKey: [...qk.codeGraph(system, code ?? "", state), asOf ?? ""],
+    queryFn: () => api.get<CoverageGraph>(`/codes/${system}/${code}/graph`, { state, asOf }),
+    enabled: !!code,
+  });
 export const useKnowledgeStats = () => useQuery({ queryKey: qk.knowledgeStats, queryFn: () => api.get<KnowledgeStats>("/knowledge/stats") });
 
 /* ── Assistant ──────────────────────────────────────────────────────────── */
@@ -463,7 +504,7 @@ export function useMarkNotifications() {
   });
 }
 export const useAudit = (q: Query = {}) =>
-  useQuery({ queryKey: qk.audit(q), queryFn: () => api.get<Page<AuditEntry>>("/audit", { limit: 100, ...q }), placeholderData: keepPreviousData });
+  useQuery({ queryKey: qk.audit(q), queryFn: () => api.get<Page<AuditEntry>>("/audit", { ...q, limit: capLimit(q.limit ?? 100, 200) }), placeholderData: keepPreviousData });
 export function useVerifyAudit() {
   return useMutation({ mutationFn: () => api.get<{ valid: boolean; checked: number; brokenAt?: number | null }>("/audit/verify"), onError });
 }
@@ -502,7 +543,19 @@ export const useCriteriaSets = (status?: string) =>
   });
 export const useCriteriaSet = (id: string) =>
   useQuery({ queryKey: qk.criteriaSet(id), queryFn: async () => normalizeCriteriaSet(await api.get<CriteriaSet>(`/admin/criteria/${id}`)) });
-export const useEvalRuns = () => useQuery({ queryKey: qk.evalRuns, queryFn: () => api.get<EvalRun[]>("/admin/evals/runs"), refetchInterval: 6000 });
+type ApiGate = { op: ">=" | "<=" | "=="; threshold: number; value?: number; passed: boolean };
+function normalizeEvalRun(run: EvalRun): EvalRun {
+  const g = run.gates as unknown;
+  if (!g || Array.isArray(g)) return run;
+  const gates = Object.entries(g as Record<string, ApiGate>).map(([metric, v]) => ({ metric, threshold: v.threshold, op: v.op, passed: v.passed }));
+  return { ...run, gates };
+}
+export const useEvalRuns = () =>
+  useQuery({
+    queryKey: qk.evalRuns,
+    queryFn: async () => (await api.get<EvalRun[]>("/admin/evals/runs")).map(normalizeEvalRun),
+    refetchInterval: 6000,
+  });
 export const useSystemInfo = () => useQuery({ queryKey: qk.system, queryFn: () => api.get<Record<string, unknown>>("/admin/system") });
 
 export function useStartIngestion() {
@@ -511,7 +564,7 @@ export function useStartIngestion() {
     mutationFn: (body: { source: string; scope: string }) => api.post<Job>("/admin/ingestion/runs", body),
     onSuccess: () => {
       inv(qk.ingestion);
-      toast.success("Ingestion started", { description: "Only changed documents are re-embedded." });
+      toast.success("Refresh started", { description: "Only policies that changed are updated." });
     },
     onError,
   });
@@ -520,9 +573,9 @@ export function useActivateIndex() {
   const inv = useInvalidate();
   return useMutation({
     mutationFn: (id: string) => api.post<IndexVersion>(`/admin/indexes/${id}/activate`),
-    onSuccess: (i) => {
+    onSuccess: () => {
       inv(qk.indexes, qk.knowledgeStats);
-      toast.success(`${i.physicalName} is now live`, { description: `Alias “${i.alias}” switched atomically.` });
+      toast.success("The new library version is live");
     },
     onError,
   });
@@ -531,9 +584,9 @@ export function useRollbackIndex() {
   const inv = useInvalidate();
   return useMutation({
     mutationFn: (alias: string) => api.post<IndexVersion>(`/admin/indexes/rollback?alias=${alias}`),
-    onSuccess: (i) => {
+    onSuccess: () => {
       inv(qk.indexes, qk.knowledgeStats);
-      toast.success(`Rolled back to ${i.physicalName}`);
+      toast.success("Restored the previous library version");
     },
     onError,
   });
@@ -563,7 +616,7 @@ export function useUpdateCriteriaSet(id: string) {
 export function useCompileCriteria() {
   return useMutation({
     mutationFn: (body: { sourceKeys?: string[] }) => api.post<Job>("/admin/criteria/compile", body),
-    onSuccess: () => toast.success("Compilation queued", { description: "Runs quota-paced on the long-context model group." }),
+    onSuccess: () => toast.success("Preparing checklists", { description: "They will appear in Review when ready." }),
     onError,
   });
 }
@@ -571,9 +624,9 @@ export function useStartEval() {
   const inv = useInvalidate();
   return useMutation({
     mutationFn: (suite: string) => api.post<EvalRun>("/admin/evals/runs", { suite }),
-    onSuccess: (r) => {
+    onSuccess: () => {
       inv(qk.evalRuns);
-      toast.success(`Eval “${r.suite}” started`);
+      toast.success("Quality check started");
     },
     onError,
   });

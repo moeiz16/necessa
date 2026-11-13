@@ -28,7 +28,7 @@ export class ApiError extends Error {
 }
 
 export class NetworkError extends Error {
-  constructor(message = "The Necessa API is unreachable.") {
+  constructor(message = "We couldn’t reach Necessa. Please check your connection and try again.") {
     super(message);
     this.name = "NetworkError";
   }
@@ -37,7 +37,7 @@ export class NetworkError extends Error {
 export function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.problem.detail || err.problem.title;
   if (err instanceof Error) return err.message;
-  return "Something went wrong.";
+  return "Something went wrong. Please try again.";
 }
 
 /* ── Demo mode switch ───────────────────────────────────────────────────── */

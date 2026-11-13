@@ -463,6 +463,7 @@ export interface CriteriaSet {
   sourceKey?: string;
   version?: number;
   status: "draft" | "needs_review" | "approved" | "rejected" | "superseded";
+  criteriaCount?: number;
   tree: CriteriaNode;
   extractorModel: string;
   verifierModel: string;
@@ -482,7 +483,7 @@ export interface CodeResult {
 }
 
 export interface CoverageGraph {
-  nodes: { id: string; type: "code" | "article" | "lcd" | "ncd" | "contractor" | "state"; label: string; meta?: Record<string, unknown> }[];
+  nodes: { id: string; type: "code" | "article" | "lcd" | "ncd" | "payer" | "contractor" | "state"; label: string; meta?: Record<string, unknown> }[];
   edges: { source: string; target: string; type: string }[];
 }
 
@@ -491,9 +492,9 @@ export interface KnowledgeStats {
   versions: number;
   chunks: number;
   codes: number;
-  lastIngestion?: ISODateTime | null;
-  activeIndex?: string | null;
-  freshnessHours?: number | null;
+  lastIngestion?: { id: string; source: string; status: string; startedAt?: ISODateTime | null; finishedAt?: ISODateTime | null } | null;
+  activeIndex?: { id: string; points: number; activatedAt?: ISODateTime | null } | null;
+  freshnessDays?: number | null;
 }
 
 /* ── Retrieval / assistant ─────────────────────────────────────────────── */
@@ -585,7 +586,7 @@ export interface AnalyticsOverview {
     gapsCaughtPreSubmission: number;
     deniedCases: number;
     appealsOverturned: number;
-    avgTurnaroundHours: number;
+    avgTurnaroundHours: number | null;
     estimatedHoursSaved: number;
   };
   trends: {
@@ -627,6 +628,8 @@ export interface NotificationItem {
 export interface AuditEntry {
   id: number;
   actor?: PersonRef | null;
+  actorId?: string | null;
+  actorName?: string | null;
   actorType: "user" | "system" | "api_key";
   action: string;
   resourceType: string;
@@ -681,11 +684,11 @@ export interface ModelDeployment {
   provider: string;
   model: string;
   configured: boolean;
-  healthy: boolean;
+  healthy?: boolean;
   cooldownUntil?: ISODateTime | null;
   rpm?: number | null;
   rpd?: number | null;
-  usedToday: number;
+  usedToday?: number;
   p50LatencyMs?: number | null;
   errorRate?: number | null;
 }
@@ -699,15 +702,30 @@ export interface ModelGroup {
 
 export interface ModelsOverview {
   groups: ModelGroup[];
-  embedding: { model: string; dims: number };
-  reranker: { chain: string[] };
+  embedding: { model: string; dims: number; configured?: boolean };
+  reranker: { chain: { provider?: string; model?: string; llmGroup?: string; configured: boolean }[] };
+  phiAllowedGroups?: string[];
+  fake?: boolean;
 }
 
+/** Usage as the API reports it: per deployment, plus calls per day and provider. */
 export interface ModelUsage {
-  byDay: { date: ISODate; calls: number; tokens: number; errors: number; cacheHits: number; fallbacks: number }[];
-  byProvider: { provider: string; calls: number; tokens: number; p50LatencyMs: number; errorRate: number }[];
-  byGroup: { group: string; calls: number; tokens: number }[];
-  totals: { calls: number; tokens: number; cacheHitRate: number; fallbackRate: number; errorRate: number };
+  range: string;
+  byDeployment: {
+    provider: string;
+    model: string;
+    group: string;
+    calls: number;
+    promptTokens: number;
+    completionTokens: number;
+    avgLatencyMs: number;
+    errors: number;
+    cacheHits: number;
+    fallbacks: number;
+  }[];
+  daily: { date: ISODate; provider: string; calls: number; tokens: number }[];
+  blockedByPolicy: number;
+  costUsd: number;
 }
 
 export interface EvalRun {
