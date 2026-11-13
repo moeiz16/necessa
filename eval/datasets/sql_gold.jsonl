@@ -1,0 +1,40 @@
+{"id": "Q001", "question": "How many cases are in each status?", "gold_sql": "SELECT status, COUNT(*) AS cases FROM v_case_overview WHERE org_id = :org_id GROUP BY status", "ordered": false}
+{"id": "Q002", "question": "How many cases do we have by payer type?", "gold_sql": "SELECT payer_type, COUNT(*) AS cases FROM v_case_overview WHERE org_id = :org_id GROUP BY payer_type", "ordered": false}
+{"id": "Q003", "question": "How many expedited cases are open?", "gold_sql": "SELECT COUNT(*) AS n FROM v_case_overview WHERE org_id = :org_id AND priority = 'expedited' AND status NOT IN ('approved','closed','denied')", "ordered": false}
+{"id": "Q004", "question": "How many cases are ready to submit?", "gold_sql": "SELECT COUNT(*) AS n FROM v_case_overview WHERE org_id = :org_id AND readiness = 'ready'", "ordered": false}
+{"id": "Q005", "question": "How many cases have documentation gaps?", "gold_sql": "SELECT COUNT(*) AS n FROM v_case_overview WHERE org_id = :org_id AND readiness = 'gaps'", "ordered": false}
+{"id": "Q006", "question": "What is the average readiness score?", "gold_sql": "SELECT ROUND(AVG(readiness_score), 3) AS avg_score FROM v_case_overview WHERE org_id = :org_id AND readiness_score IS NOT NULL", "ordered": false}
+{"id": "Q007", "question": "Count cases by readiness", "gold_sql": "SELECT readiness, COUNT(*) AS n FROM v_case_overview WHERE org_id = :org_id GROUP BY readiness", "ordered": false}
+{"id": "Q008", "question": "How many cases were denied?", "gold_sql": "SELECT COUNT(*) AS n FROM v_case_overview WHERE org_id = :org_id AND status = 'denied'", "ordered": false}
+{"id": "Q009", "question": "Which states do our cases come from and how many each?", "gold_sql": "SELECT state, COUNT(*) AS n FROM v_case_overview WHERE org_id = :org_id GROUP BY state", "ordered": false}
+{"id": "Q010", "question": "How many cases are approved by the payer?", "gold_sql": "SELECT COUNT(*) AS n FROM v_case_overview WHERE org_id = :org_id AND outcome = 'approved'", "ordered": false}
+{"id": "Q011", "question": "Top 5 criteria that are most often not met or insufficient", "gold_sql": "SELECT criterion_text, COUNT(*) AS n FROM v_criterion_outcomes WHERE org_id = :org_id AND verdict IN ('NOT_MET','INSUFFICIENT') GROUP BY criterion_text ORDER BY n DESC, criterion_text LIMIT 5", "ordered": true}
+{"id": "Q012", "question": "How many criteria were overridden by reviewers?", "gold_sql": "SELECT SUM(overridden) AS n FROM v_criterion_outcomes WHERE org_id = :org_id", "ordered": false}
+{"id": "Q013", "question": "What is the override rate?", "gold_sql": "SELECT ROUND(AVG(overridden * 1.0), 3) AS override_rate FROM v_criterion_outcomes WHERE org_id = :org_id", "ordered": false}
+{"id": "Q014", "question": "How many criteria evaluations are MET vs NOT_MET vs INSUFFICIENT?", "gold_sql": "SELECT verdict, COUNT(*) AS n FROM v_criterion_outcomes WHERE org_id = :org_id GROUP BY verdict", "ordered": false}
+{"id": "Q015", "question": "Average model confidence for MET verdicts", "gold_sql": "SELECT ROUND(AVG(confidence), 3) AS avg_conf FROM v_criterion_outcomes WHERE org_id = :org_id AND ai_verdict = 'MET'", "ordered": false}
+{"id": "Q016", "question": "How many negative attestation criteria were insufficient?", "gold_sql": "SELECT COUNT(*) AS n FROM v_criterion_outcomes WHERE org_id = :org_id AND kind = 'negative_attestation' AND verdict = 'INSUFFICIENT'", "ordered": false}
+{"id": "Q017", "question": "How many evaluations ran in degraded mode?", "gold_sql": "SELECT COUNT(*) AS n FROM v_evaluations WHERE org_id = :org_id AND degraded", "ordered": false}
+{"id": "Q018", "question": "How many evaluations are awaiting review?", "gold_sql": "SELECT COUNT(*) AS n FROM v_evaluations WHERE org_id = :org_id AND status = 'awaiting_review'", "ordered": false}
+{"id": "Q019", "question": "Evaluations by readiness outcome", "gold_sql": "SELECT readiness, COUNT(*) AS n FROM v_evaluations WHERE org_id = :org_id GROUP BY readiness", "ordered": false}
+{"id": "Q020", "question": "Denials by category", "gold_sql": "SELECT category, COUNT(*) AS denials FROM v_denials WHERE org_id = :org_id GROUP BY category", "ordered": false}
+{"id": "Q021", "question": "How many denials have an appeal drafted?", "gold_sql": "SELECT COUNT(*) AS n FROM v_denials WHERE org_id = :org_id AND status = 'appeal_drafted'", "ordered": false}
+{"id": "Q022", "question": "How many denials are still new?", "gold_sql": "SELECT COUNT(*) AS n FROM v_denials WHERE org_id = :org_id AND status = 'new'", "ordered": false}
+{"id": "Q023", "question": "Letters by kind", "gold_sql": "SELECT kind, COUNT(*) AS n FROM v_letters WHERE org_id = :org_id GROUP BY kind", "ordered": false}
+{"id": "Q024", "question": "How many letters are approved?", "gold_sql": "SELECT COUNT(*) AS n FROM v_letters WHERE org_id = :org_id AND status IN ('approved','exported')", "ordered": false}
+{"id": "Q025", "question": "How many letters are still drafts?", "gold_sql": "SELECT COUNT(*) AS n FROM v_letters WHERE org_id = :org_id AND status = 'draft'", "ordered": false}
+{"id": "Q026", "question": "Policies by document type", "gold_sql": "SELECT doc_type, COUNT(*) AS policies FROM v_policy_catalog GROUP BY doc_type", "ordered": false}
+{"id": "Q027", "question": "How many active LCDs are in the knowledge base?", "gold_sql": "SELECT COUNT(*) AS n FROM v_policy_catalog WHERE doc_type = 'LCD' AND status = 'active'", "ordered": false}
+{"id": "Q028", "question": "Which policies list code 29881?", "gold_sql": "SELECT DISTINCT source_key FROM v_policy_codes WHERE code = '29881'", "ordered": false}
+{"id": "Q029", "question": "Which policies list E0601?", "gold_sql": "SELECT DISTINCT source_key FROM v_policy_codes WHERE code = 'E0601'", "ordered": false}
+{"id": "Q030", "question": "Which policies list 64483?", "gold_sql": "SELECT DISTINCT source_key FROM v_policy_codes WHERE code = '64483'", "ordered": false}
+{"id": "Q031", "question": "Which documents list G47.33 as a covered diagnosis?", "gold_sql": "SELECT DISTINCT source_key FROM v_policy_codes WHERE code = 'G47.33' AND code_system = 'ICD10_COVERED'", "ordered": false}
+{"id": "Q032", "question": "How many codes does L33718 list?", "gold_sql": "SELECT COUNT(*) AS n FROM v_policy_codes WHERE source_key = 'L33718'", "ordered": false}
+{"id": "Q033", "question": "Which states does L33906 apply to?", "gold_sql": "SELECT DISTINCT state_abbrev FROM v_policy_states WHERE source_key = 'L33906'", "ordered": false}
+{"id": "Q034", "question": "Which policies apply nationally?", "gold_sql": "SELECT DISTINCT source_key FROM v_policy_states WHERE state_abbrev = 'US'", "ordered": false}
+{"id": "Q035", "question": "Which payer policies are in the catalog?", "gold_sql": "SELECT source_key FROM v_policy_catalog WHERE doc_type = 'Payer Policy'", "ordered": false}
+{"id": "Q036", "question": "How many cases have a date of service in the future?", "gold_sql": "SELECT COUNT(*) AS n FROM v_case_overview WHERE org_id = :org_id AND date_of_service > CURRENT_DATE", "ordered": false}
+{"id": "Q037", "question": "List case numbers that are not supported by documentation", "gold_sql": "SELECT number FROM v_case_overview WHERE org_id = :org_id AND readiness = 'not_supported' ORDER BY number", "ordered": true}
+{"id": "Q038", "question": "How many cases are pending payer decision?", "gold_sql": "SELECT COUNT(*) AS n FROM v_case_overview WHERE org_id = :org_id AND status = 'pending_payer'", "ordered": false}
+{"id": "Q039", "question": "How many cases are in appeal?", "gold_sql": "SELECT COUNT(*) AS n FROM v_case_overview WHERE org_id = :org_id AND status = 'appealing'", "ordered": false}
+{"id": "Q040", "question": "Count criteria results by kind", "gold_sql": "SELECT kind, COUNT(*) AS n FROM v_criterion_outcomes WHERE org_id = :org_id GROUP BY kind", "ordered": false}

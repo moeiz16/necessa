@@ -39,8 +39,7 @@ npm-debug.log*
 .pnpm-store/
 
 # ── Eval artifacts ──
-eval/reports/*.json
-eval/reports/*.html
+eval/reports/*
 !eval/reports/.gitkeep
 
 # ── OS / editors ──

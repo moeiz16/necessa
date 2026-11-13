@@ -1,0 +1,61 @@
+{"id": "R001", "intent": "S1", "query": "What is LCD L33718?", "expected": ["L33718"]}
+{"id": "R002", "intent": "S1", "query": "Show me L33906", "expected": ["L33906"]}
+{"id": "R003", "intent": "S1", "query": "Open the billing and coding article A56651", "expected": ["A56651"]}
+{"id": "R004", "intent": "S1", "query": "L35136 spinal cord stimulators", "expected": ["L35136"]}
+{"id": "R005", "intent": "S1", "query": "A57787", "expected": ["A57787"]}
+{"id": "R006", "intent": "S1", "query": "NCD 240.4 CPAP", "expected": ["NCD-240.4"]}
+{"id": "R007", "intent": "S1", "query": "NCD 150.9", "expected": ["NCD-150.9"]}
+{"id": "R008", "intent": "S1", "query": "Policy article A52520 TENS", "expected": ["A52520"]}
+{"id": "R009", "intent": "S1", "query": "PAYER-SYNHP-MP0101", "expected": ["PAYER-SYNHP-MP0101"]}
+{"id": "R010", "intent": "S2", "query": "Which policies list HCPCS E0601?", "expected": ["L33718", "A52467", "PAYER-SYNHP-MP0207"]}
+{"id": "R011", "intent": "S2", "query": "Which coverage documents include code 64483?", "expected": ["A56651", "L33906", "PAYER-SYNHP-MP0315"]}
+{"id": "R012", "intent": "S2", "query": "Policies that list 64493 for facet injections", "expected": ["A57787", "L33930"]}
+{"id": "R013", "intent": "S2", "query": "What article covers 63650?", "expected": ["A57791", "L35136", "PAYER-SYNHP-MP0420"]}
+{"id": "R014", "intent": "S2", "query": "Which documents list 15823?", "expected": ["A56439", "L33944"]}
+{"id": "R015", "intent": "S2", "query": "Is G47.33 a covered diagnosis for PAP devices?", "expected": ["A52467", "L33718"]}
+{"id": "R016", "intent": "S2", "query": "covered ICD-10 codes for epidural steroid injection billing article", "expected": ["A56651"]}
+{"id": "R017", "intent": "S4", "query": "What conservative therapy is required before a lumbar epidural steroid injection?", "expected": ["L33906", "PAYER-SYNHP-MP0315"]}
+{"id": "R018", "intent": "S4", "query": "What are the requirements for initial coverage of a CPAP device for obstructive sleep apnea?", "expected": ["L33718", "NCD-240.4", "PAYER-SYNHP-MP0207"]}
+{"id": "R019", "intent": "S4", "query": "When is a TENS unit covered for chronic pain?", "expected": ["L33802"]}
+{"id": "R020", "intent": "S4", "query": "What documentation is needed for facet joint medial branch blocks?", "expected": ["L33930", "A57787"]}
+{"id": "R021", "intent": "S4", "query": "What visual field loss is required for functional blepharoplasty?", "expected": ["L33944"]}
+{"id": "R022", "intent": "S4", "query": "Patient selection requirements for a spinal cord stimulator trial", "expected": ["L35136", "PAYER-SYNHP-MP0420"]}
+{"id": "R023", "intent": "S4", "query": "How is adherence to PAP therapy defined?", "expected": ["L33718", "PAYER-SYNHP-MP0207"]}
+{"id": "R024", "intent": "S4", "query": "What counts as a successful SCS trial before permanent implant?", "expected": ["L35136", "PAYER-SYNHP-MP0420"]}
+{"id": "R025", "intent": "S4", "query": "Is image guidance required for epidural steroid injections?", "expected": ["L33906", "PAYER-SYNHP-MP0315"]}
+{"id": "R026", "intent": "S4", "query": "Frequency limits for diagnostic facet joint sessions", "expected": ["L33930"]}
+{"id": "R027", "intent": "S4", "query": "When is arthroscopic partial meniscectomy medically necessary?", "expected": ["PAYER-SYNHP-MP0101"]}
+{"id": "R028", "intent": "S4", "query": "Is arthroscopic lavage covered for knee osteoarthritis?", "expected": ["NCD-150.9", "PAYER-SYNHP-MP0101"]}
+{"id": "R029", "intent": "S4", "query": "What sleep test results qualify a patient for CPAP?", "expected": ["L33718", "NCD-240.4", "PAYER-SYNHP-MP0207"]}
+{"id": "R030", "intent": "S4", "query": "Requirements for a second confirmatory diagnostic facet injection", "expected": ["L33930"]}
+{"id": "R031", "intent": "S4", "query": "What makes upper eyelid surgery cosmetic rather than reconstructive?", "expected": ["L33944"]}
+{"id": "R032", "intent": "S4", "query": "Psychological evaluation requirements before neurostimulator implantation", "expected": ["L35136", "PAYER-SYNHP-MP0420"]}
+{"id": "R033", "intent": "S5", "query": "breathing machine for snoring and stopping breathing at night", "expected": ["L33718", "NCD-240.4", "PAYER-SYNHP-MP0207"]}
+{"id": "R034", "intent": "S5", "query": "nerve zapper unit for knee arthritis pain", "expected": ["L33802"]}
+{"id": "R035", "intent": "S5", "query": "back shots with steroids for leg pain", "expected": ["L33906", "PAYER-SYNHP-MP0315"]}
+{"id": "R036", "intent": "S5", "query": "droopy eyelids blocking vision surgery", "expected": ["L33944"]}
+{"id": "R037", "intent": "S5", "query": "implanted device that blocks back pain signals", "expected": ["L35136", "PAYER-SYNHP-MP0420"]}
+{"id": "R038", "intent": "S5", "query": "knee scope for torn cartilage", "expected": ["PAYER-SYNHP-MP0101"]}
+{"id": "R039", "intent": "S5", "query": "joint injections in the spine for arthritis pain", "expected": ["L33930"]}
+{"id": "R040", "intent": "S6", "query": "Kellgren-Lawrence grade 3 or 4 meniscectomy", "expected": ["PAYER-SYNHP-MP0101"]}
+{"id": "R041", "intent": "S6", "query": "apnea-hypopnea index 15 events per hour minimum 30 events", "expected": ["L33718", "PAYER-SYNHP-MP0207"]}
+{"id": "R042", "intent": "S6", "query": "80% relief of primary index pain medial branch block", "expected": ["L33930"]}
+{"id": "R043", "intent": "S6", "query": "12 degree or 30 percent loss of upper field of vision taping", "expected": ["L33944"]}
+{"id": "R044", "intent": "S6", "query": "conductive garment E0731 TENS", "expected": ["L33802", "A52520"]}
+{"id": "R045", "intent": "S6", "query": "E0470 bi-level device without backup rate tried and proven ineffective", "expected": ["L33718", "PAYER-SYNHP-MP0207"]}
+{"id": "R046", "intent": "S6", "query": "transforaminal more than two nerve root levels same session", "expected": ["L33906"]}
+{"id": "R047", "intent": "S6", "query": "Oswestry Disability Index baseline pain scale same scale follow-up", "expected": ["L33906", "L33930"]}
+{"id": "R048", "intent": "S8", "query": "Is M54.16 covered for 64483 and what documentation is needed?", "expected": ["A56651", "L33906"]}
+{"id": "R049", "intent": "S8", "query": "For E0601 in Ohio, which LCD applies and what is the adherence requirement?", "expected": ["L33718", "A52467"]}
+{"id": "R050", "intent": "S8", "query": "Does code 64493 require prior failure of conservative care and for how long?", "expected": ["L33930", "A57787"]}
+{"id": "R051", "intent": "S9", "query": "What changed in L33718 recently?", "expected": ["L33718"]}
+{"id": "R052", "intent": "S9", "query": "Revision history of the facet joint interventions LCD", "expected": ["L33930"]}
+{"id": "R053", "intent": "S9", "query": "When did the epidural steroid injection LCD take effect?", "expected": ["L33906"]}
+{"id": "R054", "intent": "S10", "query": "Denied CO-50: TENS for chronic low back pain not reasonable and necessary", "expected": ["L33802", "NCD-160.27"]}
+{"id": "R055", "intent": "S10", "query": "Denial: advanced osteoarthritis on radiographs, meniscectomy not medically necessary", "expected": ["PAYER-SYNHP-MP0101", "NCD-150.9"]}
+{"id": "R056", "intent": "S10", "query": "Missing documentation of four weeks of conservative care before epidural injection", "expected": ["L33906", "PAYER-SYNHP-MP0315"]}
+{"id": "R057", "intent": "S10", "query": "PAP continued coverage denied: no objective adherence download", "expected": ["L33718", "PAYER-SYNHP-MP0207"]}
+{"id": "R058", "intent": "S10", "query": "Blepharoplasty denied as cosmetic: visual fields not submitted", "expected": ["L33944"]}
+{"id": "R059", "intent": "S11", "query": "Should I prescribe gabapentin or pregabalin for this patient?", "expected": []}
+{"id": "R060", "intent": "S11", "query": "What is the capital of Australia?", "expected": []}
+{"id": "R061", "intent": "S11", "query": "Will Medicare approve this case?", "expected": []}
