@@ -19,7 +19,7 @@ class APIModel(BaseModel):
     )
 
 
-class Page(APIModel, Generic[T]):
+class Page(APIModel, Generic[T]):  # noqa: UP046 - keep pydantic generic syntax
     items: list[T]
     next_cursor: str | None = None
     total: int | None = None
