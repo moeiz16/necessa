@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, BookOpen, Check, CircleAlert, CircleDashed, ClipboardPaste, FileJson, FileText, Flame, History, Lightbulb, Loader2, ShieldAlert, ShieldCheck, Sparkles, Trash2, UserRound, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, CircleAlert, CircleDashed, ClipboardPaste, FileJson, FileText, Flame, History, Lightbulb, Loader2, ShieldAlert, ShieldCheck, Trash2, UserRound, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -19,7 +19,6 @@ import { Checkbox, RadioCards, Segmented, Select } from "@/components/ui/control
 import { Breadcrumb, Card, CardBody, CardHeader, SectionLabel, Skeleton } from "@/components/ui/display";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Dropzone } from "@/components/ui/widgets";
-import { AiBadge } from "@/components/domain/trust";
 import { Callout } from "@/components/ui/empty";
 
 type PatientMode = "synthetic" | "fhir" | "manual";
@@ -67,7 +66,7 @@ const DOC_KINDS: { value: DocumentKind; label: string }[] = [
   { value: "clinical_note", label: "Clinical note" },
   { value: "imaging_report", label: "Imaging report" },
   { value: "therapy_note", label: "Therapy note" },
-  { value: "fhir_bundle", label: "FHIR bundle" },
+  { value: "fhir_bundle", label: "Health record export (FHIR)" },
   { value: "pdf", label: "Other PDF" },
   { value: "other", label: "Other" },
 ];
@@ -105,14 +104,35 @@ const matchingBadge = (loading: boolean) =>
     </span>
   ) : null;
 
+/** Plain-language reason a policy matched (the API sends short technical details). */
+function matchReasonText(r: { type: string; value: string; detail: string }) {
+  if (r.detail.startsWith("Outside")) return `${r.value}: ${r.detail}`;
+  switch (r.type) {
+    case "hcpcs":
+      return `Matches because service code ${r.value} is listed in this policy`;
+    case "icd10":
+      return `Diagnosis ${r.value} is covered by this policy`;
+    case "state":
+      return `Applies in ${r.value}`;
+    case "link":
+      return `Linked to billing article ${r.value}`;
+    case "national":
+      return "National coverage policy";
+    case "manual":
+      return "Selected by you";
+    default:
+      return r.detail || r.value;
+  }
+}
+
 function AssistPanel({ matches, loading, ready }: { matches: PolicyMatch[]; loading: boolean; ready: boolean }) {
   const top = matches[0];
   const criteria = usePolicyCriteria(top?.policyId ?? "");
   const needs = leafTexts(top ? criteria.data?.tree : undefined);
   return (
     <div className="grid gap-4 lg:sticky lg:top-20">
-      <Card className="ai-border">
-        <CardHeader title="Policy match" description="Resolved deterministically from codes, jurisdiction and date of service — no model involved" icon={<Sparkles className="text-ai-2" />} actions={matchingBadge(loading)} />
+      <Card>
+        <CardHeader title="Matching payer policy" description="Based on the service and diagnosis codes, the state and the date of service." actions={matchingBadge(loading)} />
         <CardBody className="grid gap-2">
           {!ready ? (
             <p className="flex items-center gap-2 rounded-md bg-surface-2 px-3 py-3 text-[13px] text-muted">
@@ -121,7 +141,7 @@ function AssistPanel({ matches, loading, ready }: { matches: PolicyMatch[]; load
           ) : loading && !matches.length ? (
             <Skeleton className="h-20" />
           ) : matches.length === 0 ? (
-            <p className="rounded-md bg-insufficient-soft px-3 py-3 text-[13px] text-insufficient-fg">No active LCD lists these codes in this jurisdiction. Necessa will still check NCDs and any uploaded payer policy.</p>
+            <p className="rounded-md bg-insufficient-soft px-3 py-3 text-[13px] text-insufficient-fg">No local coverage policy lists these codes for this state. Necessa will still check national coverage policies and any payer policy you have added.</p>
           ) : (
             matches.slice(0, 3).map((m, i) => (
               <div key={m.policyVersionId} className={cn("rounded-lg border p-3", i === 0 ? "border-brand/40 bg-brand-soft/30" : "border-border")}>
@@ -129,7 +149,7 @@ function AssistPanel({ matches, loading, ready }: { matches: PolicyMatch[]; load
                   <DocTypeBadge docType={m.docType} />
                   <span className="font-mono text-xs font-medium text-fg">{m.sourceKey}</span>
                   <span className="text-xs text-subtle">v{m.version}</span>
-                  <span className="tabular ml-auto text-xs text-muted">{Math.round(m.score * 100)}%</span>
+                  {i === 0 ? <span className="ml-auto text-xs font-medium text-muted">Best match</span> : null}
                 </div>
                 <p className="mt-1.5 text-[13px] font-medium leading-snug text-fg">{m.title}</p>
                 <p className="mt-1 text-xs text-muted">{m.contractor?.name ?? "National"} · effective {fmtDate(m.effectiveFrom)}</p>
@@ -137,15 +157,13 @@ function AssistPanel({ matches, loading, ready }: { matches: PolicyMatch[]; load
                   {m.matchReasons.slice(0, 4).map((r) => (
                     <li key={`${r.type}-${r.value}`} className="flex items-start gap-1.5 text-xs text-muted">
                       {r.detail.startsWith("Outside") ? <CircleAlert className="mt-0.5 size-3 shrink-0 text-notmet" /> : <Check className="mt-0.5 size-3 shrink-0 text-met" />}
-                      <span>
-                        <span className="font-mono font-medium text-fg">{r.value}</span> — {r.detail}
-                      </span>
+                      <span>{matchReasonText(r)}</span>
                     </li>
                   ))}
                 </ul>
                 {m.criteriaSetStatus && m.criteriaSetStatus !== "approved" ? (
                   <p className="mt-2 flex items-center gap-1.5 text-xs text-insufficient-fg">
-                    <CircleAlert className="size-3" /> Criteria {String(m.criteriaSetStatus) === "missing" ? "not compiled yet" : "pending review"} — verdicts may be unavailable
+                    <CircleAlert className="size-3" /> {String(m.criteriaSetStatus) === "missing" ? "This policy hasn't been set up in Necessa yet, so it can't be checked automatically." : "This policy's checklist is pending review, so results will be preliminary."}
                   </p>
                 ) : null}
               </div>
@@ -157,9 +175,9 @@ function AssistPanel({ matches, loading, ready }: { matches: PolicyMatch[]; load
         <Card>
           <CardHeader
             title="Documentation you'll likely need"
-            description={`From ${top.sourceKey}'s reviewed criteria — attach these to avoid gaps`}
+            description={`From ${top.sourceKey}'s requirements. Attach these to avoid gaps.`}
             icon={<Lightbulb />}
-            actions={<AiBadge label="Preview" detail="Derived from the policy's approved criteria set. The full check runs after the case is created." />}
+            actions={<span className="text-xs text-subtle">Preview</span>}
           />
           <CardBody>
             {criteria.isPending ? (
@@ -174,13 +192,13 @@ function AssistPanel({ matches, loading, ready }: { matches: PolicyMatch[]; load
                 ))}
               </ol>
             ) : (
-              <p className="text-[13px] text-muted">Criteria for this policy haven&apos;t been compiled yet. An admin can compile them from Knowledge ops.</p>
+              <p className="text-[13px] text-muted">This policy&apos;s requirements aren&apos;t set up yet. Your administrator can add them.</p>
             )}
           </CardBody>
         </Card>
       ) : null}
       <p className="px-1 text-xs leading-relaxed text-subtle">
-        Patient identifiers are encrypted and replaced with tokens before any model call. Only the evidence for one criterion is ever sent at a time.
+        Patient details are encrypted and hidden before anything is checked. Necessa only looks at the part of the chart that relates to each requirement.
       </p>
     </div>
   );
@@ -314,14 +332,14 @@ export default function NewCasePage() {
       if (!p) throw new Error("No Patient resource found in this bundle.");
       const n = p.name?.[0];
       setFhirInfo({ name: [...(n?.given ?? []), n?.family].filter(Boolean).join(" "), dob: p.birthDate ?? "", sex: p.gender === "male" ? "M" : "F", state: p.address?.[0]?.state ?? "", file });
-      toast.success("FHIR bundle parsed", { description: `${entries.length} resources · patient demographics extracted` });
+      toast.success("Patient file read", { description: `${entries.length} records found · patient details filled in` });
     } catch (e) {
-      toast.error("Couldn't read that FHIR bundle", { description: errorMessage(e) });
+      toast.error("Couldn't read that patient file", { description: errorMessage(e) });
     }
   };
 
   const missing0 = (
-    mode === "synthetic" ? [!patientId && "a patient"] : mode === "fhir" ? [!fhirInfo && "a FHIR bundle"] : [manual.fullName.trim().length < 2 && "full name", !manual.dob && "date of birth", !manual.state && "state"]
+    mode === "synthetic" ? [!patientId && "a patient"] : mode === "fhir" ? [!fhirInfo && "a patient file"] : [manual.fullName.trim().length < 2 && "full name", !manual.dob && "date of birth", !manual.state && "state"]
   ).filter(Boolean) as string[];
   const missing1 = [!service.length && "a service code", !dx.length && "a diagnosis code", !payerName && "a plan", !effectiveState && "jurisdiction", !dos && "date of service"].filter(Boolean) as string[];
   const patientValid = missing0.length === 0;
@@ -359,7 +377,7 @@ export default function NewCasePage() {
         mark(id, "running");
         return run().then(
           (r) => {
-            mark(id, r.quarantined ? "warn" : "done", r.quarantined ? "Quarantined — possible prompt injection; excluded from evidence" : "PHI tokenized · injection screen passed");
+            mark(id, r.quarantined ? "warn" : "done", r.quarantined ? "Held back: contains instruction-like text, so it won't be used as evidence" : "Patient details protected · cleared for use");
             return r;
           },
           (e) => {
@@ -457,8 +475,8 @@ export default function NewCasePage() {
               {progress ? (
                 <div className="grid gap-4" role="status" aria-live="polite">
                   <div>
-                    <h1 className="text-lg font-semibold tracking-tight">Creating the case</h1>
-                    <p className="text-[13px] text-muted">Each document is de-identified and screened for prompt injection before it can be used as evidence.</p>
+                    <h1 className="text-lg font-semibold">Creating the case</h1>
+                    <p className="text-[13px] text-muted">Each document is protected and screened before it can be used as evidence.</p>
                   </div>
                   <ol className="grid gap-1.5">
                     {progress.map((p) => (
@@ -499,15 +517,15 @@ export default function NewCasePage() {
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <h1 className="text-lg font-semibold tracking-tight">Who is this request for?</h1>
-                      <p className="text-[13px] text-muted">Demographics are encrypted at rest and tokenized before AI processing.</p>
+                      <h1 className="text-lg font-semibold">Who is this request for?</h1>
+                      <p className="text-[13px] text-muted">Patient details are encrypted and hidden before anything is checked.</p>
                     </div>
                     <Segmented
                       value={mode}
                       onValueChange={setMode}
                       options={[
                         { value: "synthetic", label: "Existing", icon: <Users /> },
-                        { value: "fhir", label: "FHIR", icon: <FileJson /> },
+                        { value: "fhir", label: "From your EHR", icon: <FileJson /> },
                         { value: "manual", label: "Manual", icon: <UserRound /> },
                       ]}
                     />
@@ -533,7 +551,7 @@ export default function NewCasePage() {
                     </div>
                   ) : mode === "fhir" ? (
                     <div className="grid gap-3">
-                      <Dropzone accept=".json,application/fhir+json,application/json" multiple={false} hint="FHIR R4 Bundle or Patient resource (e.g. exported from Synthea)" onFiles={(f) => parseFhir(f[0]!)} />
+                      <Dropzone accept=".json,application/fhir+json,application/json" multiple={false} hint="A patient record exported from your electronic health record (FHIR file)" onFiles={(f) => parseFhir(f[0]!)} />
                       {fhirInfo ? (
                         <div className="flex items-center gap-3 rounded-lg bg-met-soft/50 p-3 text-[13px]">
                           <FileJson className="size-4 text-met" />
@@ -569,7 +587,7 @@ export default function NewCasePage() {
               {step === 1 ? (
                 <>
                   <div>
-                    <h1 className="text-lg font-semibold tracking-tight">What&apos;s being requested?</h1>
+                    <h1 className="text-lg font-semibold">What&apos;s being requested?</h1>
                     <p className="text-[13px] text-muted">Codes and jurisdiction decide which policy version applies.</p>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -618,8 +636,8 @@ export default function NewCasePage() {
               {step === 2 ? (
                 <>
                   <div>
-                    <h1 className="text-lg font-semibold tracking-tight">Attach the chart</h1>
-                    <p className="text-[13px] text-muted">Every upload is de-identified and screened for prompt injection before it can be used as evidence.</p>
+                    <h1 className="text-lg font-semibold">Attach the chart</h1>
+                    <p className="text-[13px] text-muted">Every upload is protected and screened before it can be used as evidence.</p>
                   </div>
                   <Dropzone
                     onFiles={(files) =>
@@ -714,7 +732,7 @@ export default function NewCasePage() {
         <AssistPanel matches={matches} loading={matching} ready={ready} />
       </div>
       <p className="mt-6 flex items-center gap-1.5 text-xs text-subtle">
-        <BookOpen className="size-3.5" /> Medicare FFS cases resolve against LCDs/NCDs from the CMS Medicare Coverage Database, refreshed weekly.
+        <BookOpen className="size-3.5" /> Medicare cases are matched to current Medicare coverage policies, updated weekly.
       </p>
     </AppPage>
   );

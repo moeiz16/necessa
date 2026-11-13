@@ -62,7 +62,7 @@ export function CompactCaseBar({
             animate={{ opacity: 1, y: 0 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -8 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="-mx-4 flex items-center gap-3 border-b border-border bg-bg/90 px-4 py-2 backdrop-blur-md supports-[backdrop-filter]:bg-bg/75 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+            className="-mx-4 flex items-center gap-3 border-b border-border bg-bg px-4 py-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
           >
             <ReadinessRing size={28} stroke={3} readiness={readiness} score={score} />
             <span className="hidden font-mono text-xs text-subtle sm:inline">{number}</span>
@@ -72,9 +72,9 @@ export function CompactCaseBar({
             </span>
             {dueAt ? <SlaTimer dueAt={dueAt} compact className="hidden sm:inline-flex" /> : null}
             {canEvaluate ? (
-              <Button size="sm" variant="ai" onClick={onEvaluate} loading={running}>
+              <Button size="sm" variant="primary" onClick={onEvaluate} loading={running}>
                 {!running ? <Play /> : null}
-                {running ? "Evaluating…" : "Re-evaluate"}
+                {running ? "Checking…" : "Check again"}
               </Button>
             ) : null}
           </motion.div>
@@ -142,17 +142,17 @@ export function RevealDialog({ open, onOpenChange, onConfirm }: { open: boolean;
   const reason = purpose === "other" ? note.trim() : `${PURPOSES.find((p) => p.value === purpose)?.label}${note.trim() ? ` — ${note.trim()}` : ""}`;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Reveal patient identifiers" description="Only reveal what you need for the task at hand. This access is recorded in the audit trail with your purpose." size="sm">
+      <DialogContent title="Show protected patient details" description="Open only what you need for the task at hand. This access is recorded in the audit trail with your stated purpose." size="sm">
         <div className="grid gap-4">
           <Field label="Purpose of use">
             <RadioCards value={purpose} onValueChange={setPurpose} columns={2} options={PURPOSES.map((p) => ({ value: p.value, label: p.label, description: p.description }))} />
           </Field>
           <Field label={purpose === "other" ? "Reason" : "Note"} optional={purpose !== "other"}>
-            <Textarea value={note} onChange={(e) => setNote(e.target.value)} className="min-h-16" placeholder={purpose === "other" ? "Why do you need the identifiers?" : "e.g. Payer portal requires the MBI"} />
+            <Textarea value={note} onChange={(e) => setNote(e.target.value)} className="min-h-16" placeholder={purpose === "other" ? "Why do you need the patient details?" : "e.g. Payer portal requires the MBI"} />
           </Field>
           <p className="flex items-start gap-2 text-xs leading-relaxed text-subtle">
             <Timer className="mt-px size-3.5 shrink-0" />
-            Identifiers re-mask automatically after {REVEAL_SECONDS / 60} minutes or when you leave this case.
+            Patient details are hidden again automatically after {REVEAL_SECONDS / 60} minutes or when you leave this case.
           </p>
         </div>
         <DialogFooter>
@@ -172,7 +172,7 @@ export function RevealDialog({ open, onOpenChange, onConfirm }: { open: boolean;
               }
             }}
           >
-            <Eye /> Reveal and log access
+            <Eye /> Show and record access
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -184,7 +184,7 @@ export function RevealState({ remaining, onHide, onReveal, visible, canReveal }:
   if (visible)
     return (
       <span className="flex items-center gap-1.5">
-        <span className="tabular inline-flex items-center gap-1 rounded-md bg-insufficient-soft px-1.5 py-0.5 text-[11px] font-medium text-insufficient-fg" title="Identifiers re-mask automatically">
+        <span className="tabular inline-flex items-center gap-1 rounded-md bg-insufficient-soft px-1.5 py-0.5 text-[11px] font-medium text-insufficient-fg" title="Patient details are hidden again automatically">
           <Eye className="size-3" /> {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}
         </span>
         <Button size="xs" variant="ghost" onClick={onHide}>
@@ -194,11 +194,11 @@ export function RevealState({ remaining, onHide, onReveal, visible, canReveal }:
     );
   return canReveal ? (
     <Button size="xs" variant="ghost" onClick={onReveal}>
-      <ShieldCheck /> Reveal
+      <ShieldCheck /> Show details
     </Button>
   ) : (
     <span className={cn("inline-flex items-center gap-1 text-[11px] text-subtle")}>
-      <LockKeyhole className="size-3" /> Masked
+      <LockKeyhole className="size-3" /> Protected
     </span>
   );
 }

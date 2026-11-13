@@ -29,8 +29,8 @@ const VIEWS = [
   { id: "mine", label: "My cases", query: { assignee: "me" } },
   { id: "due", label: "Due soon", query: { status: "draft,evaluating,needs_review,ready,submitted", dueBefore: "" } },
   { id: "review", label: "Needs review", query: { status: "needs_review" } },
-  { id: "gaps", label: "Gaps", query: { readiness: "gaps" } },
-  { id: "ready", label: "Ready", query: { status: "ready" } },
+  { id: "gaps", label: "Has gaps", query: { readiness: "gaps" } },
+  { id: "ready", label: "Ready to submit", query: { status: "ready" } },
   { id: "denied", label: "Denied & appeals", query: { status: "denied,appealing" } },
   { id: "all", label: "Everything", query: {} },
 ] as const;
@@ -276,7 +276,7 @@ function CasesInner() {
     <AppPage crumbs={<Breadcrumb items={[{ label: "Cases" }]} />} wide>
       <PageHeader
         title="Cases"
-        description="Every prior authorization and appeal in flight — documentation readiness and payer clocks at a glance."
+        description="Every prior authorization and appeal in progress, with documentation readiness and payer deadlines."
         actions={
           <Can perm="cases:write">
             <Button asChild variant="primary">

@@ -16,7 +16,6 @@ import {
   ScrollText,
   Send,
   Split,
-  Sparkles,
   UserRound,
 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -35,9 +34,7 @@ import { EvidencePanel } from "@/components/cases/evidence-panel";
 import { LETTER_KINDS } from "@/components/cases/letter-kinds";
 import { CaseAuditPanel, GapsPanel, NextActions, TimelinePanel } from "@/components/cases/side-panels";
 import { CompactCaseBar, RevealDialog, RevealState, usePhiReveal, useScrolledPast } from "@/components/cases/case-chrome";
-import { evaluationModels } from "@/components/cases/criteria-panel";
 import { useCaseStream } from "@/components/cases/use-case-stream";
-import { AiBadge, ReviewBadge } from "@/components/domain/trust";
 import { CodeChip, PayerChip, PriorityChip, ReadinessRing, SlaTimer, StatusChip } from "@/components/domain/verdict";
 import { Button } from "@/components/ui/button";
 import { Select, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/controls";
@@ -57,7 +54,7 @@ function OutcomeDialog({ caseId, open, onOpenChange }: { caseId: string; open: b
   const rec = useRecordOutcome(caseId);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Record payer outcome" description="Outcomes feed analytics and the evaluation set — Necessa's verdicts are never the decision." size="sm">
+      <DialogContent title="Record payer outcome" description="Outcomes feed your reports. Necessa never makes the coverage decision." size="sm">
         <div className="grid gap-4">
           <Field label="Outcome">
             <Select
@@ -105,7 +102,7 @@ function CaseInner() {
   const phi = usePhiReveal<{ fullName: string; dob: string; memberId: string; mrn: string }>(async (reason) => {
     try {
       const r = await api.get<{ patientRevealed: { fullName: string; dob: string; memberId: string; mrn: string } | null }>(`/cases/${id}`, { reveal: true, reason });
-      toast.message("Access logged", { description: `PHI reveal recorded in the audit trail · ${reason}` });
+      toast.message("Access recorded", { description: `Patient details were opened and logged in the audit trail · ${reason}` });
       return r.patientRevealed;
     } catch (e) {
       toast.error(errorMessage(e));
@@ -161,8 +158,8 @@ function CaseInner() {
   if (c.isPending)
     return (
       <AppPage>
-        <Skeleton className="h-24 rounded-xl" />
-        <Skeleton className="mt-4 h-96 rounded-xl" />
+        <Skeleton className="h-24 rounded-lg" />
+        <Skeleton className="mt-4 h-96 rounded-lg" />
       </AppPage>
     );
   if (c.isError || !c.data)
@@ -178,7 +175,6 @@ function CaseInner() {
   const score = live.aggregate?.readinessScore ?? k.readinessScore;
   const gapsCount = (live.running ? live.gaps?.length : ev?.gaps.length) ?? 0;
   const ringReadiness = live.running && !live.aggregate ? "unknown" : readiness;
-  const models = evaluationModels(ev);
   const evidenceMode = tab === "evidence" || tab === "letters";
   const evLoading = !!k.latestEvaluationId && evaluation.isPending && !live.running;
   const panelSkeleton = (
@@ -219,7 +215,7 @@ function CaseInner() {
                 </Badge>
               ))}
             </div>
-            <h1 className="mt-1 text-[22px] font-semibold tracking-[-0.02em] text-fg">{k.title}</h1>
+            <h1 className="mt-1 text-xl font-semibold text-fg">{k.title}</h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted">
               <span className="flex items-center gap-1.5">
                 <UserRound className="size-3.5" /> {k.patient.displayName} · {k.patient.sex}, {new Date().getFullYear() - k.patient.birthYear}
@@ -230,20 +226,16 @@ function CaseInner() {
             </div>
             {ev && !live.running ? (
               <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-subtle">
-                {ev.status === "completed" ? <ReviewBadge state="reviewed" /> : <AiBadge label="AI-suggested verdicts" />}
-                {ev.status !== "completed" ? <ReviewBadge state="pending" /> : null}
-                <span>
-                  Evaluated {fmtDate(ev.finishedAt ?? ev.startedAt, "MMM d, h:mm a")}
-                  {models.judge ? ` · judge ${models.judge.split("/").pop()}` : ""}
-                  {models.verifier ? ` · verifier ${models.verifier.split("/").pop()}` : ""}
-                </span>
+                <span className="font-medium text-muted">{ev.status === "completed" ? "Reviewed by your team" : "Suggested by Necessa · awaiting your review"}</span>
+                <span aria-hidden>·</span>
+                <span>Checked {fmtDate(ev.finishedAt ?? ev.startedAt, "MMM d, h:mm a")}</span>
               </div>
             ) : null}
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2 xl:flex-nowrap">
           <Button variant="secondary" onClick={() => setAskOpen(true)}>
-            <Sparkles className="text-ai-2" /> Ask about this case
+            Ask about this case
           </Button>
           {canWrite ? (
             <>
@@ -254,7 +246,7 @@ function CaseInner() {
                   </Button>
                 </DropdownTrigger>
                 <DropdownContent className="w-72">
-                  <DropdownLabel>Generate from verified evidence</DropdownLabel>
+                  <DropdownLabel>Draft from documented evidence</DropdownLabel>
                   {LETTER_KINDS.map((l) => (
                     <DropdownItem key={l.kind} onSelect={() => runDraft(l.kind)} className="items-start">
                       <FileText className="mt-0.5" />
@@ -266,9 +258,9 @@ function CaseInner() {
                   ))}
                 </DropdownContent>
               </Dropdown>
-              <Button variant="ai" onClick={runEvaluate} loading={live.running}>
+              <Button variant="primary" onClick={runEvaluate} loading={live.running}>
                 {!live.running ? <Play /> : null}
-                {live.running ? "Evaluating…" : ev ? "Re-evaluate" : "Evaluate"}
+                {live.running ? "Checking…" : ev ? "Check again" : "Check against policy"}
               </Button>
               <Dropdown>
                 <DropdownTrigger asChild>
@@ -310,7 +302,7 @@ function CaseInner() {
         <Tabs value={tab} onValueChange={switchTab} className="min-w-0">
           <TabsList className="mb-4 max-w-full overflow-x-auto scrollbar-thin">
             <TabsTrigger value="criteria">
-              <ListChecks /> Criteria
+              <ListChecks /> Requirements
             </TabsTrigger>
             <TabsTrigger value="evidence">
               <Split /> Evidence
@@ -437,7 +429,7 @@ function CaseInner() {
                   </button>
                 ))
               ) : (
-                <p className="text-[13px] text-muted">Resolved on first evaluation.</p>
+                <p className="text-[13px] text-muted">Identified when you run the first check.</p>
               )}
             </CardBody>
           </Card>
@@ -458,11 +450,6 @@ function CaseInner() {
               ) : (
                 <span className="text-[13px] text-muted">Unassigned</span>
               )}
-              {ev?.tokenUsage && ev.tokenUsage.promptTokens + ev.tokenUsage.completionTokens > 0 ? (
-                <p className="mt-3 text-xs text-subtle">
-                  Last evaluation: {(ev.tokenUsage.promptTokens + ev.tokenUsage.completionTokens).toLocaleString()} tokens{models.judge ? ` · ${models.judge}` : ""}
-                </p>
-              ) : null}
             </CardBody>
           </Card>
         </aside>

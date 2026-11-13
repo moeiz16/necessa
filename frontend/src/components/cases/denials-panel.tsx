@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, FilePen, Gavel, Link2, Sparkles, Target } from "lucide-react";
+import { CalendarClock, FilePen, Gavel, Link2, Target } from "lucide-react";
 import { useState } from "react";
 import { useCaseDenials, useRecordDenial, useUpdateDenial } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
@@ -33,7 +33,7 @@ function RecordDenialDialog({ caseId, open, onOpenChange }: { caseId: string; op
   const rec = useRecordDenial(caseId);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Record a denial" description="Paste the denial reason from the notice or remittance. Necessa extracts CARC/RARC codes and maps the reason to policy criteria." size="lg">
+      <DialogContent title="Record a denial" description="Paste the denial reason from the notice or remittance. Necessa reads the reason codes and matches the reason to the policy requirement it cites." size="lg">
         <div className="grid gap-4">
           <Field label="Denial reason text">
             <Textarea value={text} onChange={(e) => setText(e.target.value)} className="min-h-32" placeholder="The documentation submitted does not establish that the beneficiary failed at least 4 weeks of conservative care… Group code CO, CARC 50, RARC N115." autoFocus />
@@ -57,7 +57,7 @@ function RecordDenialDialog({ caseId, open, onOpenChange }: { caseId: string; op
             disabled={text.trim().length < 15}
             onClick={() => rec.mutate({ text, receivedAt, carcCodes: carc.split(",").map((c) => c.trim()).filter(Boolean) }, { onSuccess: () => onOpenChange(false) })}
           >
-            <Sparkles /> Analyze denial
+            Analyze denial
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -79,7 +79,7 @@ export function DenialsPanel({ caseId, onDraft, canWrite }: { caseId: string; on
           <EmptyState
             art="inbox"
             title="No denials on this case"
-            description="If the payer denies, record the notice here. Necessa maps the reason to the criteria it cites and drafts the appeal."
+            description="If the payer denies, record the notice here. Necessa matches the reason to the policy requirement it cites and drafts the appeal."
             action={
               canWrite ? (
                 <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
@@ -121,14 +121,11 @@ export function DenialsPanel({ caseId, onDraft, canWrite }: { caseId: string; on
                     </div>
                     <blockquote className="rounded-lg border-l-2 border-notmet bg-notmet-soft/40 px-3 py-2.5 text-[13px] text-fg">{d.reasonText}</blockquote>
                     {d.analysis?.summary ? (
-                      <p className="flex gap-2 text-[13px] text-muted">
-                        <Sparkles className="mt-0.5 size-4 shrink-0 text-ai-2" />
-                        {d.analysis.summary}
-                      </p>
+                      <p className="text-[13px] text-muted">{d.analysis.summary}</p>
                     ) : null}
                     {d.analysis?.strategy?.length ? (
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-subtle">Appeal strategy</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-subtle">Suggested approach</p>
                         <ol className="mt-1.5 grid gap-1 text-[13px] text-fg">
                           {d.analysis.strategy.map((s, i) => (
                             <li key={s} className="flex gap-2">
@@ -143,7 +140,7 @@ export function DenialsPanel({ caseId, onDraft, canWrite }: { caseId: string; on
                   <div className="grid content-start gap-3">
                     <div className="rounded-lg bg-surface-2/60 p-3">
                       <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-subtle">
-                        <Target className="size-3" /> Mapped criteria
+                        <Target className="size-3" /> Requirements this relates to
                       </p>
                       {d.mappedCriteria.length ? (
                         <ul className="mt-2 grid gap-1.5">
@@ -156,7 +153,7 @@ export function DenialsPanel({ caseId, onDraft, canWrite }: { caseId: string; on
                           ))}
                         </ul>
                       ) : (
-                        <p className="mt-2 text-[13px] text-muted">No confident mapping — review manually.</p>
+                        <p className="mt-2 text-[13px] text-muted">No clear match. Please review manually.</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2 text-[13px]">
@@ -173,7 +170,7 @@ export function DenialsPanel({ caseId, onDraft, canWrite }: { caseId: string; on
                           <Link2 /> Appeal drafted
                         </Badge>
                       ) : canWrite ? (
-                        <Button size="sm" variant="ai" onClick={() => onDraft("appeal")}>
+                        <Button size="sm" variant="primary" onClick={() => onDraft("appeal")}>
                           <FilePen /> Draft appeal
                         </Button>
                       ) : null}

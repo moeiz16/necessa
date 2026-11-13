@@ -67,8 +67,8 @@ export function EvidencePanel({ caseId, evaluation, criterionId, onCriterion }: 
     return () => window.removeEventListener("keydown", onKey);
   }, [step]);
 
-  if (!evaluation) return <Card><EmptyState art="documents" title="Run an evaluation to map evidence" description="Once criteria are checked, every quote is highlighted in the policy and in the chart, side by side." /></Card>;
-  if (!criteria.length) return <Card><EmptyState art="documents" title="No criteria to map" description="This evaluation had no approved criteria for the applicable policy, so there's no evidence to show yet." /></Card>;
+  if (!evaluation) return <Card><EmptyState art="documents" title="Check the case to see the evidence" description="Once the requirements are checked, each quote is highlighted in the policy and in the chart, side by side." /></Card>;
+  if (!criteria.length) return <Card><EmptyState art="documents" title="Nothing to compare yet" description="No requirements could be checked for the matching policy, so there is no evidence to show." /></Card>;
 
   const docSpans: HighlightSpan[] = [];
   if (doc.data?.text) {
@@ -93,7 +93,7 @@ export function EvidencePanel({ caseId, evaluation, criterionId, onCriterion }: 
               onClick={() => onCriterion(c.criterionId)}
               className={cn(
                 "flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[13px] outline-none transition-[border-color,background-color,box-shadow] focus-visible:ring-2 focus-visible:ring-brand/30",
-                active?.criterionId === c.criterionId ? "border-brand bg-brand-soft/50 text-fg shadow-[0_0_0_1px_var(--brand)]" : "border-border bg-surface text-muted hover:text-fg",
+                active?.criterionId === c.criterionId ? "border-brand bg-brand-soft/50 text-fg ring-1 ring-brand" : "border-border bg-surface text-muted hover:text-fg",
               )}
               title={c.text}
             >
@@ -103,13 +103,13 @@ export function EvidencePanel({ caseId, evaluation, criterionId, onCriterion }: 
           ))}
         </div>
         <div className="flex items-center gap-1 text-xs text-subtle">
-          <Button size="icon-sm" variant="ghost" aria-label="Previous criterion" onClick={() => step(-1)}>
+          <Button size="icon-sm" variant="ghost" aria-label="Previous requirement" onClick={() => step(-1)}>
             <ChevronLeft />
           </Button>
           <span className="tabular">
             {activeIndex + 1} / {criteria.length}
           </span>
-          <Button size="icon-sm" variant="ghost" aria-label="Next criterion" onClick={() => step(1)}>
+          <Button size="icon-sm" variant="ghost" aria-label="Next requirement" onClick={() => step(1)}>
             <ChevronRight />
           </Button>
           <span className="hidden items-center gap-1 lg:inline-flex">
@@ -148,7 +148,7 @@ export function EvidencePanel({ caseId, evaluation, criterionId, onCriterion }: 
               ))
             ) : (
               <p className="rounded-md border border-dashed border-border-strong px-2.5 py-2 text-[12.5px] text-muted">
-                No passage in the chart addresses this criterion{active.kind === "negative_attestation" ? " — an explicit attestation is required" : ""}.
+                No passage in the chart addresses this requirement{active.kind === "negative_attestation" ? ". An explicit statement is needed" : ""}.
               </p>
             )}
           </div>
@@ -184,7 +184,7 @@ export function EvidencePanel({ caseId, evaluation, criterionId, onCriterion }: 
                   );
                 })
               ) : (
-                <p className="text-[13px] text-muted">Policy text isn&apos;t available in this workspace. Criterion quotes above are verified against the ingested policy.</p>
+                <p className="text-[13px] text-muted">The full policy text isn&apos;t available here. The quotes above were checked against the policy.</p>
               )}
             </div>
           </Card>
@@ -223,10 +223,10 @@ export function EvidencePanel({ caseId, evaluation, criterionId, onCriterion }: 
                   <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted">
                     <Badge size="xs">{doc.data.kind.replace(/_/g, " ")}</Badge>
                     {doc.data.noteDate ? <span>Note date {fmtDate(doc.data.noteDate)}</span> : null}
-                    <span>· de-identified view</span>
+                    <span>· Protected view (patient details hidden)</span>
                     {doc.data.quarantined ? (
                       <Badge tone="notmet" size="xs">
-                        Quarantined — excluded from evidence
+                        Held back — not used as evidence
                       </Badge>
                     ) : null}
                   </div>

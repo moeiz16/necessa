@@ -129,10 +129,10 @@ export function useCaseStream(caseId: string) {
                 qc.setQueryData(qk.evaluation(caseId, ev.id), ev);
                 setLive((l) => ({ ...l, running: false }));
                 invalidate();
-                if (!ev.criteria.length) toast.warning("Nothing could be evaluated", { description: ev.gaps[0]?.title ?? "No approved criteria for the applicable policy." });
+                if (!ev.criteria.length) toast.warning("We couldn't check this case yet", { description: "The matching payer policy hasn't been set up in Necessa yet. Ask your administrator to add it." });
                 else
-                  toast.success("Evaluation complete", {
-                    description: `Readiness ${ev.readinessScore == null ? "unknown" : `${Math.round(ev.readinessScore * 100)}%`} · ${ev.gaps.length} gap${ev.gaps.length === 1 ? "" : "s"} to review${ev.degraded ? " · degraded mode" : ""}`,
+                  toast.success("Check complete", {
+                    description: `${ev.readinessScore == null ? "Readiness unknown" : `${Math.round(ev.readinessScore * 100)}% of requirements documented`} · ${ev.gaps.length} gap${ev.gaps.length === 1 ? "" : "s"} to review${ev.degraded ? " · rule-based checks only" : ""}`,
                   });
                 ac.abort();
                 break;
@@ -140,7 +140,7 @@ export function useCaseStream(caseId: string) {
               case "evaluation.failed":
                 setLive((l) => ({ ...l, running: false, error: String(data.error) }));
                 invalidate();
-                toast.error("Evaluation could not finish", { description: String(data.error) });
+                toast.error("The check could not finish", { description: "Please try again in a moment." });
                 ac.abort();
                 break;
               case "letter.started":
@@ -153,7 +153,7 @@ export function useCaseStream(caseId: string) {
                 const letter = data.letter as Letter;
                 setDraft((d) => (d ? { ...d, text: letter.contentMd, running: false } : d));
                 qc.invalidateQueries({ queryKey: qk.letters(caseId) });
-                toast.success("Draft ready", { description: "Check the citations, then send for clinician approval." });
+                toast.success("Draft ready", { description: "Check the sources, then send it for clinician approval." });
                 ac.abort();
                 break;
               }
@@ -171,7 +171,7 @@ export function useCaseStream(caseId: string) {
   );
 
   const evaluate = useCallback(async () => {
-    setLive({ ...EMPTY, running: true, message: "Queued — waiting for a worker…", log: [{ at: Date.now(), text: "Evaluation requested" }] });
+    setLive({ ...EMPTY, running: true, message: "Starting…", log: [{ at: Date.now(), text: "Evaluation requested" }] });
     try {
       const res = await api.post<{ evaluationId?: string }>(`/cases/${caseId}/evaluate`, {});
       qc.invalidateQueries({ queryKey: qk.case(caseId) });

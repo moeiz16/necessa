@@ -19,7 +19,7 @@ export function AskDrawer({ caseId, caseNumber, open, onOpenChange }: { caseId: 
   };
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent title={`Ask about ${caseNumber}`} description="Answers are grounded in the matched policy and this case's de-identified chart." className="max-w-[min(100vw,34rem)]">
+      <SheetContent title={`Ask about ${caseNumber}`} description="Answers come from the matching payer policy and this case's protected chart." className="max-w-[min(100vw,34rem)]">
         <div className="flex h-full flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
             <ChatThread compact messages={chat.messages} pending={chat.pending} pendingUser={chat.pendingUser} empty={<AssistantIntro title="Ask about this case" />} />

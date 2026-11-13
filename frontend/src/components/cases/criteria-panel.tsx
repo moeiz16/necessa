@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, BookOpenCheck, ChevronRight, FileSearch, Gavel, Pencil, Play, Quote, RotateCcw, ShieldCheck, Sparkles, Undo2, UserCheck, UserPen } from "lucide-react";
+import { BadgeCheck, BookOpenCheck, ChevronRight, CircleDashed, FileSearch, Gavel, Pencil, Play, Quote, RotateCcw, ShieldCheck, Undo2, UserCheck, UserPen } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useCompleteReview, useOverrideCriterion } from "@/lib/api/hooks";
@@ -37,11 +37,11 @@ export function evaluationModels(ev?: Evaluation): { judge?: string; verifier?: 
 }
 
 const DEGRADED_COPY: Record<string, string> = {
-  llm_unavailable: "no model provider was reachable",
-  budget_exhausted: "the token budget for this case ran out",
-  no_applicable_criteria: "no approved criteria matched the resolved policy",
-  rerank: "the reranker was unavailable",
-  dense: "dense retrieval was unavailable",
+  llm_unavailable: "automated checking could not be reached",
+  budget_exhausted: "this case used up its automated-checking allowance",
+  no_applicable_criteria: "no approved checklist matched the payer policy",
+  rerank: "some automated checks were limited",
+  dense: "some automated checks were limited",
 };
 
 type Provenance = { state: "ai" | "reviewed" | "overridden"; by?: string };
@@ -54,10 +54,10 @@ function provenanceOf(r: CriterionResult, ev: Evaluation): Provenance {
 function ProvenanceIcon({ p }: { p: Provenance }) {
   const meta =
     p.state === "overridden"
-      ? { icon: <UserPen className="size-3.5 text-brand" />, label: `Human override by ${p.by}` }
+      ? { icon: <UserPen className="size-3.5 text-brand" />, label: `Changed by ${p.by}` }
       : p.state === "reviewed"
         ? { icon: <UserCheck className="size-3.5 text-met" />, label: "Confirmed at clinical review" }
-        : { icon: <Sparkles className="size-3.5 text-ai-2" />, label: "AI-suggested · awaiting review" };
+        : { icon: <CircleDashed className="size-3.5 text-subtle" />, label: "Suggested by Necessa · awaiting review" };
   return (
     <Tooltip content={meta.label}>
       <span className="inline-flex size-5 items-center justify-center rounded-md hover:bg-surface-2" aria-label={meta.label}>
@@ -73,14 +73,14 @@ function OverrideDialog({ result, caseId, evalId, open, onOpenChange }: { result
   const m = useOverrideCriterion(caseId, evalId);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={`Override ${result.criterionId}`} description={result.text}>
+      <DialogContent title="Change this result" description={result.text}>
         <div className="grid gap-4">
           <div className="flex flex-wrap items-center gap-2 rounded-md bg-surface-2 px-3 py-2 text-[13px]">
-            <AiBadge label="AI verdict" />
+            <AiBadge label="Suggested result" />
             <VerdictBadge verdict={result.verdict} />
             <ConfidencePill value={result.confidence} />
           </div>
-          <Field label="Your verdict">
+          <Field label="Your result">
             <RadioCards
               columns={3}
               value={verdict}
@@ -88,7 +88,7 @@ function OverrideDialog({ result, caseId, evalId, open, onOpenChange }: { result
               options={(Object.keys(VERDICT_META) as Verdict[]).map((v) => ({ value: v, label: VERDICT_META[v].short, icon: <VerdictIcon verdict={v} /> }))}
             />
           </Field>
-          <Field label="Clinical rationale" hint="Required (8+ characters). Saved to the audit log and used to improve future evaluations.">
+          <Field label="Clinical reason" hint="Required (8+ characters). Saved to the audit trail.">
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Verbal attestation captured at pre-op call; signed form uploaded 11/14." autoFocus />
           </Field>
         </div>
@@ -99,14 +99,14 @@ function OverrideDialog({ result, caseId, evalId, open, onOpenChange }: { result
               className="mr-auto"
               onClick={() => m.mutate({ resultId: result.id, overrideVerdict: null, overrideReason: "" }, { onSuccess: () => onOpenChange(false) })}
             >
-              <Undo2 /> Revert to AI verdict
+              <Undo2 /> Restore suggested result
             </Button>
           ) : null}
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button variant="primary" loading={m.isPending} disabled={reason.trim().length < 8} onClick={() => m.mutate({ resultId: result.id, overrideVerdict: verdict, overrideReason: reason }, { onSuccess: () => onOpenChange(false) })}>
-            Save override
+            Save change
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -136,11 +136,11 @@ function WhyContent({ r }: { r: CriterionResult }) {
             </div>
           ))
         ) : (
-          <p className="mt-1 text-insufficient-fg">No supporting passage found{r.kind === "negative_attestation" ? " — attestations must be explicit; silence isn't evidence" : ""}.</p>
+          <p className="mt-1 text-insufficient-fg">No supporting passage found{r.kind === "negative_attestation" ? ". This requirement needs an explicit statement in the chart; silence doesn't count" : ""}.</p>
         )}
       </div>
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-subtle">Reasoning</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-subtle">Explanation</p>
         <p className="mt-1">{r.rationale}</p>
       </div>
     </>
@@ -151,9 +151,8 @@ function CriterionRow({ r, ev, caseId, onJump, canReview }: { r: CriterionResult
   const [open, setOpen] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
   const prov = provenanceOf(r, ev);
-  const models = evaluationModels(ev);
   return (
-    <div className={cn("min-w-0 rounded-lg border bg-surface transition-[border-color,box-shadow] duration-200", open ? "border-border-strong shadow-e1" : "border-border hover:border-border-strong", r.effectiveVerdict !== "MET" && !open && "bg-surface")}>
+    <div className={cn("min-w-0 rounded-lg border bg-surface transition-colors duration-150", open ? "border-border-strong" : "border-border hover:border-border-strong")}>
       <div
         role="button"
         tabIndex={0}
@@ -169,7 +168,7 @@ function CriterionRow({ r, ev, caseId, onJump, canReview }: { r: CriterionResult
         <Badge tone="outline" size="xs" className="hidden lg:inline-flex">
           {KIND_LABEL[r.kind]}
         </Badge>
-        <span className="hidden items-center gap-1 text-xs text-subtle sm:inline-flex" title={`${r.evidence.length} evidence passage${r.evidence.length === 1 ? "" : "s"}`}>
+        <span className="hidden items-center gap-1 text-xs text-subtle sm:inline-flex" title={`${r.evidence.length} supporting passage${r.evidence.length === 1 ? "" : "s"} in the chart`}>
           <FileSearch className="size-3.5" />
           {r.evidence.length}
         </span>
@@ -201,18 +200,18 @@ function CriterionRow({ r, ev, caseId, onJump, canReview }: { r: CriterionResult
               <div className="flex items-start gap-2 rounded-md bg-brand-soft/50 p-2.5 text-[13px]">
                 <Avatar name={r.override.by.fullName} color={r.override.by.avatarColor} size={20} />
                 <span>
-                  <span className="font-medium text-fg">{r.override.by.fullName}</span> <span className="text-muted">changed the AI verdict</span> <VerdictBadge verdict={r.verdict} size="xs" short /> <span className="text-muted">→</span>{" "}
+                  <span className="font-medium text-fg">{r.override.by.fullName}</span> <span className="text-muted">changed the suggested result</span> <VerdictBadge verdict={r.verdict} size="xs" short /> <span className="text-muted">→</span>{" "}
                   <VerdictBadge verdict={r.override.verdict} size="xs" short />
                   <span className="mt-1 block text-muted">“{r.override.reason}” · {fmtRelative(r.override.at)}</span>
                 </span>
               </div>
             ) : null}
             <div className="grid gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-subtle">Chart evidence</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-subtle">Chart shows</p>
               {r.evidence.length === 0 ? (
                 <p className="rounded-md border border-dashed border-border-strong px-3 py-2.5 text-[13px] text-muted">
-                  No passage in the chart supports this criterion.
-                  {r.kind === "negative_attestation" ? " Negative criteria need an explicit attestation — silence isn't evidence." : ""}
+                  No passage in the chart supports this requirement.
+                  {r.kind === "negative_attestation" ? " This one needs an explicit statement in the chart; silence doesn't count." : ""}
                 </p>
               ) : (
                 r.evidence.map((e) => (
@@ -224,7 +223,7 @@ function CriterionRow({ r, ev, caseId, onJump, canReview }: { r: CriterionResult
                     <span className="flex flex-wrap items-center gap-1.5 pl-5 text-xs text-subtle">
                       {e.noteDate ? fmtDate(e.noteDate) : "undated"}
                       <span className="inline-flex items-center gap-0.5 text-met-fg">
-                        · <ShieldCheck className="size-3" /> verbatim
+                        · <ShieldCheck className="size-3" /> quote verified
                       </span>
                       · <span className="text-brand-fg group-hover:underline">View in chart</span>
                     </span>
@@ -235,40 +234,37 @@ function CriterionRow({ r, ev, caseId, onJump, canReview }: { r: CriterionResult
           </div>
           <div className="grid content-start gap-3">
             <div className="grid gap-1.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-subtle">Policy language</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-subtle">Policy requires</p>
               <div className="rounded-md border-l-2 border-brand bg-brand-soft/30 px-3 py-2 text-[13px] text-fg">
                 “{r.policyCitation.quote}”
                 <Provenance className="mt-1" source={r.policyCitation.sourceKey} detail={r.policyCitation.sectionKey.replace(/_/g, " ")} />
               </div>
             </div>
             <div className="grid gap-1.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-subtle">Verification</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-subtle">Checks</p>
               <ul className="grid gap-1 text-[13px]">
                 <li className={cn("flex items-center gap-2", r.verification.quoteValid ? "text-met-fg" : "text-notmet-fg")}>
-                  <BadgeCheck className="size-3.5" /> {r.verification.quoteValid ? "Every quote found verbatim in its source" : "Quote not found verbatim — verdict downgraded"}
+                  <BadgeCheck className="size-3.5" /> {r.verification.quoteValid ? "Every quote was found in the chart" : "A quote could not be found in the chart, so this result was lowered"}
                 </li>
                 {r.verification.entailment ? (
                   <li className={cn("flex items-center gap-2", r.verification.entailment === "entails" ? "text-met-fg" : r.verification.entailment === "contradicts" ? "text-notmet-fg" : "text-muted")}>
-                    <ShieldCheck className="size-3.5" /> Cross-model check: evidence {r.verification.entailment}
+                    <ShieldCheck className="size-3.5" /> {r.verification.entailment === "entails" ? "A second check agrees" : r.verification.entailment === "contradicts" ? "A second check disagrees" : "A second check was inconclusive"}
                   </li>
                 ) : (
                   <li className="flex items-center gap-2 text-muted">
-                    <ShieldCheck className="size-3.5" /> Cross-model check not run (deterministic rule)
+                    <ShieldCheck className="size-3.5" /> No second check needed (rule-based)
                   </li>
                 )}
                 {r.verification.iterations && r.verification.iterations > 1 ? (
                   <li className="flex items-center gap-2 text-info">
-                    <RotateCcw className="size-3.5" /> {r.verification.iterations - 1} corrective retrieval pass{r.verification.iterations > 2 ? "es" : ""}
+                    <RotateCcw className="size-3.5" /> Needed a second look at the chart
                   </li>
                 ) : null}
               </ul>
-              <p className="text-xs text-subtle">
-                Judge {r.verification.judgeModel ?? models.judge ?? "—"} · verifier {r.verification.verifierModel ?? models.verifier ?? "—"}
-              </p>
             </div>
             {canReview ? (
               <Button size="sm" variant="secondary" className="w-fit" onClick={() => setOverrideOpen(true)}>
-                <Pencil /> {r.override ? "Edit override" : "Override verdict"}
+                <Pencil /> {r.override ? "Edit change" : "Change result"}
               </Button>
             ) : null}
           </div>
@@ -280,7 +276,6 @@ function CriterionRow({ r, ev, caseId, onJump, canReview }: { r: CriterionResult
 }
 
 const OP_LABEL = (t: TreeResult) => (t.op === "OR" ? "Any one of" : t.op === "N_OF_M" ? `At least ${t.n ?? 1} of` : "All of the following");
-const OP_JOIN = (t: TreeResult) => (t.op === "OR" ? "or" : t.op === "N_OF_M" ? "of" : "and");
 
 function TreeNode({ node, results, depth, ...rest }: { node: TreeResult; results: Map<string, CriterionResult>; depth: number; ev: Evaluation; caseId: string; onJump: (id: string) => void; canReview: boolean }) {
   if (!node.children?.length) {
@@ -291,8 +286,7 @@ function TreeNode({ node, results, depth, ...rest }: { node: TreeResult; results
   return (
     <div className={cn("grid min-w-0 grid-cols-1 gap-2", depth > 0 && "rounded-lg border border-dashed border-border-strong bg-surface-2/30 p-2.5")}>
       <div className="flex items-center gap-2 px-1">
-        <span className="rounded-md bg-surface-3 px-1.5 py-0.5 font-mono text-[10.5px] font-semibold uppercase tracking-wider text-muted">{node.op === "N_OF_M" ? `${node.n ?? 1}-of-${children.length}` : node.op ?? "AND"}</span>
-        <span className="text-xs font-medium text-muted">{node.label && depth === 0 ? node.label : OP_LABEL(node)}</span>
+        <span className="text-xs font-medium text-muted">{node.label && depth === 0 ? node.label.replace(/\bcriteria\b/gi, "requirements").replace(/\bcriterion\b/gi, "requirement") : OP_LABEL(node)}</span>
         <VerdictBadge verdict={node.verdict} size="xs" short />
       </div>
       <div className="relative grid min-w-0 grid-cols-1 gap-2 pl-4">
@@ -300,11 +294,6 @@ function TreeNode({ node, results, depth, ...rest }: { node: TreeResult; results
         {children.map((c, i) => (
           <div key={c.criterionId ?? `g${depth}-${i}`} className="relative min-w-0">
             <span aria-hidden className="absolute -left-[9px] top-[18px] h-px w-[9px] bg-border-strong" />
-            {i > 0 ? (
-              <span aria-hidden className="absolute left-[-9px] top-[-4px] z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full bg-surface-2 px-1 font-mono text-[9px] font-semibold uppercase leading-[14px] text-subtle ring-1 ring-border">
-                {OP_JOIN(node)}
-              </span>
-            ) : null}
             <TreeNode node={c} results={results} depth={depth + 1} {...rest} />
           </div>
         ))}
@@ -333,16 +322,16 @@ function CompleteReviewDialog({ ev, caseId, open, onOpenChange }: { ev: Evaluati
             ))}
             <li className="flex items-center gap-2 border-t border-border pt-1.5">
               <UserPen className="size-4 text-brand" />
-              <span className="flex-1 text-fg">Human overrides</span>
+              <span className="flex-1 text-fg">Changed by a reviewer</span>
               <span className="tabular font-medium">{overrides}</span>
             </li>
           </ul>
           {unresolved ? (
-            <Callout tone="warning" title={`${unresolved} criteri${unresolved === 1 ? "on is" : "a are"} not met or lack evidence`}>
+            <Callout tone="warning" title={`${unresolved} requirement${unresolved === 1 ? " is" : "s are"} not met or need more documentation`}>
               The case will stay in <b>Needs review</b> with open gaps. Close them first if you intend to submit.
             </Callout>
           ) : (
-            <Callout tone="success" title="Every criterion is documented">
+            <Callout tone="success" title="Every requirement is documented">
               The case moves to <b>Ready to submit</b>.
             </Callout>
           )}
@@ -386,12 +375,12 @@ export function CriteriaPanel({
       <Card>
         <EmptyState
           art="spark"
-          title={live.error ? "The last evaluation didn't finish" : "No evaluation yet"}
-          description={live.error ?? "Necessa resolves the applicable policy version, then checks each criterion against the de-identified chart — every verdict cites both."}
+          title={live.error ? "The last check didn't finish" : "Not checked yet"}
+          description={live.error ?? "Necessa finds the payer policy that applies, then checks each requirement against the protected chart. Every result cites the policy and the chart."}
           action={
             canEvaluate ? (
-              <Button variant="ai" onClick={onEvaluate}>
-                <Play /> Run medical-necessity check
+              <Button variant="primary" onClick={onEvaluate}>
+                <Play /> Check against policy
               </Button>
             ) : null
           }
@@ -404,9 +393,10 @@ export function CriteriaPanel({
   const policy = evaluation.policies[0];
   const canReview = can("cases:review");
   const degradedBanner = evaluation.degraded ? (
-    <Callout tone="warning" title="LLM unavailable — deterministic checks only">
-      {models.degradedReasons.length ? `This run was limited because ${models.degradedReasons.map((r) => DEGRADED_COPY[r] ?? r.replace(/_/g, " ")).join(", ")}. ` : ""}
-      Criteria the rules can&apos;t decide are marked <b>Insufficient</b> rather than guessed. Re-run when a model is available.
+    <Callout tone="warning" title="Automated checking is unavailable right now">
+      Showing rule-based checks only. A person must complete this review.{" "}
+      {models.degradedReasons.length ? `This check was limited because ${Array.from(new Set(models.degradedReasons.map((r) => DEGRADED_COPY[r] ?? "automated checking was limited"))).join(", ")}. ` : ""}
+      Anything the rules can&apos;t settle is marked <b>Insufficient</b> rather than guessed. Check again when automated checking is available.
     </Callout>
   ) : null;
 
@@ -417,42 +407,33 @@ export function CriteriaPanel({
       <div className="grid gap-3">
         <Card className="p-5">
           <div className="flex flex-wrap items-start gap-4">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-insufficient-soft text-insufficient">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-insufficient-soft text-insufficient">
               <BookOpenCheck className="size-5" />
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-[15px] font-semibold text-fg">{gap?.title ?? "No approved criteria for the applicable policy"}</h3>
-                <Badge tone="notmet" size="xs">
-                  Blocker
-                </Badge>
+                <h3 className="text-[15px] font-semibold text-fg">We couldn&apos;t check this case yet</h3>
                 <Badge tone="neutral" size="xs">
-                  Readiness unknown
+                  Not checked
                 </Badge>
               </div>
-              <p className="mt-1 text-[13px] leading-relaxed text-muted">{gap?.detail ?? "The matched policy has no reviewed criteria set yet, so nothing was evaluated."}</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-muted">
+                {gap ? "The matching payer policy hasn't been set up in Necessa yet, so none of its requirements could be checked." : "No payer policy matched this case."}
+              </p>
               <p className="mt-2 text-[13px] text-fg">
                 <span className="font-medium">Next step: </span>
-                {gap?.suggestedFix ?? "Compile or approve criteria in Knowledge → Criteria review, then re-run the evaluation."}
+                Ask your administrator to add the policy, then check this case again.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                {can("criteria:review") ? (
-                  <Button asChild variant="primary" size="sm">
-                    <Link href="/knowledge?tab=criteria">
-                      <BookOpenCheck /> Open criteria review
-                    </Link>
-                  </Button>
-                ) : null}
                 {canEvaluate ? (
                   <Button size="sm" variant="secondary" onClick={onEvaluate}>
-                    <RotateCcw /> Re-run evaluation
+                    <RotateCcw /> Check again
                   </Button>
                 ) : null}
               </div>
             </div>
           </div>
         </Card>
-        {degradedBanner}
         <DecisionDisclaimer className="px-1" />
       </div>
     );
@@ -466,7 +447,7 @@ export function CriteriaPanel({
   return (
     <div className="grid grid-cols-1 gap-4">
       {policy ? (
-        <div className="grid min-w-0 gap-2 rounded-xl bg-surface px-4 py-3 shadow-e1">
+        <div className="grid min-w-0 gap-2 rounded-lg border border-border bg-surface px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <span className="flex min-w-0 items-center gap-2 text-[13px]">
               <DocTypeBadge docType={policy.docType} />
@@ -489,21 +470,21 @@ export function CriteriaPanel({
               {policy.contractor?.name ?? "National coverage"} · effective {fmtDate(policy.effectiveFrom)}
             </span>
             {policy.criteriaSetStatus && policy.criteriaSetStatus !== "approved" ? (
-              <Tooltip content="This criteria set hasn't been approved by a reviewer yet — treat verdicts as preliminary.">
+              <Tooltip content="This policy checklist hasn't been approved by a reviewer yet, so treat results as preliminary.">
                 <Badge tone="insufficient" size="xs">
-                  Criteria pending review
+                  Checklist pending review
                 </Badge>
               </Tooltip>
             ) : (
               <Badge tone="met" size="xs">
-                <BadgeCheck /> Reviewed criteria
+                <BadgeCheck /> Checklist reviewed
               </Badge>
             )}
             {evaluation.status === "completed" ? <ReviewBadge state="reviewed" /> : <ReviewBadge state="pending" />}
             {overrides ? <ReviewBadge state="overridden" by={`${overrides} override${overrides === 1 ? "" : "s"}`} /> : null}
             {evaluation.degraded ? (
               <Badge tone="degraded" size="xs">
-                Degraded mode
+                Rule-based checks only
               </Badge>
             ) : null}
           </div>
@@ -522,7 +503,7 @@ export function CriteriaPanel({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border-strong px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-4 py-3">
         <p className="flex max-w-xl items-start gap-2 text-xs leading-relaxed text-muted">
           <Gavel className="mt-0.5 size-3.5 shrink-0" />
           Necessa reports documentation readiness only — it never approves or denies. A licensed clinician makes the medical-necessity determination.
@@ -530,7 +511,7 @@ export function CriteriaPanel({
         <div className="flex gap-2">
           {canEvaluate ? (
             <Button size="sm" variant="ghost" onClick={onEvaluate}>
-              <RotateCcw /> Re-run
+              <RotateCcw /> Check again
             </Button>
           ) : null}
           {evaluation.status === "awaiting_review" && canReview ? (

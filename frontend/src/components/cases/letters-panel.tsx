@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, Download, Eye, FileJson, FilePen, FileText, Pencil, Printer, Sparkles, Undo2 } from "lucide-react";
+import { BadgeCheck, Download, Eye, FileJson, FilePen, FileText, Pencil, Printer, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -66,7 +66,7 @@ export function LettersPanel({ caseId, draft, onDraft }: { caseId: string; draft
   const body = streaming ? draft!.text : text;
   const dirty = !!active && !streaming && text !== active.contentMd;
 
-  if (letters.isPending) return <Skeleton className="h-96 rounded-xl" />;
+  if (letters.isPending) return <Skeleton className="h-96 rounded-lg" />;
 
   if (!list.length && !draft) {
     return (
@@ -74,13 +74,13 @@ export function LettersPanel({ caseId, draft, onDraft }: { caseId: string; draft
         <EmptyState
           art="documents"
           title="No letters yet"
-          description="Drafts are written only from verified chart evidence and footnoted to the policy and the chart. A clinician approves every letter."
+          description="Drafts use only what is documented in the chart and cite the policy and the chart. A clinician approves every letter."
           action={
             can("cases:write") ? (
               <div className="flex flex-wrap justify-center gap-2">
                 {LETTER_KINDS.slice(0, 3).map((k) => (
-                  <Button key={k.kind} variant={k.kind === "lmn" ? "ai" : "secondary"} size="sm" onClick={() => onDraft(k.kind)}>
-                    {k.kind === "lmn" ? <Sparkles /> : <FilePen />} {k.label}
+                  <Button key={k.kind} variant={k.kind === "lmn" ? "primary" : "secondary"} size="sm" onClick={() => onDraft(k.kind)}>
+                    <FilePen /> {k.label}
                   </Button>
                 ))}
               </div>
@@ -97,8 +97,8 @@ export function LettersPanel({ caseId, draft, onDraft }: { caseId: string; draft
         {can("cases:write") ? (
           <Dropdown>
             <DropdownTrigger asChild>
-              <Button variant="ai" size="sm">
-                <Sparkles /> Draft a new letter
+              <Button variant="primary" size="sm">
+                <FilePen /> Draft a new letter
               </Button>
             </DropdownTrigger>
             <DropdownContent align="start" className="w-72">
@@ -120,7 +120,7 @@ export function LettersPanel({ caseId, draft, onDraft }: { caseId: string; draft
             <span className="line-clamp-2 text-[13px] font-medium text-fg">{l.title}</span>
             <span className="flex items-center gap-1.5">
               <Badge tone={l.status === "approved" ? "met" : l.status === "in_review" ? "brand" : "neutral"} size="xs">
-                {l.status.replace("_", " ")}
+                {l.status === "in_review" ? "In review" : l.status === "approved" ? "Approved" : "Draft"}
               </Badge>
               <span className="text-xs text-subtle">
                 v{l.version} · {fmtRelative(l.updatedAt)}
@@ -136,10 +136,10 @@ export function LettersPanel({ caseId, draft, onDraft }: { caseId: string; draft
             <p className="min-w-0 flex-1 truncate text-[13px] font-medium" title={active.title}>
               {active.title}
             </p>
-            {!streaming ? <AiBadge label="AI-drafted" detail="Written only from verified chart evidence and footnoted to the policy and chart. A clinician reviews and approves it before submission." /> : null}
+            {!streaming ? <AiBadge label="Drafted by Necessa" detail="Uses only what is documented in the chart and cites the policy and the chart. A clinician reviews and approves it before submission." /> : null}
             {streaming ? (
-              <Badge tone="ai" size="sm">
-                <Sparkles className="text-ai-2" /> Drafting…
+              <Badge tone="neutral" size="sm">
+                Drafting…
               </Badge>
             ) : (
               <Segmented
@@ -175,7 +175,7 @@ export function LettersPanel({ caseId, draft, onDraft }: { caseId: string; draft
                     }
                   }}
                 >
-                  <FileJson /> FHIR QuestionnaireResponse
+                  <FileJson /> Health record data (FHIR)
                 </DropdownItem>
               </DropdownContent>
             </Dropdown>
@@ -183,9 +183,9 @@ export function LettersPanel({ caseId, draft, onDraft }: { caseId: string; draft
           <div className="grid min-h-0 flex-1 lg:grid-cols-[1fr_260px]">
             <div className="min-h-0 overflow-y-auto px-6 py-5 scrollbar-thin">
               {mode === "edit" && !streaming ? (
-                <Textarea value={text} onChange={(e) => setText(e.target.value)} className="min-h-[440px] font-mono text-[12.5px] leading-relaxed" aria-label="Letter markdown" />
+                <Textarea value={text} onChange={(e) => setText(e.target.value)} className="min-h-[440px] font-mono text-[12.5px] leading-relaxed" aria-label="Letter text" />
               ) : (
-                <article id={`letter-${active.id}`} className="prose-letter mx-auto max-w-[68ch] font-serif text-[14.5px] leading-[1.75] text-fg [&_blockquote]:my-3 [&_blockquote]:rounded-md [&_blockquote]:border-l-2 [&_blockquote]:border-insufficient [&_blockquote]:bg-insufficient-soft/50 [&_blockquote]:px-3 [&_blockquote]:py-2 [&_blockquote]:font-sans [&_blockquote]:text-[13px] [&_p]:my-3 [&_strong]:font-semibold">
+                <article id={`letter-${active.id}`} className="prose-letter mx-auto max-w-[68ch] text-[14.5px] leading-[1.75] text-fg [&_blockquote]:my-3 [&_blockquote]:rounded-md [&_blockquote]:border-l-2 [&_blockquote]:border-insufficient [&_blockquote]:bg-insufficient-soft/50 [&_blockquote]:px-3 [&_blockquote]:py-2 [&_blockquote]:font-sans [&_blockquote]:text-[13px] [&_p]:my-3 [&_strong]:font-semibold">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: TokenOrCode }}>
                     {withTokenPills(body) || "…"}
                   </ReactMarkdown>
@@ -207,9 +207,7 @@ export function LettersPanel({ caseId, draft, onDraft }: { caseId: string; draft
                 ))}
               </ol>
               <div className="mt-5 grid gap-1 border-t border-border pt-4 text-xs text-subtle">
-                <span>Drafted by {active.modelInfo?.drafter ?? "—"}</span>
-                {active.modelInfo?.verifier ? <span>Verified by {active.modelInfo.verifier}</span> : null}
-                <span>PHI tokens are re-inserted locally on export.</span>
+                <span>Patient details are filled in only when you export. Each export is recorded in the audit trail.</span>
               </div>
             </aside>
           </div>
@@ -300,7 +298,7 @@ function TokenOrCode({ children, className }: { children?: React.ReactNode; clas
   if (text.startsWith("⟦") && text.endsWith("⟧")) {
     const label = text.slice(1, -1).replace(/_/g, " ").toLowerCase();
     return (
-      <span className="mx-px rounded-[4px] bg-surface-3 px-1 py-px font-sans text-[11px] font-medium not-italic text-muted ring-1 ring-inset ring-border" title="PHI token — re-inserted only on audited export">
+      <span className="mx-px rounded-[4px] bg-surface-3 px-1 py-px font-sans text-[11px] font-medium not-italic text-muted ring-1 ring-inset ring-border" title="Patient detail placeholder. Filled in on export, which is recorded in the audit trail.">
         {label}
       </span>
     );

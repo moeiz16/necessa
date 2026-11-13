@@ -15,7 +15,6 @@ import {
   RotateCcw,
   Send,
   ShieldCheck,
-  Sparkles,
   Workflow,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -41,7 +40,7 @@ export function AddNoteDialog({ caseId, open, onOpenChange, prefill }: { caseId:
   const add = useAddTextDocument(caseId);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Add documentation" description="Paste the note or attestation. It's de-identified and screened before it can be used as evidence." size="lg">
+      <DialogContent title="Add documentation" description="Paste the note or attestation. Patient details are protected automatically before it's used as evidence." size="lg">
         <div className="grid gap-4">
           <Textarea value={text} onChange={(e) => setText(e.target.value)} className="min-h-48 font-mono text-[12.5px]" placeholder="e.g. PRE-PROCEDURE ATTESTATION — No active systemic or local infection. Anticoagulants: none." autoFocus />
           <div className="grid gap-3 sm:grid-cols-2">
@@ -86,27 +85,47 @@ const ACTION_ICON: Record<NextAction["type"], typeof Play> = {
   fix_gap: CircleAlert,
 };
 
+/** Keeps suggested-step wording in plain language even when the text comes from the server. */
+function plain(text: string) {
+  return text
+    .replace(/\bAI[- ]suggested verdicts?\b/gi, "suggested results")
+    .replace(/\bAI verdicts?\b/gi, "suggested results")
+    .replace(/\brequirement verdicts?\b/gi, "requirement results")
+    .replace(/\boverride\b/gi, "change")
+    .replace(/\bcriterion\b/gi, "requirement")
+    .replace(/\bcriteria\b/gi, "requirements")
+    .replace(/\bre-?evaluat(e|ion)\b/gi, "check again")
+    .replace(/\bevaluat(e|ion|ed)\b/gi, "check")
+    .replace(/\bre-?run\b/gi, "run");
+}
+
+/** Steps the server raises when no checklist matched the policy point at an admin screen; say it plainly instead. */
+function plainStep(a: NextAction): { title: string; detail: string } {
+  const missingPolicy = /no approved (criteria|requirements)|knowledge\s*(→|->)|compile or approve/i.test(`${a.title} ${a.detail}`);
+  if (missingPolicy) return { title: "We couldn't check this case yet", detail: "The matching payer policy hasn't been set up in Necessa. Ask your administrator to add it, then check again." };
+  return { title: plain(a.title.replace(/^Resolve gap:\s*/i, "Close the gap: ")), detail: plain(a.detail) };
+}
+
 export function NextActions({ caseId, onAction }: { caseId: string; onAction: (a: NextAction) => void }) {
   const { data, isPending } = useNextActions(caseId);
-  if (isPending) return <Skeleton className="h-16 rounded-xl" />;
+  if (isPending) return <Skeleton className="h-16 rounded-lg" />;
   if (!data?.length) return null;
   return (
-    <div className="ai-border rounded-xl p-3">
-      <p className="flex items-center gap-1.5 px-1 text-xs font-medium text-muted">
-        <Sparkles className="size-3.5 text-ai-2" /> Suggested next steps
-      </p>
+    <div className="rounded-lg border border-border p-3">
+      <p className="px-1 text-xs font-medium text-muted">Suggested next steps</p>
       <Stagger className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {data.slice(0, 3).map((a, i) => {
-          const Icon = ACTION_ICON[a.type];
+          const Icon = ACTION_ICON[a.type] ?? BadgeCheck;
+          const step = plainStep(a);
           return (
             <StaggerItem key={i}>
-              <button onClick={() => onAction(a)} className="group flex h-full w-full items-start gap-2.5 rounded-lg bg-surface px-3 py-2.5 text-left shadow-e1 outline-none transition-shadow hover:shadow-e2 focus-visible:ring-2 focus-visible:ring-brand/30">
+              <button onClick={() => onAction(a)} className="group flex h-full w-full items-start gap-2.5 rounded-md border border-border bg-surface px-3 py-2.5 text-left outline-none transition-colors hover:border-border-strong focus-visible:ring-2 focus-visible:ring-brand/30">
                 <span className={cn("mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md", a.priority === "high" ? "bg-notmet-soft text-notmet" : "bg-brand-soft text-brand")}>
                   <Icon className="size-3.5" />
                 </span>
                 <span className="grid min-w-0 gap-0.5">
-                  <span className="text-[13px] font-medium text-fg">{a.title}</span>
-                  <span className="line-clamp-2 text-xs text-muted">{a.detail}</span>
+                  <span className="text-[13px] font-medium text-fg">{step.title}</span>
+                  <span className="line-clamp-2 text-xs text-muted">{step.detail}</span>
                 </span>
                 <ArrowRight className="ml-auto mt-1 size-3.5 shrink-0 text-subtle transition-transform group-hover:translate-x-0.5" />
               </button>
@@ -155,11 +174,11 @@ function attestationTemplate(text: string) {
 export function GapsPanel({ caseId, evaluation, onReEvaluate, canWrite, onJump }: { caseId: string; evaluation?: Evaluation; onReEvaluate: () => void; canWrite: boolean; onJump?: (criterionId: string) => void }) {
   const [addFor, setAddFor] = useState<Gap | null>(null);
   const { addressed, toggle } = useAddressed(evaluation?.id);
-  if (!evaluation) return <Card><EmptyState art="search" title="No gaps yet" description="Run an evaluation to see what documentation is missing." /></Card>;
+  if (!evaluation) return <Card><EmptyState art="search" title="No gaps yet" description="Check the case against the policy to see what documentation is missing." /></Card>;
   if (!evaluation.gaps.length)
     return (
       <Card>
-        <EmptyState art="shield" title="No documentation gaps" description="Every criterion is supported by verified chart evidence. Draft the letter and send it for clinician sign-off." />
+        <EmptyState art="shield" title="No documentation gaps" description="Every requirement is supported by the chart. Draft the letter and send it for clinician sign-off." />
       </Card>
     );
   const criterion = (id: string) => evaluation.criteria.find((c) => c.criterionId === id);
@@ -180,13 +199,13 @@ export function GapsPanel({ caseId, evaluation, onReEvaluate, canWrite, onJump }
             <span className="font-medium text-fg">
               {done} of {gaps.length} gap{gaps.length === 1 ? "" : "s"} addressed
             </span>
-            <span className="text-xs text-subtle">Track your fixes, then re-run to update verdicts</span>
+            <span className="text-xs text-subtle">Track your fixes, then check again to update the results</span>
           </p>
           <Progress value={gaps.length ? done / gaps.length : 0} tone={done === gaps.length ? "met" : "brand"} />
         </div>
         <div className="flex items-center gap-1.5">
-          {counts.blocker ? <Badge tone="notmet" size="xs">{counts.blocker} blocker{counts.blocker > 1 ? "s" : ""}</Badge> : null}
-          {counts.major ? <Badge tone="insufficient" size="xs">{counts.major} major</Badge> : null}
+          {counts.blocker ? <Badge tone="notmet" size="xs">{counts.blocker} must fix</Badge> : null}
+          {counts.major ? <Badge tone="insufficient" size="xs">{counts.major} important</Badge> : null}
           {counts.minor ? <Badge tone="neutral" size="xs">{counts.minor} minor</Badge> : null}
         </div>
       </Card>
@@ -217,7 +236,7 @@ export function GapsPanel({ caseId, evaluation, onReEvaluate, canWrite, onJump }
                   <div className="grid min-w-0 gap-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge tone={g.severity === "blocker" ? "notmet" : g.severity === "major" ? "insufficient" : "neutral"} size="xs" className="capitalize">
-                        {g.severity}
+                        {g.severity === "blocker" ? "Must fix" : g.severity === "major" ? "Important" : "Minor"}
                       </Badge>
                       {c ? (
                         <button type="button" onClick={() => onJump?.(c.criterionId)} className="font-mono text-xs text-subtle hover:text-brand-fg hover:underline">
@@ -226,13 +245,11 @@ export function GapsPanel({ caseId, evaluation, onReEvaluate, canWrite, onJump }
                       ) : null}
                       {c ? <VerdictBadge verdict={c.effectiveVerdict} size="xs" short /> : null}
                     </div>
-                    <h3 className={cn("text-[14px] font-semibold tracking-tight text-fg", isDone && "line-through decoration-subtle")}>{g.title}</h3>
-                    <p className="text-[13px] leading-relaxed text-muted">{g.detail}</p>
-                    <div className="rounded-lg bg-met-soft/50 p-3">
-                      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-met-fg">
-                        <Sparkles className="size-3" /> Suggested fix
-                      </p>
-                      <p className="mt-1 text-[13px] text-fg">{g.suggestedFix}</p>
+                    <h3 className={cn("text-[14px] font-semibold text-fg", isDone && "line-through decoration-subtle")}>{policyLevel ? "We couldn't check this case yet" : g.title}</h3>
+                    <p className="text-[13px] leading-relaxed text-muted">{policyLevel ? "The matching payer policy hasn't been set up in Necessa yet, so none of its requirements could be checked." : g.detail}</p>
+                    <div className="rounded-md bg-surface-2 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Suggested fix</p>
+                      <p className="mt-1 text-[13px] text-fg">{policyLevel ? "Ask your administrator to add the policy, then check the case again." : g.suggestedFix}</p>
                     </div>
                     {g.policyQuote ? (
                       <p className="text-xs text-subtle">
@@ -242,13 +259,7 @@ export function GapsPanel({ caseId, evaluation, onReEvaluate, canWrite, onJump }
                   </div>
                   {canWrite ? (
                     <div className="flex flex-wrap gap-2 md:flex-col">
-                      {policyLevel ? (
-                        <Button asChild size="sm" variant="primary">
-                          <a href="/knowledge?tab=criteria">
-                            <ShieldCheck /> Criteria review
-                          </a>
-                        </Button>
-                      ) : (
+                      {policyLevel ? null : (
                         <Button size="sm" variant="primary" onClick={() => setAddFor(g)}>
                           <ClipboardPaste /> Add documentation
                         </Button>
@@ -265,10 +276,10 @@ export function GapsPanel({ caseId, evaluation, onReEvaluate, canWrite, onJump }
         })}
       </ul>
       {canWrite ? (
-        <div className={cn("flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-[13px] transition-colors", done ? "border-brand/40 bg-brand-soft/30 text-fg" : "border-dashed border-border-strong text-muted")}>
-          {done ? `${done} gap${done === 1 ? "" : "s"} addressed — re-run the check so verdicts reflect the new documentation.` : "Added documentation? Re-run the check to update verdicts."}
+        <div className={cn("flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-[13px] transition-colors", done ? "border-brand/40 bg-brand-soft/30 text-fg" : "border-border text-muted")}>
+          {done ? `${done} gap${done === 1 ? "" : "s"} addressed. Check again so the results reflect the new documentation.` : "Added documentation? Check again to update the results."}
           <Button size="sm" variant={done ? "primary" : "secondary"} onClick={onReEvaluate}>
-            <RotateCcw /> Re-run evaluation
+            <RotateCcw /> Check again
           </Button>
         </div>
       ) : null}
@@ -280,16 +291,16 @@ export function GapsPanel({ caseId, evaluation, onReEvaluate, canWrite, onJump }
 /* ── Timeline ───────────────────────────────────────────────────────────── */
 const EVENT_META: Record<string, { icon: typeof Activity; label: (p: Record<string, unknown>) => string; tone?: "brand" | "met" | "notmet" | "insufficient" }> = {
   created: { icon: FilePlus2, label: () => "opened the case" },
-  document_added: { icon: FileText, label: (p) => `added ${p.filename ?? "a document"}${p.quarantined ? " (quarantined)" : ""}` },
+  document_added: { icon: FileText, label: (p) => `added ${p.filename ?? "a document"}${p.quarantined ? " (held back)" : ""}` },
   document_removed: { icon: FileText, label: () => "removed a document" },
   policy_resolved: { icon: ShieldCheck, label: (p) => `matched ${p.sourceKey} v${p.version}`, tone: "brand" },
-  evaluation_started: { icon: Play, label: () => "started a medical-necessity check", tone: "brand" },
+  evaluation_started: { icon: Play, label: () => "started a check against the policy", tone: "brand" },
   evaluation_completed: {
     icon: Workflow,
-    label: (p) => `finished evaluating — readiness ${p.readiness === "unknown" || p.score == null ? "unknown" : `${Math.round(Number(p.score) * 100)}%`}${p.gaps ? `, ${p.gaps} gap${Number(p.gaps) === 1 ? "" : "s"}` : ""}`,
+    label: (p) => `finished the check. Readiness ${p.readiness === "unknown" || p.score == null ? "unknown" : `${Math.round(Number(p.score) * 100)}%`}${p.gaps ? `, ${p.gaps} gap${Number(p.gaps) === 1 ? "" : "s"}` : ""}`,
     tone: "met",
   },
-  verdict_overridden: { icon: Pencil, label: (p) => `overrode ${p.criterionId} to ${String(p.to).replace("_", " ").toLowerCase()}`, tone: "insufficient" },
+  verdict_overridden: { icon: Pencil, label: (p) => `changed ${String(p.criterionId ?? "a requirement").split(":").pop()} to ${String(p.to).replace("_", " ").toLowerCase()}`, tone: "insufficient" },
   review_completed: { icon: BadgeCheck, label: () => "completed clinical review", tone: "met" },
   letter_drafted: { icon: Pencil, label: (p) => `drafted a ${String(p.kind ?? "letter").replace(/_/g, " ")}` },
   letter_approved: { icon: BadgeCheck, label: () => "approved a letter", tone: "met" },
@@ -346,12 +357,29 @@ export function TimelinePanel({ caseId }: { caseId: string }) {
 }
 
 /* ── Case audit ─────────────────────────────────────────────────────────── */
+const AUDIT_LABEL: Record<string, string> = {
+  "case.create": "Opened the case",
+  "case.update": "Updated the case",
+  "case.evaluate": "Checked the case against the policy",
+  "case.review_completed": "Signed off the review",
+  "phi.patient_revealed": "Viewed patient details",
+  "phi.document_revealed": "Viewed a document with patient details",
+  "document.upload": "Added a document",
+  "document.delete": "Removed a document",
+  "letter.draft": "Drafted a letter",
+  "letter.approve": "Approved a letter",
+  "criteria.update": "Updated a requirement",
+};
+function auditLabel(action: string) {
+  return AUDIT_LABEL[action] ?? action.replace(/[._]/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+
 export function CaseAuditPanel({ caseId }: { caseId: string }) {
   const { data, isPending } = useAudit({ resourceId: caseId });
   const rows = data?.items ?? [];
   return (
     <Card>
-      <CardHeader title="Audit trail" description="Every access and AI-assisted action on this case — hash-chained and tamper-evident." icon={<ShieldCheck />} />
+      <CardHeader title="Audit trail" description="Every access and action on this case is recorded here and can't be altered." icon={<ShieldCheck />} />
       <CardBody className="px-0">
         {isPending ? (
           <Skeleton className="mx-4 h-40" />
@@ -362,15 +390,14 @@ export function CaseAuditPanel({ caseId }: { caseId: string }) {
             <tbody>
               {rows.map((a) => (
                 <tr key={a.id} className="border-t border-border/70">
-                  <td className="px-4 py-2 font-mono text-xs text-subtle">#{a.id}</td>
-                  <td className="py-2">
+                                    <td className="py-2">
                     <span className="flex items-center gap-2">
                       <Avatar name={a.actor?.fullName ?? "System"} color={a.actor?.avatarColor ?? "var(--degraded)"} size={20} />
                       {a.actor?.fullName ?? "System"}
                     </span>
                   </td>
-                  <td className="py-2 font-mono text-xs text-fg">{a.action}</td>
-                  <td className="hidden py-2 text-xs text-muted md:table-cell">{Object.entries(a.metadata).map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : v}`).join(" · ")}</td>
+                  <td className="py-2 text-[13px] text-fg">{auditLabel(a.action)}</td>
+                  <td className="hidden py-2 text-xs text-muted md:table-cell">{typeof a.metadata?.reason === "string" ? `Purpose: ${a.metadata.reason}` : ""}</td>
                   <td className="px-4 py-2 text-right text-xs text-subtle">{fmtRelative(a.createdAt)}</td>
                 </tr>
               ))}

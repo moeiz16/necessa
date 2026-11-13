@@ -94,7 +94,7 @@ export function DocumentsPanel({ caseId, initialDocId }: { caseId: string; initi
                           {titleCase(d.kind)} · {d.noteDate ? fmtDate(d.noteDate) : "undated"} · {fmtBytes(d.sizeBytes)}
                         </span>
                         <span className="flex flex-wrap gap-1 pt-0.5">
-                          {d.quarantined ? <Badge tone="notmet" size="xs">Quarantined</Badge> : <Badge tone="met" size="xs">Clean</Badge>}
+                          {d.quarantined ? <Badge tone="notmet" size="xs">Held back</Badge> : <Badge tone="met" size="xs">Cleared</Badge>}
                           {d.redactions ? <Badge size="xs">{d.redactions} redactions</Badge> : null}
                           {d.ocrUsed ? (
                             <Badge size="xs">
@@ -154,13 +154,13 @@ export function DocumentsPanel({ caseId, initialDocId }: { caseId: string; initi
               <div className="flex gap-3 border-b border-notmet/20 bg-notmet-soft/60 px-4 py-3 text-[13px] text-notmet-fg">
                 <ShieldAlert className="mt-0.5 size-4 shrink-0" />
                 <p>
-                  <span className="font-medium">Quarantined — excluded from evidence.</span> The prompt-injection screen scored this document {Math.round(meta.injectionScore * 100)}% for instruction-like content (e.g. “ignore all previous instructions”). It will not be sent to any model. Upload a clean copy from the source system.
+                  <span className="font-medium">Held back — not used as evidence.</span> This document contains text that looks like instructions to software rather than clinical notes, so Necessa did not read it. Upload a clean copy from the source system.
                 </p>
               </div>
             ) : (
               <div className="flex items-center gap-2 border-b border-border bg-met-soft/30 px-4 py-2 text-xs text-met-fg">
                 <ShieldCheck className="size-3.5" />
-                {reveal ? "Identifiers revealed — this access was logged." : "De-identified view. Identifiers are shown as tokens; models only ever see this version."}
+                {reveal ? "Patient details are showing. This access was recorded in the audit trail." : "Protected view. Patient details are hidden, and only this version is used for checking."}
               </div>
             )}
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 scrollbar-thin">
@@ -183,7 +183,7 @@ export function DocumentsPanel({ caseId, initialDocId }: { caseId: string; initi
       ) : null}
       {confirmDelete && meta ? (
         <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-          <DialogContent title="Delete this document?" description={`${meta.filename} will be removed from the chart and excluded from future evaluations. The deletion is recorded in the audit trail.`} size="sm">
+          <DialogContent title="Delete this document?" description={`${meta.filename} will be removed from the chart and won't be used in future checks. The deletion is recorded in the audit trail.`} size="sm">
             <DialogFooter>
               <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
                 Cancel
