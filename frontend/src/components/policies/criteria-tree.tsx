@@ -1,4 +1,4 @@
-import { Layers, Quote } from "lucide-react";
+import { CircleAlert, CircleCheck, Layers, Quote } from "lucide-react";
 import type { CriteriaNode } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/display";
@@ -11,7 +11,15 @@ const KIND: Record<string, string> = {
   numeric: "Measure",
 };
 
-export function CriteriaTreeView({ node, depth = 0, onEdit }: { node: CriteriaNode; depth?: number; onEdit?: (n: CriteriaNode) => void }) {
+const norm = (t: string) => t.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/\s+/g, " ").trim();
+
+/** Same rule the backend grounding check applies: a quote counts only if it appears verbatim
+ *  (whitespace- and case-normalized) in the policy version being evaluated. */
+export function quoteFound(quote: string, sourceText: string) {
+  return norm(sourceText).includes(norm(quote));
+}
+
+export function CriteriaTreeView({ node, depth = 0, onEdit, sourceText }: { node: CriteriaNode; depth?: number; onEdit?: (n: CriteriaNode) => void; sourceText?: string }) {
   if (node.children?.length) {
     return (
       <div className={cn("grid gap-2", depth > 0 && "rounded-lg border border-dashed border-border-strong bg-surface-2/30 p-2.5")}>
@@ -20,13 +28,14 @@ export function CriteriaTreeView({ node, depth = 0, onEdit }: { node: CriteriaNo
           {node.op === "OR" ? "Any one of" : node.op === "N_OF_M" ? `At least ${node.n} of` : "All of the following"}
         </p>
         {node.children.map((c, i) => (
-          <CriteriaTreeView key={c.id ?? i} node={c} depth={depth + 1} onEdit={onEdit} />
+          <CriteriaTreeView key={c.id ?? i} node={c} depth={depth + 1} onEdit={onEdit} sourceText={sourceText} />
         ))}
       </div>
     );
   }
+  const grounded = sourceText && node.sourceSpan ? quoteFound(node.sourceSpan.quote, sourceText) : null;
   return (
-    <div className="rounded-lg border border-border bg-surface p-3">
+    <div className={cn("rounded-lg border bg-surface p-3", grounded === false ? "border-insufficient/40 bg-insufficient-soft/20" : "border-border")}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-xs text-subtle">{node.id}</span>
         <span className="min-w-0 flex-1 text-[13px] font-medium text-fg">{node.text}</span>
@@ -46,8 +55,14 @@ export function CriteriaTreeView({ node, depth = 0, onEdit }: { node: CriteriaNo
         <p className="mt-2 flex gap-2 text-xs leading-relaxed text-muted">
           <Quote className="mt-0.5 size-3 shrink-0" />
           <span>
-            <mark className="mark-policy">{node.sourceSpan.quote}</mark> <span className="text-subtle">· {node.sourceSpan.section.replace(/_/g, " ")}</span>
+            <mark className={grounded === false ? "rounded-[3px] bg-insufficient-soft px-0.5 text-insufficient-fg" : "mark-policy"}>{node.sourceSpan.quote}</mark> <span className="text-subtle">· {node.sourceSpan.section.replace(/_/g, " ")}</span>
           </span>
+        </p>
+      ) : null}
+      {grounded !== null ? (
+        <p className={cn("mt-1.5 flex items-center gap-1.5 pl-5 text-[11px]", grounded ? "text-met-fg" : "font-medium text-insufficient-fg")}>
+          {grounded ? <CircleCheck className="size-3" /> : <CircleAlert className="size-3" />}
+          {grounded ? "Found verbatim in this edition" : "Not found in this edition — re-anchor before approval"}
         </p>
       ) : null}
     </div>
