@@ -22,7 +22,8 @@ export function KpiTile({
   className,
 }: {
   label: string;
-  value: number;
+  /** `null` means "no data yet" and renders an em dash instead of a misleading zero. */
+  value: number | null;
   format?: (n: number) => string;
   icon?: React.ReactNode;
   trend?: { delta: number; label: string; goodWhen: "up" | "down"; format?: (n: number) => string };
@@ -34,15 +35,15 @@ export function KpiTile({
   const good = trend ? (trend.goodWhen === "up" ? trend.delta >= 0 : trend.delta <= 0) : null;
   const Arrow = !trend ? ArrowRight : trend.delta > 0 ? ArrowUpRight : trend.delta < 0 ? ArrowDownRight : ArrowRight;
   const body = (
-    <div className={cn("group flex h-full flex-col justify-between gap-3 rounded-xl bg-surface p-4 shadow-e1 transition-shadow duration-200 hover:shadow-e2", className)}>
+    <div className={cn("flex h-full flex-col justify-between gap-3 rounded-lg border border-border bg-surface p-4", className)}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium text-muted">{label}</span>
-        {icon ? <span className="text-subtle transition-colors group-hover:text-muted [&_svg]:size-4">{icon}</span> : null}
+        {icon ? <span className="text-subtle [&_svg]:size-4">{icon}</span> : null}
       </div>
       <div className="flex items-end justify-between gap-3">
         <div className="grid min-w-0 gap-1.5">
-          <span className="text-[26px] font-semibold leading-none tracking-[-0.03em] text-fg">
-            <CountUp value={value} format={format} />
+          <span className="text-[26px] font-semibold leading-none tracking-[-0.02em] text-fg">
+            {value === null ? <span aria-label="No data yet">—</span> : <CountUp value={value} format={format} />}
           </span>
           {trend ? (
             <span className={cn("inline-flex items-center gap-1 text-xs font-medium", good ? "text-met-fg" : "text-insufficient-fg")}>

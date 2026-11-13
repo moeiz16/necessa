@@ -1,20 +1,19 @@
 "use client";
 
-import { ArrowRight, BellRing, BookOpen, CircleCheck, Clock3, FilePlus2, Gauge, Gavel, Hourglass, ListChecks, MessageSquareText, ScrollText, Sparkles, Timer } from "lucide-react";
+import { ArrowRight, FilePlus2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
-import { useActivity, useAnalytics, useCases, useCriteriaSets, useNotifications } from "@/lib/api/hooks";
+import { useActivity, useAnalytics, useCases, useNotifications } from "@/lib/api/hooks";
 import { Can, useSession } from "@/lib/api/session";
 import type { CaseSummary } from "@/lib/api/types";
 import { fmtNumber, fmtPct, fmtRelative, slaParts, titleCase } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AppPage } from "@/components/shell/app-shell";
-import { Bars, Donut, Legend, RankList, SERIES, StackedBars } from "@/components/charts/charts";
-import { KpiTile, smooth } from "@/components/cases/kpi";
-import { AiBadge } from "@/components/domain/trust";
+import { Donut, Legend, RankList, SERIES, StackedBars } from "@/components/charts/charts";
+import { KpiTile } from "@/components/cases/kpi";
 import { CodeChip, ReadinessRing, SlaTimer, StatusChip } from "@/components/domain/verdict";
 import { Button } from "@/components/ui/button";
-import { Avatar, Badge, Breadcrumb, Card, CardBody, CardHeader, Skeleton } from "@/components/ui/display";
+import { Avatar, Breadcrumb, Card, CardBody, CardHeader, Skeleton } from "@/components/ui/display";
 import { EmptyState } from "@/components/ui/empty";
 import { FadeIn, Stagger, StaggerItem } from "@/components/ui/motion";
 
@@ -25,96 +24,86 @@ function greeting() {
   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
-/** Urgency tier from the payer clock (CMS-0057-F: 72 h expedited / 7 d standard). */
-function urgency(c: CaseSummary): { tier: "breached" | "today" | "soon" | "ok"; label: string } {
+/** Urgency from the payer deadline (CMS-0057-F: 72 hours urgent / 7 days standard). */
+function urgency(c: CaseSummary): { tier: "past" | "today" | "soon" | "ok"; label: string } {
   if (CLOSED.includes(c.status)) return { tier: "ok", label: "" };
   const p = slaParts(c.dueAt);
   if (!p) return { tier: "ok", label: "" };
-  if (p.overdue) return { tier: "breached", label: "Past payer clock" };
-  if (p.minutes < 24 * 60) return { tier: "today", label: "Due within 24 h" };
+  if (p.overdue) return { tier: "past", label: "Past the payer deadline" };
+  if (p.minutes < 24 * 60) return { tier: "today", label: "Due within 24 hours" };
   if (p.minutes < 72 * 60) return { tier: "soon", label: "Due within 3 days" };
   return { tier: "ok", label: "" };
 }
-const TIER_RAIL = { breached: "bg-notmet", today: "bg-notmet/70", soon: "bg-insufficient", ok: "bg-transparent" } as const;
+const TIER_RAIL = { past: "bg-notmet", today: "bg-notmet/70", soon: "bg-insufficient", ok: "bg-transparent" } as const;
 
-type BriefItem = { tier: "Urgent" | "Today" | "This week" | "FYI"; icon: React.ReactNode; text: React.ReactNode; action: string; href: string };
+type Line = { tone: "urgent" | "normal" | "good"; text: React.ReactNode; action: string; href: string };
 
-function Briefing({ cases, reviewCount, policyAlert, firstName }: { cases: CaseSummary[]; reviewCount: number; policyAlert?: { title: string; link?: string | null }; firstName?: string }) {
+function plural(n: number, one: string, many = `${one}s`) {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** Plain-language summary of what needs attention today. */
+function Today({ cases, policyAlert, firstName }: { cases: CaseSummary[]; policyAlert?: { title: string; link?: string | null }; firstName?: string }) {
   const open = cases.filter((c) => !CLOSED.includes(c.status));
-  const breached = open.filter((c) => urgency(c).tier === "breached");
-  const due = open.filter((c) => urgency(c).tier === "today");
+  const past = open.filter((c) => urgency(c).tier === "past");
+  const today = open.filter((c) => urgency(c).tier === "today");
   const gaps = open.filter((c) => c.readiness === "gaps" && c.status === "needs_review");
+  const unchecked = open.filter((c) => c.status === "draft" && c.readiness === "unknown");
   const ready = open.filter((c) => c.status === "ready");
-  const unknown = open.filter((c) => c.readiness === "unknown" && c.status !== "draft");
-  const items: BriefItem[] = [];
-  const nums = (cs: CaseSummary[]) => cs.map((c) => c.number.slice(-5)).join(", ");
-  if (breached.length)
-    items.push({ tier: "Urgent", icon: <Timer className="text-notmet" />, text: <><b className="font-semibold text-fg">{breached.length} past the payer clock</b> — {nums(breached)}</>, action: "Open", href: "/cases?view=due" });
-  if (due.length)
-    items.push({ tier: "Urgent", icon: <Timer className="text-notmet" />, text: <><b className="font-semibold text-fg">{due.length} case{due.length > 1 ? "s" : ""} due within 24 hours</b> — {nums(due)}</>, action: "Triage", href: "/cases?view=due" });
-  if (gaps.length)
-    items.push({ tier: "Today", icon: <ListChecks className="text-insufficient" />, text: <><b className="font-semibold text-fg">{gaps.length} case{gaps.length > 1 ? "s have" : " has"} documentation gaps</b> Necessa can help close before submission</>, action: "Review gaps", href: "/cases?view=gaps" });
-  if (unknown.length)
-    items.push({ tier: "Today", icon: <BookOpen className="text-insufficient" />, text: <><b className="font-semibold text-fg">{unknown.length} case{unknown.length > 1 ? "s" : ""} couldn&apos;t be evaluated</b> — the applicable policy has no approved criteria yet</>, action: "Open queue", href: "/knowledge?tab=criteria" });
-  if (ready.length)
-    items.push({ tier: "This week", icon: <CircleCheck className="text-met" />, text: <><b className="font-semibold text-fg">{ready.length} ready to submit</b> — every criterion documented, letters cite chart and policy</>, action: "Submit", href: "/cases?view=ready" });
-  if (reviewCount)
-    items.push({ tier: "This week", icon: <BookOpen className="text-brand" />, text: <><b className="font-semibold text-fg">{reviewCount} criteria set{reviewCount > 1 ? "s" : ""}</b> await clinical review before they can be used</>, action: "Review", href: "/knowledge?tab=criteria" });
-  if (policyAlert) items.push({ tier: "FYI", icon: <ScrollText className="text-ai-3" />, text: policyAlert.title, action: "View", href: policyAlert.link ?? "/policies" });
+  const nums = (cs: CaseSummary[]) => cs.slice(0, 4).map((c) => c.number.slice(-5)).join(", ") + (cs.length > 4 ? "…" : "");
 
-  const top = items[0];
-  const headline = !top
-    ? "Nothing urgent on your worklist. A good moment to clear the criteria review queue."
-    : breached.length || due.length
-      ? `Start with the ${breached.length + due.length} case${breached.length + due.length > 1 ? "s" : ""} on a payer clock today${gaps.length ? `, then close documentation gaps on ${gaps.length} more` : ""}.`
-      : gaps.length
-        ? `No clocks at risk today. Closing gaps on ${gaps.length} case${gaps.length > 1 ? "s" : ""} is the highest-impact work.`
-        : `Your worklist is in good shape${ready.length ? ` — ${ready.length} ready to submit` : ""}.`;
-  const tierTone = { Urgent: "notmet", Today: "insufficient", "This week": "neutral", FYI: "info" } as const;
+  const lines: Line[] = [];
+  if (past.length) lines.push({ tone: "urgent", text: <><b className="font-medium text-fg">{plural(past.length, "case")} past the payer deadline</b> ({nums(past)})</>, action: "Open", href: "/cases?view=due" });
+  if (today.length) lines.push({ tone: "urgent", text: <><b className="font-medium text-fg">{plural(today.length, "case")} due within 24 hours</b> ({nums(today)})</>, action: "Open", href: "/cases?view=due" });
+  if (gaps.length) lines.push({ tone: "normal", text: <><b className="font-medium text-fg">{plural(gaps.length, "case")}</b> with documentation gaps to close before submitting</>, action: "Review", href: "/cases?view=gaps" });
+  if (unchecked.length) lines.push({ tone: "normal", text: <><b className="font-medium text-fg">{plural(unchecked.length, "case")}</b> not yet checked against the payer policy</>, action: "Start checks", href: "/cases" });
+  if (ready.length) lines.push({ tone: "good", text: <><b className="font-medium text-fg">{ready.length} ready to submit</b>, with every requirement documented</>, action: "Submit", href: "/cases?view=ready" });
+  if (policyAlert) lines.push({ tone: "normal", text: policyAlert.title, action: "View", href: policyAlert.link ?? "/policies" });
+
+  const urgent = past.length + today.length;
+  const headline = urgent
+    ? `${plural(urgent, "case")} ${urgent === 1 ? "is" : "are"} close to the payer deadline. Start there.`
+    : gaps.length
+      ? `Nothing is at risk of missing a deadline today. Closing documentation gaps on ${plural(gaps.length, "case")} is the best use of your time.`
+      : unchecked.length
+        ? `${plural(unchecked.length, "case")} ${unchecked.length === 1 ? "is" : "are"} waiting for a first check against the payer policy.`
+        : ready.length
+          ? `${ready.length} ${ready.length === 1 ? "case is" : "cases are"} ready to submit.`
+          : "Your worklist is clear.";
 
   return (
-    <section aria-label="Today's briefing" className="ai-border relative overflow-hidden rounded-xl p-4 shadow-e1 sm:p-5">
-      <div className="pointer-events-none absolute -right-24 -top-28 size-72 rounded-full bg-[radial-gradient(circle,color-mix(in_oklab,var(--ai-2)_14%,transparent),transparent_70%)]" />
-      <div className="relative flex flex-wrap items-center gap-2">
-        <Sparkles className="size-4 text-ai-2" />
-        <h2 className="text-[13px] font-semibold">Today&apos;s briefing</h2>
-        <AiBadge label="Generated" detail="Assembled from your worklist, payer clocks and the policy feed. It reflects data, not a clinical judgment." />
-        <Button asChild variant="ghost" size="xs" className="ml-auto">
-          <Link href="/assistant">
-            <MessageSquareText /> Ask a follow-up
-          </Link>
-        </Button>
-      </div>
-      <p className="relative mt-2 max-w-3xl text-[15px] leading-relaxed text-fg">
+    <section aria-label="Today" className="rounded-lg border border-border bg-surface p-5">
+      <h2 className="text-xs font-medium uppercase tracking-wide text-subtle">Today</h2>
+      <p className="mt-2 max-w-3xl text-[15px] leading-relaxed text-fg">
         {firstName ? `${firstName}, ` : ""}
-        {headline.charAt(0).toLowerCase() === headline.charAt(0) || !firstName ? headline : headline.charAt(0).toLowerCase() + headline.slice(1)}
+        {firstName ? headline.charAt(0).toLowerCase() + headline.slice(1) : headline}
       </p>
-      <Stagger as="ul" className="relative mt-3 grid gap-0.5">
-        {items.map((it, i) => (
-          <StaggerItem as="li" key={i}>
-            <Link href={it.href} className="group flex items-center gap-3 rounded-md px-2 py-1.5 text-[13px] text-muted outline-none transition-colors hover:bg-surface-2 focus-visible:bg-surface-2">
-              <Badge tone={tierTone[it.tier]} size="xs" className="w-[70px] justify-center">
-                {it.tier}
-              </Badge>
-              <span className="shrink-0 [&_svg]:size-4">{it.icon}</span>
-              <span className="min-w-0 flex-1">{it.text}</span>
-              <span className="hidden shrink-0 items-center gap-1 text-xs font-medium text-brand-fg opacity-70 transition-opacity group-hover:opacity-100 sm:inline-flex">
-                {it.action} <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
-              </span>
-            </Link>
-          </StaggerItem>
-        ))}
-      </Stagger>
+      {lines.length ? (
+        <ul className="mt-3 grid divide-y divide-border/70 border-t border-border/70">
+          {lines.map((l, i) => (
+            <li key={i}>
+              <Link href={l.href} className="group flex items-center gap-3 py-2.5 text-[13px] text-muted outline-none transition-colors hover:text-fg focus-visible:text-fg">
+                <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", l.tone === "urgent" ? "bg-notmet" : l.tone === "good" ? "bg-met" : "bg-border-strong")} />
+                <span className="sr-only">{l.tone === "urgent" ? "Urgent: " : ""}</span>
+                <span className="min-w-0 flex-1">{l.text}</span>
+                <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-brand-fg">
+                  {l.action} <ArrowRight className="size-3.5" />
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </section>
   );
 }
 
 export default function DashboardPage() {
   const { me } = useSession();
-  const cases = useCases({ sort: "dueAt", limit: 200 });
+  // The API caps list requests at 100 cases; the dashboard works from the most urgent 100.
+  const cases = useCases({ sort: "dueAt", limit: 100 });
   const analytics = useAnalytics("30d");
   const activity = useActivity();
-  const review = useCriteriaSets("needs_review");
   const notifications = useNotifications();
 
   const all = useMemo(() => cases.data?.items ?? [], [cases.data]);
@@ -128,38 +117,39 @@ export default function DashboardPage() {
   );
   const a = analytics.data;
   const firstName = me?.user.fullName.replace(/^Dr\.\s*/, "").split(" ")[0];
-  const dueToday = all.filter((c) => urgency(c).tier === "today" || urgency(c).tier === "breached").length;
   const policyNotes = (notifications.data ?? []).filter((n) => n.type === "policy");
 
-  const actions = useMemo(() => {
-    const out: { title: string; why: string; href: string; tone: "high" | "medium"; cta: string }[] = [];
+  const steps = useMemo(() => {
+    const out: { title: string; why: string; href: string; high: boolean; cta: string }[] = [];
     for (const c of all) {
       const u = urgency(c);
       if (c.status === "draft" && c.readiness === "unknown")
-        out.push({ title: `Run a medical-necessity check on ${c.number}`, why: `${c.title} hasn't been evaluated yet${u.label ? ` · ${u.label.toLowerCase()}` : ""}`, href: `/cases/${c.id}?evaluate=1`, tone: u.tier === "ok" ? "medium" : "high", cta: "Evaluate" });
+        out.push({ title: `Check ${c.number} against the policy`, why: `${c.title} hasn't been checked yet${u.label ? ` · ${u.label.toLowerCase()}` : ""}`, href: `/cases/${c.id}?evaluate=1`, high: u.tier !== "ok", cta: "Run check" });
       if (c.readiness === "gaps" && c.status === "needs_review")
-        out.push({ title: `Close gaps on ${c.number}`, why: `Readiness ${fmtPct(c.readinessScore)} · ${c.priority === "expedited" ? "expedited, 72 h clock" : "standard, 7 d clock"}${u.label ? ` · ${u.label.toLowerCase()}` : ""}`, href: `/cases/${c.id}?tab=gaps`, tone: c.priority === "expedited" || u.tier !== "ok" ? "high" : "medium", cta: "Fix gaps" });
-      if (c.status === "denied") out.push({ title: `Start an appeal for ${c.number}`, why: "The denial reason maps to a documentation criterion that can be addressed", href: `/cases/${c.id}?tab=denials`, tone: "high", cta: "Appeal" });
-      if (c.status === "ready") out.push({ title: `Submit ${c.number}`, why: "Every criterion is documented and the letter cites chart and policy", href: `/cases/${c.id}?tab=letters`, tone: "medium", cta: "Review & submit" });
+        out.push({ title: `Close the gaps on ${c.number}`, why: `${fmtPct(c.readinessScore)} of requirements documented · ${c.priority === "expedited" ? "urgent, 72 hour deadline" : "standard, 7 day deadline"}`, href: `/cases/${c.id}?tab=gaps`, high: c.priority === "expedited" || u.tier !== "ok", cta: "Open gaps" });
+      if (c.status === "denied") out.push({ title: `Start an appeal for ${c.number}`, why: "The denial reason points to documentation you can add", href: `/cases/${c.id}?tab=denials`, high: true, cta: "Appeal" });
+      if (c.status === "ready") out.push({ title: `Submit ${c.number}`, why: "Every requirement is documented and the letter cites the sources", href: `/cases/${c.id}?tab=letters`, high: false, cta: "Review and submit" });
     }
-    return out.sort((x, y) => (x.tone === y.tone ? 0 : x.tone === "high" ? -1 : 1)).slice(0, 5);
+    return out.sort((x, y) => Number(y.high) - Number(x.high)).slice(0, 5);
   }, [all]);
 
+  const checked = a ? a.trends.readinessByWeek.reduce((n, w) => n + w.ready + w.gaps + w.notSupported, 0) : 0;
+  const turnaround = (a?.kpis.avgTurnaroundHours ?? null) as number | null; // null until a case has been completed
+  const turnaroundFmt = (h: number) => (h >= 48 ? `${fmtNumber(h / 24, { maximumFractionDigits: 1 })} days` : `${Math.round(h)} h`);
+
   return (
-    <AppPage crumbs={<Breadcrumb items={[{ label: "Dashboard" }]} />}>
+    <AppPage crumbs={<Breadcrumb items={[{ label: "Home" }]} />}>
       <div className="flex flex-col gap-4 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs text-subtle">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</p>
-          <h1 className="mt-1 text-[22px] font-semibold tracking-[-0.02em]">
+          <h1 className="mt-1 text-xl font-semibold">
             {greeting()}
             {firstName ? `, ${firstName}` : ""}
           </h1>
         </div>
         <div className="flex gap-2">
           <Button asChild variant="secondary">
-            <Link href="/assistant">
-              <Sparkles className="text-ai-2" /> Ask Necessa
-            </Link>
+            <Link href="/assistant">Ask Necessa</Link>
           </Button>
           <Can perm="cases:write">
             <Button asChild variant="primary">
@@ -173,10 +163,10 @@ export default function DashboardPage() {
 
       <div className="grid gap-4">
         {cases.isPending ? (
-          <Skeleton className="h-44 rounded-xl" />
+          <Skeleton className="h-44 rounded-lg" />
         ) : (
           <FadeIn>
-            <Briefing cases={all} reviewCount={review.data?.total ?? 0} policyAlert={policyNotes[0]} firstName={firstName} />
+            <Today cases={all} policyAlert={policyNotes[0]} firstName={firstName} />
           </FadeIn>
         )}
 
@@ -185,48 +175,42 @@ export default function DashboardPage() {
             <>
               <StaggerItem>
                 <KpiTile
-                  label="Open cases"
-                  value={a.kpis.openCases}
-                  icon={<Hourglass />}
-                  note={dueToday ? { text: `${dueToday} due within 24 h`, tone: "warn" } : { text: "No payer clocks at risk today", tone: "good" }}
-                  spark={smooth(a.trends.casesByDay.map((d) => d.count))}
-                  hint="New cases per day, 7-day average"
-                />
-              </StaggerItem>
-              <StaggerItem>
-                <KpiTile
-                  label="Ready-to-submit rate"
-                  value={Math.round(a.kpis.readyRate * 100)}
+                  label="Ready to submit"
+                  value={checked ? Math.round(a.kpis.readyRate * 100) : null}
                   format={(n) => `${Math.round(n)}%`}
-                  icon={<Gauge />}
-                  trend={{ delta: 6, label: "pts vs. prior 30d", goodWhen: "up" }}
-                  spark={a.trends.readinessByWeek.map((w) => w.ready / Math.max(1, w.ready + w.gaps + w.notSupported))}
-                  hint="Share of evaluated cases with every criterion documented"
+                  note={{ text: checked ? `of ${plural(checked, "checked case")}` : "No cases checked yet" }}
+                  hint="Share of checked cases where every requirement is documented"
                 />
               </StaggerItem>
               <StaggerItem>
                 <KpiTile
-                  label="Gaps caught pre-submission"
+                  label="Average turnaround"
+                  value={turnaround}
+                  format={turnaroundFmt}
+                  note={{ text: "Deadlines: 72 h urgent, 7 d standard" }}
+                  hint="Time from case creation to ready for submission"
+                />
+              </StaggerItem>
+              <StaggerItem>
+                <KpiTile
+                  label="Gaps fixed before submitting"
                   value={a.kpis.gapsCaughtPreSubmission}
-                  icon={<ListChecks />}
-                  trend={{ delta: 11, label: "this month", goodWhen: "up" }}
-                  note={{ text: "Fixed before the payer saw them" }}
-                  hint="Criteria flagged Insufficient or Not met before the packet went to the payer"
+                  note={{ text: "Found before the payer saw the request" }}
+                  hint="Missing or unclear documentation caught before submission"
                 />
               </StaggerItem>
               <StaggerItem>
                 <KpiTile
-                  label="Est. staff hours saved"
+                  label="Staff hours saved (est.)"
                   value={a.kpis.estimatedHoursSaved}
                   format={(n) => fmtNumber(n, { maximumFractionDigits: 1 })}
-                  icon={<Clock3 />}
-                  note={{ text: `Avg. turnaround ${Math.round(a.kpis.avgTurnaroundHours)} h` }}
-                  hint="Estimate against the AMA 2025 benchmark of ~13 staff hours per physician per week"
+                  note={{ text: "AMA 2025 survey benchmark" }}
+                  hint="Estimate: 15 minutes per completed check and 20 minutes per drafted letter"
                 />
               </StaggerItem>
             </>
           ) : (
-            Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[118px] rounded-xl" />)
+            Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[104px] rounded-lg" />)
           )}
         </Stagger>
 
@@ -234,7 +218,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader
               title="Needs attention"
-              description="Ordered by payer clock · 72 h expedited, 7 d standard"
+              description="Ordered by payer deadline"
               actions={
                 <Button asChild variant="ghost" size="xs">
                   <Link href="/cases">
@@ -246,8 +230,10 @@ export default function DashboardPage() {
             <CardBody className="px-0 pb-1">
               {cases.isPending ? (
                 <div className="grid gap-2 px-4 pb-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+              ) : cases.isError ? (
+                <EmptyState compact art="cases" title="We couldn't load your cases" description="Refresh the page to try again." />
               ) : attention.length === 0 ? (
-                <EmptyState compact art="cases" title="No cases need attention" description="New cases and evaluations will show up here." />
+                <EmptyState compact art="cases" title="Nothing needs attention" description="New cases will show up here." />
               ) : (
                 <Stagger as="ul">
                   {attention.map((c) => {
@@ -288,23 +274,21 @@ export default function DashboardPage() {
           </Card>
 
           <Card>
-            <CardHeader title="Next best actions" description="Ranked by payer clock and readiness impact" icon={<Sparkles className="text-ai-2" />} />
+            <CardHeader title="Suggested next steps" description="Most urgent first" />
             <CardBody className="grid gap-1.5">
-              {actions.length === 0 ? <p className="py-6 text-center text-[13px] text-muted">You&apos;re ahead of the queue.</p> : null}
+              {steps.length === 0 ? <p className="py-6 text-center text-[13px] text-muted">You&apos;re all caught up.</p> : null}
               <Stagger className="grid gap-1.5">
-                {actions.map((x) => (
+                {steps.map((x) => (
                   <StaggerItem key={x.title}>
-                    <Link href={x.href} className="group flex items-start gap-3 rounded-lg border border-border p-3 outline-none transition-[border-color,background-color] hover:border-border-strong hover:bg-surface-2/50 focus-visible:border-brand">
-                      <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", x.tone === "high" ? "bg-notmet" : "bg-insufficient")} aria-label={x.tone === "high" ? "High priority" : "Medium priority"} />
+                    <Link href={x.href} className="group flex items-start gap-3 rounded-md border border-border p-3 outline-none transition-colors hover:border-border-strong focus-visible:border-brand">
+                      <span className={cn("mt-1.5 size-1.5 shrink-0 rounded-full", x.high ? "bg-notmet" : "bg-border-strong")} />
+                      <span className="sr-only">{x.high ? "High priority. " : ""}</span>
                       <span className="grid min-w-0 flex-1 gap-0.5">
                         <span className="text-[13px] font-medium text-fg">{x.title}</span>
-                        <span className="text-xs text-muted">
-                          <span className="font-medium text-subtle">Why: </span>
-                          {x.why}
-                        </span>
+                        <span className="text-xs text-muted">{x.why}</span>
                       </span>
                       <span className="mt-0.5 hidden shrink-0 items-center gap-1 text-xs font-medium text-brand-fg sm:inline-flex">
-                        {x.cta} <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                        {x.cta} <ArrowRight className="size-3.5" />
                       </span>
                     </Link>
                   </StaggerItem>
@@ -314,91 +298,63 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-3">
           <Card>
-            <CardHeader title="Documentation readiness by week" description="Evaluated cases · last 30 days" />
+            <CardHeader title="Readiness over time" description="Checked cases, last 30 days" />
             <CardBody>
               {a ? (
                 a.trends.readinessByWeek.length ? (
                   <StackedBars
                     data={a.trends.readinessByWeek}
                     x="week"
+                    height={180}
                     series={[
                       { key: "ready", label: "Ready", color: "var(--met)" },
-                      { key: "gaps", label: "Gaps", color: "var(--insufficient)" },
+                      { key: "gaps", label: "Gaps to close", color: "var(--insufficient)" },
                       { key: "notSupported", label: "Not supported", color: "var(--notmet)" },
                     ]}
                   />
                 ) : (
-                  <EmptyState compact art="chart" title="No evaluations yet" />
+                  <EmptyState compact art="chart" title="No checked cases yet" />
                 )
               ) : (
-                <Skeleton className="h-[220px]" />
+                <Skeleton className="h-[180px]" />
               )}
             </CardBody>
           </Card>
           <Card>
-            <CardHeader title="Most frequent gaps" description="Criteria flagged before submission this month" />
+            <CardHeader title="Most common documentation gaps" description="Found before submission this month" />
             <CardBody>
               {a ? (
                 a.topGapCriteria.length ? (
-                  <RankList items={a.topGapCriteria.map((g) => ({ label: g.criterionText, value: g.count }))} />
+                  <RankList items={a.topGapCriteria.slice(0, 5).map((g) => ({ label: g.criterionText, value: g.count }))} />
                 ) : (
                   <EmptyState compact art="chart" title="No gaps recorded yet" />
                 )
               ) : (
-                <Skeleton className="h-[220px]" />
+                <Skeleton className="h-[180px]" />
               )}
             </CardBody>
           </Card>
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-[1fr_1fr_1.1fr]">
           <Card>
-            <CardHeader title="Denial reasons" description="Last 90 days" icon={<Gavel />} />
-            <CardBody className="grid grid-cols-[140px_1fr] items-center gap-4">
+            <CardHeader title="Denial reasons" description="Last 90 days" />
+            <CardBody className="grid grid-cols-[120px_1fr] items-center gap-4">
               {a && a.denialReasons.length ? (
                 <>
-                  <Donut data={a.denialReasons} nameKey="category" valueKey="count" height={140} />
+                  <Donut data={a.denialReasons} nameKey="category" valueKey="count" height={120} />
                   <Legend items={a.denialReasons.map((d, i) => ({ label: titleCase(d.category), color: SERIES[i % SERIES.length]!, value: d.count }))} />
                 </>
               ) : a ? (
-                <p className="col-span-2 py-6 text-center text-[13px] text-muted">No denials. Keep it up.</p>
+                <p className="col-span-2 py-8 text-center text-[13px] text-muted">No denials recorded.</p>
               ) : (
-                <Skeleton className="col-span-2 h-[140px]" />
-              )}
-            </CardBody>
-          </Card>
-          <Card>
-            <CardHeader title="Payer mix" description="Cases by payer type" />
-            <CardBody>{a && a.payerMix.length ? <Bars data={a.payerMix.map((p) => ({ ...p, payerType: titleCase(p.payerType) }))} x="payerType" y="count" height={150} /> : <Skeleton className="h-[150px]" />}</CardBody>
-          </Card>
-          <Card className="lg:col-span-2 xl:col-span-1">
-            <CardHeader title="Policy changes" description="Coverage updates that affect your services" icon={<BellRing />} />
-            <CardBody className="grid gap-2">
-              {notifications.isPending ? (
-                <Skeleton className="h-24" />
-              ) : policyNotes.length ? (
-                policyNotes.slice(0, 3).map((n) => (
-                  <Link key={n.id} href={n.link ?? "/policies"} className="group grid gap-0.5 rounded-lg border border-border p-2.5 outline-none transition-colors hover:border-border-strong focus-visible:border-brand">
-                    <span className="flex items-center gap-2 text-[13px] font-medium text-fg">
-                      <ScrollText className="size-3.5 shrink-0 text-ai-3" />
-                      <span className="min-w-0 truncate">{n.title}</span>
-                      {!n.readAt ? <span className="ml-auto size-1.5 shrink-0 rounded-full bg-brand" aria-label="Unread" /> : null}
-                    </span>
-                    <span className="line-clamp-2 pl-5 text-xs text-muted">{n.body}</span>
-                    <span className="pl-5 text-[11px] text-subtle">{fmtRelative(n.createdAt)}</span>
-                  </Link>
-                ))
-              ) : (
-                <p className="py-4 text-center text-[13px] text-muted">No policy changes in the last 30 days.</p>
+                <Skeleton className="col-span-2 h-[120px]" />
               )}
             </CardBody>
           </Card>
         </div>
 
         <Card>
-          <CardHeader title="Activity" description="Across your organization" />
+          <CardHeader title="Recent activity" description="Across your practice" />
           <CardBody>
             <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {(activity.data ?? []).slice(0, 6).map((e) => (
