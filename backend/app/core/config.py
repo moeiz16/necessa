@@ -68,6 +68,8 @@ class Settings(BaseSettings):
     mistral_api_key: SecretStr = SecretStr("")
     cerebras_api_key: SecretStr = SecretStr("")
     github_models_token: SecretStr = SecretStr("")
+    # Deterministic offline fakes for every LLM / embedding / rerank call (tests, keyless demos).
+    llm_fake: bool = False
     llm_config_path: Path = BACKEND_ROOT / "app" / "ai" / "llm" / "models.yaml"
     llm_default_timeout_s: float = 45.0
     llm_daily_token_budget: int = 2_000_000
