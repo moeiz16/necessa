@@ -564,12 +564,12 @@ def build_case_graph(rt: Runtime):
                 0,
                 Gap(
                     criterion_id="policy:criteria",
-                    title="No approved criteria for the applicable policy",
-                    detail=f"Matched policies ({keys}) have no reviewed criteria set yet, "
-                    "so nothing was evaluated.",
+                    title="No reviewed requirements for the matching policy",
+                    detail=f"The matching policies ({keys}) have no reviewed requirements "
+                    "checklist yet, so nothing could be checked.",
                     severity="blocker",
-                    suggested_fix="Compile or approve criteria in Knowledge → Criteria review, "
-                    "then re-run the evaluation.",
+                    suggested_fix="Ask a reviewer to approve the requirements checklist for this policy, "
+                    "then check the case again.",
                 ).model_dump(by_alias=True),
             )
         await rt.ports.publish("evaluation.gaps", {"gaps": gaps})

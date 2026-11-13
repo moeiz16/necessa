@@ -152,8 +152,9 @@ async def next_actions(db: AsyncSession, case: Case) -> list[dict]:
         actions.append(
             _a(
                 "review_quarantine",
-                "Review quarantined document",
-                "A document was quarantined by the prompt-injection scanner and excluded from evaluation.",
+                "Review the document that was set aside",
+                "A document looked unsafe and was set aside, so it is not part of the check. "
+                "Please review it.",
                 "high",
             )
         )
@@ -162,7 +163,7 @@ async def next_actions(db: AsyncSession, case: Case) -> list[dict]:
             _a(
                 "run_evaluation",
                 "Run documentation check",
-                "Evaluate the chart against the applicable coverage criteria.",
+                "Check the chart against the requirements of the applicable payer policy.",
                 "high",
             )
         )
@@ -172,8 +173,8 @@ async def next_actions(db: AsyncSession, case: Case) -> list[dict]:
             actions.append(
                 _a(
                     "rerun_evaluation",
-                    "Re-run evaluation",
-                    f"{len(newer)} document(s) were added after the last evaluation.",
+                    "Check the case again",
+                    f"{len(newer)} document(s) were added after the last check.",
                     "high",
                 )
             )
@@ -181,7 +182,7 @@ async def next_actions(db: AsyncSession, case: Case) -> list[dict]:
             actions.append(
                 _a(
                     "resolve_gap",
-                    f"Resolve gap: {g.get('title', '')[:90]}",
+                    f"Fix: {g.get('title', '')[:90]}",
                     g.get("suggestedFix", ""),
                     "high" if g.get("severity") == "blocker" else "medium",
                     criterion_id=g.get("criterionId"),
@@ -200,7 +201,7 @@ async def next_actions(db: AsyncSession, case: Case) -> list[dict]:
                 _a(
                     "review_low_confidence",
                     f"Double-check: {r.criterion_text[:80]}",
-                    f"Model confidence {r.confidence:.0%}. Confirm or override this verdict.",
+                    f"Necessa is only {r.confidence:.0%} sure. Please confirm or change this result.",
                     "medium",
                     criterion_id=r.criterion_id,
                 )
@@ -210,9 +211,9 @@ async def next_actions(db: AsyncSession, case: Case) -> list[dict]:
             actions.append(
                 _a(
                     "verify_citations",
-                    "Some model citations were rejected",
-                    f"{len(flagged)} criterion verdict(s) were downgraded because quoted evidence was not "
-                    "found verbatim in the chart.",
+                    "Some quotes could not be confirmed",
+                    f"{len(flagged)} result(s) were marked as needing documentation because the quoted text "
+                    "could not be found in the chart.",
                     "low",
                 )
             )
@@ -221,7 +222,7 @@ async def next_actions(db: AsyncSession, case: Case) -> list[dict]:
                 _a(
                     "complete_review",
                     "Complete clinical review",
-                    "Confirm the criterion verdicts so the case can move to ready.",
+                    "Confirm the results so the case can move to ready.",
                     "medium",
                 )
             )
@@ -230,7 +231,7 @@ async def next_actions(db: AsyncSession, case: Case) -> list[dict]:
                 _a(
                     "draft_letter",
                     "Draft the letter of medical necessity",
-                    "All criteria are documented; generate the LMN / PA cover letter for signature.",
+                    "Every requirement is documented. Prepare the letter of medical necessity for signature.",
                     "medium",
                 )
             )
