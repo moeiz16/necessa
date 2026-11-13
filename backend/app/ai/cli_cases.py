@@ -1,4 +1,4 @@
-"""CLI for workstream C, mounted by app/cli.py as `necessa cases …`:
+"""Case-intelligence CLI, mounted by app/cli.py as `necessa cases …`:
 
     necessa cases seed demo                   # demo org + users + 14 evaluated cases (offline)
     necessa cases criteria list | sync | compile L33718 | approve <id>

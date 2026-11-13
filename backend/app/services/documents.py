@@ -1,6 +1,6 @@
 """Chart document intake: validate → extract text → de-identify → scan for injection → store encrypted.
 
-Uses workstream B's guardrails when present (`app.ai.guardrails.phi.Deidentifier`,
+Uses the RAG guardrails when present (`app.ai.guardrails.phi.Deidentifier`,
 `app.ai.guardrails.injection.scan_injection`) and falls back to conservative built-ins so intake never breaks.
 """
 
@@ -295,7 +295,7 @@ def deidentify(text: str, known: dict[str, str]) -> tuple[str, dict[str, int]]:
     try:
         # Stored chart text keeps clinical dates: the case date of service and note dates are real, so
         # shifting here would corrupt temporal criteria ("imaging within 60 days of service"). Identifiers and
-        # DOB are still removed; date shifting for external LLM calls happens at call time (workstream B/C).
+        # DOB are still removed; date shifting for external LLM calls happens at call time.
         res = Deidentifier(date_policy="keep").deidentify(text, known)
         return res.text, dict(res.counts)
     except Exception:

@@ -5,8 +5,8 @@ gives durability (queued jobs survive restarts and resume on boot) with zero ext
 Swap in a dedicated worker process in prod by running `JobRunner` on its own (same code).
 
 Handlers (`async def handler(ctx: JobContext) -> dict`) are registered by:
-* `app.ai.jobs_rag.JOB_HANDLERS`   (workstream B)
-* `app.ai.jobs_cases.JOB_HANDLERS` (workstream C)
+* `app.ai.jobs_rag.JOB_HANDLERS`   (knowledge & RAG)
+* `app.ai.jobs_cases.JOB_HANDLERS` (case intelligence)
 * `@register("type")` anywhere (tests, platform jobs)
 """
 

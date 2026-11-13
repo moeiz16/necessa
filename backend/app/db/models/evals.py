@@ -1,4 +1,4 @@
-"""Evaluation runs (offline quality gates) — workstream C."""
+"""Evaluation runs (offline quality gates)."""
 
 from __future__ import annotations
 

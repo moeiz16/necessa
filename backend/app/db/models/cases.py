@@ -1,6 +1,6 @@
 """Case domain models: patients, cases, documents, chart chunks, evaluations, letters, denials.
 
-Owned by workstream A (written to by workstream C during evaluation). See API_CONTRACT §3.2.
+Written by the case-evaluation agent during runs. See docs/API_CONTRACT.md §3.2.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Background job handlers for workstream B (merged by app.services.jobs)."""
+"""Background job handlers for knowledge & RAG (merged by app.services.jobs)."""
 
 from __future__ import annotations
 

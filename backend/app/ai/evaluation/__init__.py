@@ -1,1 +1,1 @@
-"""Offline/online evaluation harness (workstream C)."""
+"""Offline/online evaluation harness."""

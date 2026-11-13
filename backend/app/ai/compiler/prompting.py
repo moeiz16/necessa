@@ -1,4 +1,4 @@
-"""Prompt rendering for workstream C (delegates to the shared versioned loader)."""
+"""Prompt rendering for criteria and case prompts (delegates to the shared versioned loader)."""
 
 from __future__ import annotations
 

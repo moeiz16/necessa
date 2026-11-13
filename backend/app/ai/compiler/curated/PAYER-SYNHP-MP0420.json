@@ -8,7 +8,7 @@
     "63650"
   ],
   "synthetic": true,
-  "notes": "Curated against workstream B fixture syn_spinal_cord_stimulation.json (synthetic policy).",
+  "notes": "Curated against fixture syn_spinal_cord_stimulation.json (synthetic policy).",
   "root": {
     "type": "node",
     "op": "AND",

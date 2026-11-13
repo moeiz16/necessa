@@ -11,7 +11,7 @@
     "29883"
   ],
   "synthetic": true,
-  "notes": "Curated against workstream B fixture syn_knee_arthroscopy.json (synthetic policy).",
+  "notes": "Curated against fixture syn_knee_arthroscopy.json (synthetic policy).",
   "root": {
     "type": "node",
     "op": "AND",

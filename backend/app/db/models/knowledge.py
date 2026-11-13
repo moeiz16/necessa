@@ -1,6 +1,6 @@
 """Knowledge-base models (CMS MCD + payer policies + index bookkeeping + LLM telemetry).
 
-Owned by workstream B. Postgres is the source of truth; Qdrant collections are a derived,
+Postgres is the source of truth; Qdrant collections are a derived,
 rebuildable index (see ADR-005). Columns follow docs/API_CONTRACT.md §3.3.
 """
 

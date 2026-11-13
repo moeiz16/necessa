@@ -1,4 +1,4 @@
-"""Background job handlers for workstream C (registered with app.services.jobs via JOB_HANDLERS)."""
+"""Background job handlers for case intelligence (registered with app.services.jobs via JOB_HANDLERS)."""
 
 from __future__ import annotations
 

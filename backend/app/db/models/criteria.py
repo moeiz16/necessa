@@ -1,4 +1,4 @@
-"""Compiled, versioned criteria trees per policy version (workstream C)."""
+"""Compiled, versioned criteria trees per policy version."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ class CriteriaSet(UUIDPkMixin, TimestampMixin, Base):
     __tablename__ = "criteria_sets"
 
     # Stored as a string so curated sets can exist before the knowledge base is ingested
-    # (and so this table has no hard FK into another workstream's schema).
+    # (and so this table has no hard FK into the knowledge schema).
     policy_version_id: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
     policy_key: Mapped[str] = mapped_column(String(64), index=True)
     policy_version: Mapped[int | None] = mapped_column(nullable=True)

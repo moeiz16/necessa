@@ -1,6 +1,6 @@
 """Platform models: tenancy, identity, sessions, audit, jobs, notifications, assistant history.
 
-Owned by workstream A (see docs/API_CONTRACT.md §3.1).
+See docs/API_CONTRACT.md §3.1.
 """
 
 from __future__ import annotations

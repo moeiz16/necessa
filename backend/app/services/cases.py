@@ -1,6 +1,6 @@
 """Case management: creation, worklist queries, status state machine, timeline, outcomes.
 
-Other workstreams should use `add_event`, `set_status` and `case_summary` rather than touching rows ad hoc,
+Other modules should use `add_event`, `set_status` and `case_summary` rather than touching rows ad hoc,
 so the timeline and SLA logic stay consistent.
 """
 

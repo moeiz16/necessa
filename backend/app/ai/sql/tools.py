@@ -47,7 +47,7 @@ async def _criteria_status(db: AsyncSession, version_ids: list[uuid.UUID]) -> di
     if not version_ids:
         return {}
     try:
-        from app.db.models.criteria import CriteriaSet  # workstream C
+        from app.db.models.criteria import CriteriaSet
 
         rows = (
             await db.execute(

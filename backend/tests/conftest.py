@@ -1,4 +1,4 @@
-"""Shared test fixtures (all workstreams).
+"""Shared test fixtures.
 
 * Settings are pinned via env vars BEFORE the app is imported (SQLite temp DB, generous rate limits).
 * Each test runs in its own event loop, so the engine is disposed after every test.

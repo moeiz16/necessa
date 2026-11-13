@@ -78,7 +78,7 @@ def _providers() -> dict:
         from app.ai.llm.router import get_llm_router
 
         groups = get_llm_router().configured_groups()
-    except Exception:  # noqa: S110 - router is optional (workstream B) and may be unconfigured
+    except Exception:  # noqa: S110 - LLM router is optional and may be unconfigured
         pass
     return {"status": "ok" if configured else "offline", "configured": configured, "groups": groups}
 

@@ -1,4 +1,4 @@
-"""Fixtures for knowledge / hybrid-RAG tests (workstream B).
+"""Fixtures for knowledge / hybrid-RAG tests.
 
 Everything runs offline: FakeLLMRouter (ENVIRONMENT=test), in-memory Qdrant, SQLite.
 """

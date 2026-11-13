@@ -144,7 +144,7 @@ def find_quote(quote: str, source_text: str) -> tuple[bool, int | None, int | No
 
 def verify_quote(quote: str, source_text: str) -> tuple[bool, int | None, int | None]:
     """Prefer the platform guardrail implementation; fall back to ours (identical semantics)."""
-    try:  # pragma: no cover - depends on workstream B
+    try:  # pragma: no cover - guardrails module is optional here
         from app.ai.guardrails.output import verify_quote as _b_verify
 
         ok, s, e = _b_verify(quote, source_text)

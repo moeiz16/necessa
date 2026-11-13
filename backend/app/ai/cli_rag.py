@@ -19,7 +19,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-app = typer.Typer(help="Knowledge base & hybrid retrieval (workstream B)", no_args_is_help=True)
+app = typer.Typer(help="Knowledge base & hybrid retrieval", no_args_is_help=True)
 ingest_app = typer.Typer(help="Ingestion", no_args_is_help=True)
 index_app = typer.Typer(help="Index versions (blue/green)", no_args_is_help=True)
 models_app = typer.Typer(help="LLM providers", no_args_is_help=True)

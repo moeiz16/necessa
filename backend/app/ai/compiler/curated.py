@@ -128,7 +128,7 @@ def lcd_sections_from_csv(source_key: str, data_dir: Path) -> dict[str, str] | N
 
 
 async def sections_from_db(db, policy_key: str) -> tuple[str | None, dict[str, str]]:
-    """Return (policy_version_id, {section_key: text}) for the current version of a policy (workstream B tables)."""  # noqa: E501
+    """Return (policy_version_id, {section_key: text}) for the current version of a policy (knowledge tables)."""  # noqa: E501
     try:
         from sqlalchemy import select
 

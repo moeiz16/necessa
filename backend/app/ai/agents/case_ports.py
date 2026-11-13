@@ -73,7 +73,7 @@ class DbCasePorts:
                 .scalars()
                 .all()
             )
-            # Intake (workstream A) de-identifies with date_policy="keep": identifiers are tokenized and
+            # Document intake de-identifies with date_policy="keep": identifiers are tokenized and
             # clinical dates are preserved, so chart dates line up with the date of service and note dates.
             chart_docs = [
                 ChartDoc(

@@ -38,11 +38,11 @@ OPTIONAL_ROUTERS = (
     "search",
     "assistant",
     "admin_knowledge",
-    "admin_models",  # workstream B
+    "admin_models",  # knowledge & RAG
     "case_ai",
     "admin_criteria",
     "admin_evals",
-)  # workstream C
+)  # case intelligence
 
 OPENAPI_TAGS = [
     {"name": "auth", "description": "Sessions, MFA, password reset"},

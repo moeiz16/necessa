@@ -1,7 +1,7 @@
 """Central configuration (12-factor). Every setting is overridable via env / .env.
 
-SHARED FILE — owned by the integrator. Agents may ADD settings at the bottom of their
-section but must not rename existing ones.
+Settings are grouped by concern; add new ones to the relevant section and never rename existing
+ones (they are part of the deployment contract).
 """
 
 from __future__ import annotations

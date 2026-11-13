@@ -9,7 +9,7 @@
     "E0470"
   ],
   "synthetic": true,
-  "notes": "Curated against workstream B fixture syn_pap_devices.json (synthetic policy).",
+  "notes": "Curated against fixture syn_pap_devices.json (synthetic policy).",
   "root": {
     "type": "node",
     "op": "AND",
