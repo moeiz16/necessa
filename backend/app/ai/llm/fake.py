@@ -21,7 +21,7 @@ from pydantic import BaseModel, ValidationError
 from app.ai.llm import telemetry
 from app.ai.llm.config import get_catalog
 from app.ai.llm.router import _all_text, lexical_rerank
-from app.ai.llm.types import DataClass, LLMResult, PolicyViolation, StructuredOutputError
+from app.ai.llm.types import DataClass, LLMResult, LLMUnavailable, PolicyViolation, StructuredOutputError
 from app.ai.sparse import is_code_token, token_index, tokenize
 from app.ai.textutil import estimate_tokens, extract_json, split_sentences, word_tokens
 from app.core.config import get_settings
@@ -168,6 +168,10 @@ class FakeLLMRouter:
         self._check(group, data_class, deidentified)
         self.calls.append({"group": group, "purpose": purpose, "messages": messages})
         handler = self._handler(purpose)
+        if handler is None and response_model is not None:
+            # Offline mode has no model behind it: report "unavailable" so callers take their
+            # documented degraded path instead of treating it as a malformed model answer.
+            raise LLMUnavailable(f"offline fake router has no scripted output for '{purpose}'")
         out: Any = handler(messages, response_model) if handler else ""
         parsed = None
         if response_model is not None:
