@@ -131,7 +131,7 @@ async def _summaries(db: AsyncSession, policies: list[Policy]) -> list[PolicySum
                     await db.execute(
                         select(CriteriaSet.policy_version_id).where(
                             CriteriaSet.policy_version_id.in_(vids),
-                            CriteriaSet.status.in_(["approved", "needs_review"]),
+                            CriteriaSet.status == "approved",
                         )
                     )
                 ).scalars()
