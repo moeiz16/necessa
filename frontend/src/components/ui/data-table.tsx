@@ -107,7 +107,7 @@ export function DataTable<T>({
   const pageCount = table.getPageCount();
 
   return (
-    <div className={cn("overflow-hidden rounded-xl bg-surface shadow-e1", className)}>
+    <div className={cn("overflow-hidden rounded-lg bg-surface shadow-e1", className)}>
       {toolbar !== undefined ? (
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{toolbar}</div>

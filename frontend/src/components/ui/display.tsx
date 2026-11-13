@@ -41,7 +41,7 @@ export function Avatar({ name, color, size = 24, className }: { name?: string | 
     <span
       aria-hidden
       title={name ?? undefined}
-      className={cn("inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold text-white ring-2 ring-surface", className)}
+      className={cn("inline-flex shrink-0 select-none items-center justify-center rounded-full font-medium text-white ring-2 ring-surface", className)}
       style={{ width: size, height: size, fontSize: Math.max(9, size * 0.38), background: color || "var(--fg-subtle)" }}
     >
       {initials(name)}
@@ -69,7 +69,7 @@ export function AvatarStack({ people, max = 3, size = 22 }: { people: { fullName
 export function Card({ className, interactive, ...props }: React.ComponentProps<"div"> & { interactive?: boolean }) {
   return (
     <div
-      className={cn("rounded-xl bg-surface shadow-e1", interactive && "cursor-pointer transition-[box-shadow,transform] duration-200 ease-out hover:-translate-y-px hover:shadow-e2", className)}
+      className={cn("rounded-lg bg-surface shadow-e1", interactive && "cursor-pointer transition-shadow duration-150 ease-out hover:shadow-e2", className)}
       {...props}
     />
   );
@@ -92,7 +92,7 @@ export function CardHeader({
       <div className="flex min-w-0 items-start gap-2.5">
         {icon ? <span className="mt-0.5 text-subtle [&_svg]:size-4">{icon}</span> : null}
         <div className="min-w-0">
-          <h3 className="text-[13px] font-semibold tracking-tight text-fg">{title}</h3>
+          <h3 className="text-[13px] font-medium text-fg">{title}</h3>
           {description ? <p className="mt-0.5 text-xs text-muted">{description}</p> : null}
         </div>
       </div>
@@ -172,7 +172,7 @@ export function PageHeader({
     <div className={cn("flex flex-col gap-4 pb-6 sm:flex-row sm:items-end sm:justify-between", className)}>
       <div className="min-w-0">
         {eyebrow ? <div className="mb-1.5">{eyebrow}</div> : null}
-        <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-fg">{title}</h1>
+        <h1 className="text-[22px] font-semibold tracking-[-0.015em] text-fg">{title}</h1>
         {description ? <p className="mt-1 max-w-2xl text-sm text-muted text-pretty">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -199,7 +199,7 @@ export function Progress({ value, className, tone = "brand" }: { value: number; 
   const color = { brand: "bg-brand", met: "bg-met", insufficient: "bg-insufficient", notmet: "bg-notmet" }[tone];
   return (
     <div className={cn("h-1.5 w-full overflow-hidden rounded-full bg-surface-3", className)} role="progressbar" aria-valuenow={Math.round(value * 100)} aria-valuemin={0} aria-valuemax={100}>
-      <div className={cn("h-full rounded-full transition-[width] duration-500 ease-out", color)} style={{ width: `${Math.max(0, Math.min(1, value)) * 100}%` }} />
+      <div className={cn("h-full rounded-full transition-[width] duration-300 ease-out", color)} style={{ width: `${Math.max(0, Math.min(1, value)) * 100}%` }} />
     </div>
   );
 }
@@ -221,7 +221,7 @@ export function Stepper({ steps, current, onStepClick }: { steps: { label: strin
             >
               <span
                 className={cn(
-                  "mt-px flex size-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold tabular",
+                  "mt-px flex size-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-medium tabular",
                   done && "border-met bg-met text-white",
                   active && "border-brand bg-brand text-brand-contrast",
                   !done && !active && "border-border-strong text-subtle",
@@ -245,7 +245,7 @@ export function Stepper({ steps, current, onStepClick }: { steps: { label: strin
 export function SectionLabel({ children, className, action }: { children: React.ReactNode; className?: string; action?: React.ReactNode }) {
   return (
     <div className={cn("flex items-center justify-between gap-2", className)}>
-      <h4 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-subtle">{children}</h4>
+      <h4 className="text-[11px] font-medium text-subtle">{children}</h4>
       {action}
     </div>
   );
@@ -281,8 +281,7 @@ export function Dot({ tone = "neutral", pulse, className }: { tone?: "neutral" |
   const c = { neutral: "bg-subtle", met: "bg-met", notmet: "bg-notmet", insufficient: "bg-insufficient", brand: "bg-brand", degraded: "bg-degraded" }[tone];
   return (
     <span className={cn("relative inline-flex size-2 shrink-0", className)}>
-      {pulse ? <span className={cn("absolute inset-0 animate-ping rounded-full opacity-60", c)} /> : null}
-      <span className={cn("relative inline-flex size-2 rounded-full", c)} />
+      <span className={cn("relative inline-flex size-2 rounded-full", c, pulse && "animate-pulse-dot")} />
     </span>
   );
 }

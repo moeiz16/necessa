@@ -1,2 +1,2 @@
 /** Categorical series palette (theme-aware CSS variables). */
-export const SERIES = ["var(--brand)", "var(--ai-3)", "var(--ai-2)", "var(--insufficient)", "var(--met)", "var(--notmet)"];
+export const SERIES = ["var(--brand)", "var(--chart-2)", "var(--chart-3)", "var(--insufficient)", "var(--met)", "var(--notmet)"];

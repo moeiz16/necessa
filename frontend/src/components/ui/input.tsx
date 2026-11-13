@@ -6,7 +6,7 @@ import { Label as LabelPrimitive } from "radix-ui";
 import { cn } from "@/lib/utils";
 
 const field =
-  "w-full rounded-md border border-border bg-surface px-3 text-sm text-fg shadow-[inset_0_1px_1px_rgb(16_18_23/0.03)] transition-[border,box-shadow] outline-none placeholder:text-subtle hover:border-border-strong focus-visible:border-brand focus-visible:ring-3 focus-visible:ring-brand/15 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-notmet aria-[invalid=true]:ring-notmet/15";
+  "w-full rounded-md border border-border bg-surface px-3 text-sm text-fg transition-[border,box-shadow] outline-none placeholder:text-subtle hover:border-border-strong focus-visible:border-brand focus-visible:ring-3 focus-visible:ring-brand/15 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-notmet aria-[invalid=true]:ring-notmet/15";
 
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement> & { leading?: React.ReactNode; trailing?: React.ReactNode }>(
   ({ className, leading, trailing, ...props }, ref) => {
@@ -168,7 +168,7 @@ export function OtpInput({
             set(e.clipboardData.getData("text"));
           }}
           className={cn(
-            "h-12 w-full min-w-0 rounded-lg border border-border bg-surface text-center font-mono text-xl text-fg shadow-[inset_0_1px_1px_rgb(16_18_23/0.03)] outline-none transition-[border,box-shadow] focus-visible:border-brand focus-visible:ring-3 focus-visible:ring-brand/15",
+            "h-12 w-full min-w-0 rounded-lg border border-border bg-surface text-center font-mono text-xl text-fg outline-none transition-[border,box-shadow] focus-visible:border-brand focus-visible:ring-3 focus-visible:ring-brand/15",
             d && "border-border-strong",
             invalid && "border-notmet ring-notmet/15",
           )}

@@ -51,8 +51,8 @@ function Illustration({ art }: { art: Art }) {
       )}
       {art === "spark" && (
         <g {...common}>
-          <path d="M44 18l3.5 10.5L58 32l-10.5 3.5L44 46l-3.5-10.5L30 32l10.5-3.5z" stroke="var(--ai-2)" strokeWidth={1.8} className="fill-surface" />
-          <path d="M60 46l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z" stroke="var(--ai-3)" />
+          <path d="M44 18l3.5 10.5L58 32l-10.5 3.5L44 46l-3.5-10.5L30 32l10.5-3.5z" stroke="var(--fg-subtle)" strokeWidth={1.8} className="fill-surface" />
+          <path d="M60 46l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z" stroke="var(--fg-subtle)" />
         </g>
       )}
     </svg>
@@ -149,7 +149,7 @@ export function Callout({
     warning: "bg-insufficient-soft/70 text-fg ring-insufficient/25 [&_[data-icon]]:text-insufficient",
     danger: "bg-notmet-soft/70 text-fg ring-notmet/25 [&_[data-icon]]:text-notmet",
     success: "bg-met-soft/70 text-fg ring-met/25 [&_[data-icon]]:text-met",
-    ai: "ai-border text-fg [&_[data-icon]]:text-ai-2",
+    ai: "border border-border bg-surface text-fg",
     neutral: "bg-surface-2 text-fg ring-border [&_[data-icon]]:text-subtle",
   }[tone];
   const glyph = {

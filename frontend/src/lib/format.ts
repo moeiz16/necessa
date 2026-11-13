@@ -55,7 +55,7 @@ export function fmtBytes(b?: number | null) {
   return `${v.toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
 }
 
-/** Human SLA string for a due date: "in 5h 12m", "overdue 2h". */
+/** Human string for a payer deadline: "in 5h 12m", "overdue 2h". */
 export function slaParts(due?: string | null, now = new Date()) {
   const d = toDate(due);
   if (!d) return null;
@@ -71,7 +71,7 @@ export function slaParts(due?: string | null, now = new Date()) {
 }
 
 export const PAYER_LABEL: Record<string, string> = {
-  medicare_ffs: "Medicare FFS",
+  medicare_ffs: "Traditional Medicare",
   medicare_advantage: "Medicare Advantage",
   commercial: "Commercial",
   medicaid: "Medicaid",
@@ -79,7 +79,7 @@ export const PAYER_LABEL: Record<string, string> = {
 
 export const STATUS_LABEL: Record<string, string> = {
   draft: "Draft",
-  evaluating: "Evaluating",
+  evaluating: "Checking",
   needs_review: "Needs review",
   ready: "Ready to submit",
   submitted: "Submitted",
@@ -93,10 +93,10 @@ export const STATUS_LABEL: Record<string, string> = {
 export const ROLE_LABEL: Record<string, string> = {
   owner: "Owner",
   admin: "Admin",
-  coordinator: "PA Coordinator",
+  coordinator: "Prior-auth coordinator",
   clinician: "Clinician",
   reviewer: "Reviewer",
-  rcm_manager: "RCM Manager",
+  rcm_manager: "Revenue-cycle manager",
   auditor: "Auditor",
 };
 

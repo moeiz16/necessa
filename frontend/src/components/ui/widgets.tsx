@@ -116,14 +116,14 @@ export function StatCard({
   const deltaTone = good === null ? "text-muted" : good ? "text-met-fg" : "text-insufficient-fg";
   const sparkTone = good === false ? "insufficient" : "brand";
   return (
-    <div className={cn("group flex flex-col justify-between gap-3 rounded-xl bg-surface p-4 shadow-e1 transition-shadow duration-200 hover:shadow-e2", className)} title={hint}>
+    <div className={cn("group flex flex-col justify-between gap-3 rounded-lg bg-surface p-4 shadow-e1 transition-shadow duration-150 hover:shadow-e2", className)} title={hint}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium text-muted">{label}</span>
         {icon ? <span className="text-subtle transition-colors group-hover:text-muted [&_svg]:size-4">{icon}</span> : null}
       </div>
       <div className="flex items-end justify-between gap-3">
         <div className="grid min-w-0 gap-1">
-          <span className="tabular text-[26px] font-semibold leading-none tracking-[-0.03em] text-fg">
+          <span className="tabular text-[26px] font-semibold leading-none tracking-[-0.02em] text-fg">
             {countUp && typeof value === "number" ? <CountUp value={value} format={format} /> : value}
           </span>
           {delta !== undefined ? (
@@ -280,7 +280,7 @@ export function Dropzone({ onFiles, accept, multiple = true, className, hint }: 
         <p className="text-[13px] font-medium text-fg">
           Drop files here or <span className="text-brand">browse</span>
         </p>
-        <p className="text-xs text-muted">{hint ?? "PDF, TXT or FHIR R4 JSON · up to 20 MB · scanned faxes are OCR’d"}</p>
+        <p className="text-xs text-muted">{hint ?? "PDF, text or EHR export · up to 20 MB · scanned faxes are read automatically"}</p>
       </div>
       <input
         ref={input}

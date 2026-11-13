@@ -28,7 +28,7 @@ const AXIS = { stroke: "var(--fg-subtle)", fontSize: 11, tickLine: false, axisLi
 function ChartTooltip({ active, payload, label, format }: TooltipProps<number, string> & { format?: (v: number) => string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-e3">
+    <div className="rounded-md border border-border bg-surface px-3 py-2 text-xs shadow-e3">
       {label !== undefined ? <p className="mb-1 font-medium text-fg">{String(label)}</p> : null}
       {payload.map((p) => (
         <p key={String(p.dataKey)} className="flex items-center gap-2 text-muted">
@@ -48,15 +48,15 @@ export function AreaTrend({ data, x, y, height = 220, color = "var(--brand)", fo
       <AreaChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
         <defs>
           <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.26} />
+            <stop offset="0%" stopColor={color} stopOpacity={0.1} />
             <stop offset="100%" stopColor={color} stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
+        <CartesianGrid vertical={false} stroke="var(--border)" />
         <XAxis dataKey={x} {...AXIS} minTickGap={24} tickFormatter={(v: string) => (v.length === 10 ? v.slice(5) : v)} />
         <YAxis {...AXIS} allowDecimals={false} tickFormatter={(v: number) => (format ? format(v) : fmtNumber(v, { notation: "compact" }))} />
         <RTooltip content={<ChartTooltip format={format} />} cursor={{ stroke: "var(--border-strong)" }} />
-        <Area type="monotone" dataKey={y} stroke={color} strokeWidth={2} fill={`url(#${id})`} activeDot={{ r: 4, strokeWidth: 0 }} />
+        <Area type="monotone" dataKey={y} stroke={color} strokeWidth={1.75} fill={`url(#${id})`} activeDot={{ r: 3.5, strokeWidth: 0 }} />
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -66,12 +66,12 @@ export function LineTrend({ data, x, series, height = 220, format, domain }: { d
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
-        <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
+        <CartesianGrid vertical={false} stroke="var(--border)" />
         <XAxis dataKey={x} {...AXIS} minTickGap={20} />
         <YAxis {...AXIS} domain={domain ?? ["auto", "auto"]} tickFormatter={(v: number) => (format ? format(v) : String(v))} />
         <RTooltip content={<ChartTooltip format={format} />} cursor={{ stroke: "var(--border-strong)" }} />
         {series.map((s, i) => (
-          <Line key={s.key} name={s.label ?? s.key} type="monotone" dataKey={s.key} stroke={s.color ?? SERIES[i % SERIES.length]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+          <Line key={s.key} name={s.label ?? s.key} type="monotone" dataKey={s.key} stroke={s.color ?? SERIES[i % SERIES.length]} strokeWidth={1.75} dot={false} activeDot={{ r: 3.5 }} />
         ))}
       </LineChart>
     </ResponsiveContainer>
@@ -82,12 +82,12 @@ export function StackedBars({ data, x, series, height = 220 }: { data: Record<st
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }} barCategoryGap="28%">
-        <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
+        <CartesianGrid vertical={false} stroke="var(--border)" />
         <XAxis dataKey={x} {...AXIS} />
         <YAxis {...AXIS} allowDecimals={false} />
         <RTooltip content={<ChartTooltip />} cursor={{ fill: "var(--surface-2)" }} />
         {series.map((s, i) => (
-          <Bar key={s.key} dataKey={s.key} name={s.label} stackId="a" fill={s.color} radius={i === series.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+          <Bar key={s.key} dataKey={s.key} name={s.label} stackId="a" fill={s.color} radius={i === series.length - 1 ? [2, 2, 0, 0] : [0, 0, 0, 0]} />
         ))}
       </BarChart>
     </ResponsiveContainer>
@@ -98,7 +98,7 @@ export function Bars({ data, x, y, height = 220, color = "var(--brand)", horizon
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} layout={horizontal ? "vertical" : "horizontal"} margin={{ top: 8, right: 12, left: horizontal ? 8 : -18, bottom: 0 }}>
-        <CartesianGrid horizontal={!horizontal} vertical={!!horizontal} stroke="var(--border)" strokeDasharray="3 3" />
+        <CartesianGrid horizontal={!horizontal} vertical={!!horizontal} stroke="var(--border)" />
         {horizontal ? (
           <>
             <XAxis type="number" {...AXIS} allowDecimals={false} />
@@ -111,7 +111,7 @@ export function Bars({ data, x, y, height = 220, color = "var(--brand)", horizon
           </>
         )}
         <RTooltip content={<ChartTooltip />} cursor={{ fill: "var(--surface-2)" }} />
-        <Bar dataKey={y} fill={color} radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]} maxBarSize={36} />
+        <Bar dataKey={y} fill={color} radius={horizontal ? [0, 2, 2, 0] : [2, 2, 0, 0]} maxBarSize={32} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -124,7 +124,7 @@ export function Donut({ data, nameKey, valueKey, height = 200, colors = SERIES, 
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <RTooltip content={<ChartTooltip />} />
-          <Pie data={data} dataKey={valueKey} nameKey={nameKey} innerRadius="62%" outerRadius="88%" paddingAngle={2} stroke="none">
+          <Pie data={data} dataKey={valueKey} nameKey={nameKey} innerRadius="68%" outerRadius="90%" paddingAngle={1} stroke="none">
             {data.map((_, i) => (
               <Cell key={i} fill={colors[i % colors.length]} />
             ))}

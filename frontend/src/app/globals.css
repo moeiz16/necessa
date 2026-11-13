@@ -3,55 +3,61 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Necessa design tokens — see DESIGN.md
-   Neutrals are "paper & ink": slightly warm light canvas, cool-ink dark canvas.
-   Brand = Iris (blue-violet). Verdict colors are reserved for criteria states.
+   Necessa design tokens — minimal, flat and calm. See DESIGN.md.
+   One sans family, hairline borders, one accent colour. Verdict colours are
+   reserved for requirement states and always paired with an icon and a label.
    ────────────────────────────────────────────────────────────────────────── */
 :root {
-  --bg: #f8f8f6;
+  --bg: #fafafa;
   --surface: #ffffff;
-  --surface-2: #f3f3f0;
-  --surface-3: #ebebe7;
-  --border: #e4e4df;
-  --border-strong: #d1d1ca;
-  --fg: #121417;
-  --fg-muted: #565b64;
-  --fg-subtle: #6b7079;
+  --surface-2: #f5f5f4;
+  --surface-3: #ececea;
+  --border: #e7e7e4;
+  --border-strong: #d4d4d0;
+  --fg: #171717;
+  --fg-muted: #525252;
+  --fg-subtle: #6b6b6b;
 
   --brand: #3e4bdb;
   --brand-hover: #3340c4;
-  --brand-soft: #eceefe;
+  --brand-soft: #f0f1fd;
   --brand-fg: #2b36a8;
   --brand-contrast: #ffffff;
   --ring: #6672f0;
 
   --met: #0f7a55;
-  --met-soft: #e4f4eb;
+  --met-soft: #eaf5ef;
   --met-fg: #0b5e41;
-  --notmet: #c0352b;
-  --notmet-soft: #fbe9e7;
-  --notmet-fg: #9b2920;
-  --insufficient: #b26b00;
-  --insufficient-soft: #fdf1da;
-  --insufficient-fg: #8a5300;
+  --notmet: #b9372d;
+  --notmet-soft: #fbeceb;
+  --notmet-fg: #962b22;
+  --insufficient: #a96600;
+  --insufficient-soft: #fbf2de;
+  --insufficient-fg: #854f00;
   --degraded: #6b7280;
-  --degraded-soft: #eff0f2;
+  --degraded-soft: #f1f1f0;
   --degraded-fg: #4b5260;
   --info: #1f6fd1;
-  --info-soft: #e7f0fc;
+  --info-soft: #eaf1fb;
 
-  --ai-1: #5b5bf6;
-  --ai-2: #8b5cf6;
-  --ai-3: #1fb5cc;
+  /* Muted secondary series colours for charts (brand, verdict colours cover the rest). */
+  --chart-2: #5f9aa8;
+  --chart-3: #8f86bf;
 
-  --shadow-1: 0 1px 2px rgb(16 18 23 / 0.05), 0 0 0 1px rgb(16 18 23 / 0.04);
-  --shadow-2: 0 4px 12px -2px rgb(16 18 23 / 0.08), 0 0 0 1px rgb(16 18 23 / 0.05);
-  --shadow-3: 0 18px 48px -12px rgb(16 18 23 / 0.18), 0 0 0 1px rgb(16 18 23 / 0.06);
-  --shadow-glow: 0 0 0 1px rgb(16 18 23 / 0.05), 0 12px 40px -16px color-mix(in oklab, var(--ai-1) 35%, transparent);
-  --grid-line: rgb(18 20 23 / 0.045);
+  /* Legacy accent tokens: kept so older callers keep rendering, but flattened to the single brand colour. */
+  --ai-1: var(--brand);
+  --ai-2: var(--brand);
+  --ai-3: var(--brand);
 
-  /* Motion — purposeful and quick. Durations: micro 120ms, standard 200ms, emphasis 320ms. */
-  --dur-fast: 120ms;
+  /* Flat: a hairline for cards, one very subtle shadow for floating layers only. */
+  --shadow-1: 0 0 0 1px var(--border);
+  --shadow-2: 0 0 0 1px var(--border-strong);
+  --shadow-3: 0 8px 24px -8px rgb(23 23 23 / 0.14), 0 0 0 1px var(--border);
+  --shadow-glow: 0 0 0 1px var(--border);
+  --grid-line: transparent;
+
+  /* Motion — calm. 150ms for micro-interactions, 200ms for layout, 320ms is the ceiling. */
+  --dur-fast: 150ms;
   --dur: 200ms;
   --dur-slow: 320ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -60,43 +66,46 @@
 }
 
 .dark {
-  --bg: #0a0b0d;
-  --surface: #111316;
-  --surface-2: #16191d;
-  --surface-3: #1d2126;
-  --border: #23272d;
-  --border-strong: #31363e;
-  --fg: #ecedef;
-  --fg-muted: #a3a9b2;
-  --fg-subtle: #80868f;
+  --bg: #0b0b0c;
+  --surface: #121213;
+  --surface-2: #181819;
+  --surface-3: #1f1f21;
+  --border: #252527;
+  --border-strong: #353538;
+  --fg: #ededed;
+  --fg-muted: #a3a3a3;
+  --fg-subtle: #8a8a8a;
 
   --brand: #7d87ff;
   --brand-hover: #9199ff;
-  --brand-soft: #1a1d3b;
+  --brand-soft: #181a33;
   --brand-fg: #b5bbff;
   --brand-contrast: #0a0b1a;
   --ring: #8e97ff;
 
   --met: #3cc48c;
-  --met-soft: #0f2a20;
+  --met-soft: #0f2419;
   --met-fg: #74e2b3;
   --notmet: #f2685c;
-  --notmet-soft: #33140f;
+  --notmet-soft: #2e1411;
   --notmet-fg: #ff9d93;
   --insufficient: #f0a53a;
-  --insufficient-soft: #33230b;
+  --insufficient-soft: #2d2009;
   --insufficient-fg: #ffc673;
   --degraded: #8a919b;
-  --degraded-soft: #1c1f24;
+  --degraded-soft: #1b1c1e;
   --degraded-fg: #b6bcc5;
   --info: #5aa2ff;
   --info-soft: #0f2038;
 
-  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px rgb(255 255 255 / 0.04);
-  --shadow-2: 0 6px 16px -4px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.06);
-  --shadow-3: 0 24px 56px -12px rgb(0 0 0 / 0.65), 0 0 0 1px rgb(255 255 255 / 0.07);
-  --grid-line: rgb(255 255 255 / 0.04);
-  --shadow-glow: 0 0 0 1px rgb(255 255 255 / 0.06), 0 12px 40px -16px color-mix(in oklab, var(--ai-1) 45%, transparent);
+  --chart-2: #6fb2c2;
+  --chart-3: #a99fe0;
+
+  --shadow-1: 0 0 0 1px var(--border);
+  --shadow-2: 0 0 0 1px var(--border-strong);
+  --shadow-3: 0 12px 32px -8px rgb(0 0 0 / 0.6), 0 0 0 1px var(--border);
+  --shadow-glow: 0 0 0 1px var(--border);
+  --grid-line: transparent;
 }
 
 @theme inline {
@@ -135,14 +144,14 @@
 
   --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
-  --font-display: var(--font-instrument), ui-serif, Georgia, serif;
+  --font-display: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
 
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-2xl: 22px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
 
   --shadow-e1: var(--shadow-1);
   --shadow-e2: var(--shadow-2);
@@ -152,13 +161,14 @@
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-spring: cubic-bezier(0.2, 0.9, 0.25, 1.15);
 
-  --animate-shimmer: shimmer 1.6s linear infinite;
-  --animate-pulse-dot: pulse-dot 1.4s ease-in-out infinite;
+  --animate-shimmer: shimmer 1.8s linear infinite;
+  --animate-pulse-dot: pulse-dot 1.6s ease-in-out infinite;
   --animate-fade-in: fade-in 180ms var(--ease-out-quart) both;
-  --animate-rise: rise 240ms var(--ease-out-quart) both;
-  --animate-scale-in: scale-in 180ms var(--ease-out-quart) both;
-  --animate-ai-sheen: ai-sheen 2.4s var(--ease-in-out) infinite;
-  --animate-float: float 6s ease-in-out infinite;
+  --animate-rise: rise 200ms var(--ease-out-quart) both;
+  --animate-scale-in: scale-in 160ms var(--ease-out-quart) both;
+  /* Legacy decorative animations are intentionally inert in the minimal system. */
+  --animate-ai-sheen: none;
+  --animate-float: none;
   --animate-spin-slow: spin 2.4s linear infinite;
 }
 
@@ -222,6 +232,10 @@
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
 }
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
 @keyframes ring-pulse {
   0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand) 40%, transparent); }
   100% { box-shadow: 0 0 0 10px transparent; }
@@ -247,7 +261,7 @@
     font-family: var(--font-sans);
     font-size: 14px;
     line-height: 1.5;
-    font-feature-settings: "ss01", "cv11";
+    font-feature-settings: "cv11";
   }
   h1, h2, h3, h4 {
     text-wrap: balance;
@@ -286,43 +300,27 @@
   .text-pretty {
     text-wrap: pretty;
   }
+  /* Decorative effects are retired. The class names remain (flat) so nothing breaks. */
   .ai-gradient {
-    background-image: linear-gradient(120deg, var(--ai-1), var(--ai-2) 55%, var(--ai-3));
+    background-color: var(--brand);
   }
   .ai-gradient-text {
-    background-image: linear-gradient(120deg, var(--ai-1), var(--ai-2) 55%, var(--ai-3));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: var(--brand-fg);
   }
   .ai-border {
-    border: 1px solid transparent;
-    background:
-      linear-gradient(var(--surface), var(--surface)) padding-box,
-      linear-gradient(120deg, var(--ai-1), var(--ai-2) 55%, var(--ai-3)) border-box;
+    border: 1px solid var(--border);
+    background: var(--surface);
   }
   .ai-sheen {
-    background-image: linear-gradient(
-      100deg,
-      transparent 20%,
-      color-mix(in oklab, var(--ai-2) 14%, transparent) 40%,
-      color-mix(in oklab, var(--ai-3) 18%, transparent) 50%,
-      color-mix(in oklab, var(--ai-1) 14%, transparent) 60%,
-      transparent 80%
-    );
-    background-size: 200% 100%;
-    animation: ai-sheen 2.4s var(--ease-in-out) infinite;
+    background: none;
+    animation: none;
   }
   .ai-text-shimmer {
-    background-image: linear-gradient(100deg, var(--fg-muted) 30%, var(--ai-2) 45%, var(--ai-3) 55%, var(--fg-muted) 70%);
-    background-size: 220% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    animation: ai-sheen 2.2s linear infinite;
+    color: var(--fg-muted);
+    animation: none;
   }
   .ring-pulse {
-    animation: ring-pulse 1.6s var(--ease-out) infinite;
+    animation: none;
   }
   .press {
     transition: transform var(--dur-fast) var(--ease-out);
@@ -331,17 +329,13 @@
     transform: scale(0.98);
   }
   .lift {
-    transition:
-      transform var(--dur) var(--ease-out),
-      box-shadow var(--dur) var(--ease-out);
+    transition: border-color var(--dur) var(--ease-out);
   }
   .lift:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-2);
+    border-color: var(--border-strong);
   }
   .bg-dots {
-    background-image: radial-gradient(var(--grid-line) 1px, transparent 1px);
-    background-size: 18px 18px;
+    background-image: none;
   }
   .mask-fade-b {
     mask-image: linear-gradient(to bottom, #000 70%, transparent);
@@ -350,20 +344,11 @@
     mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
   }
   .bg-grid {
-    background-image:
-      linear-gradient(var(--grid-line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-    background-size: 32px 32px;
+    background-image: none;
   }
   .skeleton {
-    background: linear-gradient(
-      90deg,
-      var(--surface-2) 25%,
-      color-mix(in oklab, var(--surface-3) 70%, var(--surface)) 37%,
-      var(--surface-2) 63%
-    );
-    background-size: 400% 100%;
-    animation: shimmer 1.8s var(--ease-in-out) infinite;
+    background: var(--surface-2);
+    animation: skeleton-pulse 1.6s var(--ease-in-out) infinite;
   }
   .scrollbar-thin {
     scrollbar-width: thin;
@@ -371,12 +356,12 @@
   }
   .mark-evidence {
     background: color-mix(in oklab, var(--met) 18%, transparent);
-    box-shadow: inset 0 -2px 0 color-mix(in oklab, var(--met) 55%, transparent);
+    box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--met) 55%, transparent);
     border-radius: 2px;
   }
   .mark-policy {
     background: color-mix(in oklab, var(--brand) 16%, transparent);
-    box-shadow: inset 0 -2px 0 color-mix(in oklab, var(--brand) 55%, transparent);
+    box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--brand) 55%, transparent);
     border-radius: 2px;
   }
   .mark-active {

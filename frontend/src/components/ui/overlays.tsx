@@ -25,7 +25,7 @@ export function DialogContent({
 }: React.ComponentProps<typeof D.Content> & { title: React.ReactNode; description?: React.ReactNode; size?: "sm" | "md" | "lg" | "xl"; hideClose?: boolean }) {
   return (
     <D.Portal>
-      <D.Overlay className="fixed inset-0 z-50 bg-[rgb(10_11_13/0.42)] backdrop-blur-[2px] data-[state=open]:animate-[fade-in_160ms] data-[state=closed]:animate-[fade-out_140ms]" />
+      <D.Overlay className="fixed inset-0 z-50 bg-[rgb(10_10_10/0.36)] data-[state=open]:animate-[fade-in_150ms] data-[state=closed]:animate-[fade-out_140ms]" />
       <D.Content
         className={cn(
           panel,
@@ -40,7 +40,7 @@ export function DialogContent({
       >
         <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div className="grid gap-1">
-            <D.Title className="text-[15px] font-semibold tracking-tight">{title}</D.Title>
+            <D.Title className="text-[15px] font-semibold">{title}</D.Title>
             {description ? <D.Description className="text-[13px] text-muted">{description}</D.Description> : <D.Description className="sr-only">{typeof title === "string" ? title : "Dialog"}</D.Description>}
           </div>
           {!hideClose ? (
@@ -72,20 +72,20 @@ export function SheetContent({
 }: React.ComponentProps<typeof D.Content> & { title: React.ReactNode; description?: React.ReactNode; side?: "right" | "left" }) {
   return (
     <D.Portal>
-      <D.Overlay className="fixed inset-0 z-50 bg-[rgb(10_11_13/0.32)] data-[state=open]:animate-[fade-in_160ms] data-[state=closed]:animate-[fade-out_160ms]" />
+      <D.Overlay className="fixed inset-0 z-50 bg-[rgb(10_10_10/0.3)] data-[state=open]:animate-[fade-in_150ms] data-[state=closed]:animate-[fade-out_160ms]" />
       <D.Content
         className={cn(
           "fixed inset-y-0 z-50 flex w-full max-w-[min(100vw,30rem)] flex-col border-border bg-surface shadow-e3 outline-none",
           side === "right"
-            ? "right-0 border-l data-[state=open]:animate-[sheet-in-right_280ms_var(--ease-out)] data-[state=closed]:animate-[sheet-out-right_200ms_var(--ease-in-out)]"
-            : "left-0 border-r data-[state=open]:animate-[sheet-in-left_280ms_var(--ease-out)] data-[state=closed]:animate-[sheet-out-left_200ms_var(--ease-in-out)]",
+            ? "right-0 border-l data-[state=open]:animate-[sheet-in-right_200ms_var(--ease-out)] data-[state=closed]:animate-[sheet-out-right_160ms_var(--ease-in-out)]"
+            : "left-0 border-r data-[state=open]:animate-[sheet-in-left_200ms_var(--ease-out)] data-[state=closed]:animate-[sheet-out-left_160ms_var(--ease-in-out)]",
           className,
         )}
         {...props}
       >
         <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div className="grid gap-0.5">
-            <D.Title className="text-[15px] font-semibold tracking-tight">{title}</D.Title>
+            <D.Title className="text-[15px] font-semibold">{title}</D.Title>
             <D.Description className={cn("text-[13px] text-muted", !description && "sr-only")}>{description ?? "Panel"}</D.Description>
           </div>
           <D.Close className="rounded-sm p-1 text-subtle hover:bg-surface-2 hover:text-fg" aria-label="Close">
@@ -182,7 +182,7 @@ export function DropdownRadioItem({ className, children, ...props }: React.Compo
   );
 }
 export function DropdownLabel({ className, ...props }: React.ComponentProps<typeof DM.Label>) {
-  return <DM.Label className={cn("px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wider text-subtle", className)} {...props} />;
+  return <DM.Label className={cn("px-2 pb-1 pt-1.5 text-[11px] font-medium text-subtle", className)} {...props} />;
 }
 export function DropdownSeparator({ className, ...props }: React.ComponentProps<typeof DM.Separator>) {
   return <DM.Separator className={cn("-mx-1 my-1 h-px bg-border", className)} {...props} />;

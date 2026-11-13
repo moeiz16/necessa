@@ -13,12 +13,12 @@ import { HoverCard, HoverCardContent, HoverCardTrigger, Tooltip } from "@/compon
 export const VERDICT_META: Record<Verdict, { label: string; tone: "met" | "notmet" | "insufficient"; icon: typeof CircleCheck; short: string }> = {
   MET: { label: "Met", short: "Met", tone: "met", icon: CircleCheck },
   NOT_MET: { label: "Not met", short: "Not met", tone: "notmet", icon: CircleX },
-  INSUFFICIENT: { label: "Insufficient evidence", short: "Insufficient", tone: "insufficient", icon: CircleAlert },
+  INSUFFICIENT: { label: "Needs documentation", short: "Needs docs", tone: "insufficient", icon: CircleAlert },
 };
 
 export function VerdictIcon({ verdict, className, pending }: { verdict?: Verdict | null; className?: string; pending?: boolean }) {
-  if (pending) return <CircleDashed className={cn("size-4 animate-spin text-brand [animation-duration:2.4s]", className)} aria-label="Evaluating" />;
-  if (!verdict) return <CircleDashed className={cn("size-4 text-subtle", className)} aria-label="Not evaluated" />;
+  if (pending) return <CircleDashed className={cn("size-4 animate-spin text-subtle [animation-duration:2.4s]", className)} aria-label="Checking" />;
+  if (!verdict) return <CircleDashed className={cn("size-4 text-subtle", className)} aria-label="Not checked yet" />;
   const m = VERDICT_META[verdict];
   const Icon = m.icon;
   return <Icon className={cn("size-4", m.tone === "met" ? "text-met" : m.tone === "notmet" ? "text-notmet" : "text-insufficient", className)} aria-label={m.label} />;
@@ -31,7 +31,7 @@ export function VerdictBadge({ verdict, overridden, size = "sm", short }: { verd
     <Badge tone={m.tone} size={size} className={cn(overridden && "ring-1 ring-inset ring-current/30")}>
       <Icon />
       {short ? m.short : m.label}
-      {overridden ? <span className="font-normal opacity-75">· override</span> : null}
+      {overridden ? <span className="font-normal opacity-75">· changed</span> : null}
     </Badge>
   );
 }
@@ -41,7 +41,7 @@ const READINESS_META: Record<Readiness, { label: string; color: string; tone: "m
   ready: { label: "Ready", color: "var(--met)", tone: "met" },
   gaps: { label: "Gaps", color: "var(--insufficient)", tone: "insufficient" },
   not_supported: { label: "Not supported", color: "var(--notmet)", tone: "notmet" },
-  unknown: { label: "Not evaluated", color: "var(--degraded)", tone: "degraded" },
+  unknown: { label: "Not checked yet", color: "var(--degraded)", tone: "degraded" },
 };
 
 export function ReadinessRing({ score, readiness, size = 44, stroke = 4, showLabel = false, className }: { score?: number | null; readiness: Readiness; size?: number; stroke?: number; showLabel?: boolean; className?: string }) {
@@ -66,7 +66,7 @@ export function ReadinessRing({ score, readiness, size = 44, stroke = 4, showLab
             strokeDasharray={c}
             initial={reduce ? false : { strokeDashoffset: c }}
             animate={{ strokeDashoffset: c * (1 - pct) }}
-            transition={{ duration: 0.9, ease: [0.25, 1, 0.5, 1] }}
+            transition={{ duration: 0.5, ease: [0.25, 1, 0.5, 1] }}
           />
         </svg>
         <span className="tabular absolute inset-0 flex items-center justify-center font-semibold text-fg" style={{ fontSize: Math.max(10, size * 0.27) }}>
@@ -98,7 +98,7 @@ export function ConfidenceMeter({ value, className }: { value: number; className
   const bars = 5;
   const filled = Math.round(value * bars);
   return (
-    <Tooltip content={`Model confidence ${Math.round(value * 100)}% (calibrated on the verdict eval set)`}>
+    <Tooltip content={`Confidence ${Math.round(value * 100)}%`}>
       <span className={cn("inline-flex items-end gap-[2px]", className)} aria-label={`Confidence ${Math.round(value * 100)}%`}>
         {Array.from({ length: bars }).map((_, i) => (
           <span key={i} className={cn("w-[3px] rounded-[1px]", i < filled ? "bg-fg/70" : "bg-surface-3")} style={{ height: 5 + i * 2 }} />
@@ -143,7 +143,7 @@ export function PriorityChip({ priority }: { priority: Priority }) {
 export function PayerChip({ payerType, payerName }: { payerType: PayerType; payerName?: string }) {
   return (
     <span className="inline-flex min-w-0 items-center gap-1.5 text-[13px] text-fg">
-      <span className={cn("size-1.5 shrink-0 rounded-full", payerType === "medicare_ffs" ? "bg-brand" : payerType === "medicare_advantage" ? "bg-ai-2" : payerType === "commercial" ? "bg-ai-3" : "bg-insufficient")} />
+      <span className={cn("size-1.5 shrink-0 rounded-full", payerType === "medicare_ffs" ? "bg-brand" : payerType === "medicare_advantage" ? "bg-info" : payerType === "commercial" ? "bg-met" : "bg-insufficient")} />
       <span className="truncate">{payerName ?? PAYER_LABEL[payerType]}</span>
     </span>
   );
@@ -173,7 +173,7 @@ export function SlaTimer({ dueAt, compact, className }: { dueAt?: string | null;
   const p = slaParts(dueAt);
   if (!p) return <span className="text-xs text-subtle">—</span>;
   return (
-    <Tooltip content={`Due ${new Date(dueAt!).toLocaleString()} · payer clock (CMS-0057-F: 72 h expedited / 7 days standard)`}>
+    <Tooltip content={`Due ${new Date(dueAt!).toLocaleString()} · payer deadline (72 hours urgent, 7 days standard)`}>
       <span
         className={cn(
           "tabular inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium",
@@ -199,7 +199,7 @@ export function CitationChip({ citation, onOpen }: { citation: Citation; onOpen?
         <button
           type="button"
           onClick={() => onOpen?.(citation)}
-          className="mx-0.5 inline-flex h-[17px] min-w-[17px] -translate-y-px items-center justify-center rounded-[4px] bg-brand-soft px-1 align-middle font-mono text-[10.5px] font-semibold text-brand-fg ring-1 ring-inset ring-brand/20 transition-colors hover:bg-brand hover:text-brand-contrast"
+          className="mx-0.5 inline-flex h-[17px] min-w-[17px] -translate-y-px items-center justify-center rounded-[4px] bg-surface-2 px-1 align-middle font-mono text-[10.5px] font-medium text-muted ring-1 ring-inset ring-border transition-colors hover:bg-brand hover:text-brand-contrast hover:ring-brand"
           aria-label={`Citation ${citation.n}: ${citation.sourceKey}`}
         >
           {citation.n}
@@ -207,7 +207,7 @@ export function CitationChip({ citation, onOpen }: { citation: Citation; onOpen?
       </HoverCardTrigger>
       <HoverCardContent className="w-96">
         <div className="flex items-center gap-2">
-          <Badge tone="brand" size="xs">
+          <Badge tone="neutral" size="xs">
             {citation.sourceKey}
           </Badge>
           <span className="text-xs text-subtle">
@@ -286,7 +286,7 @@ export function DeidText({ text, className }: { text: string; className?: string
     <div className={cn("whitespace-pre-wrap text-[13px] leading-[1.75] text-fg", className)}>
       {parts.map((p, i) =>
         /^\[[A-Z_]+\]$/.test(p) ? (
-          <span key={i} className="mx-px rounded-[4px] bg-surface-3 px-1 py-px font-mono text-[11px] text-muted" title="De-identified (PHI token)">
+          <span key={i} className="mx-px rounded-[4px] bg-surface-3 px-1 py-px font-mono text-[11px] text-muted" title="Protected health information (masked)">
             {p.slice(1, -1).toLowerCase().replace(/_/g, " ")}
           </span>
         ) : (
