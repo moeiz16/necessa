@@ -8,6 +8,7 @@ import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query, Response
+from pydantic import Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +18,7 @@ from app.core.deps import RequestContext, get_db, require_perm
 from app.core.errors import AppError, bad_request, conflict, not_found
 from app.db.base import utcnow
 from app.db.models.cases import CaseDocument, CaseEvaluation, CriterionResult, Denial, Letter
+from app.schemas.base import APIModel
 from app.schemas.evaluation import DenialIn, DenialPatch, EvaluateIn, EvaluateOut, OverrideIn
 from app.schemas.letters import LetterCreateIn, LetterCreateOut, LetterPatch
 
@@ -45,26 +47,39 @@ async def _audit(db, ctx, action: str, resource_id, **meta) -> None:
 # ── policy suggestions (assistive, during case creation) ──────────────────────────────────────
 
 
-@router.post("/cases/{case_id}/policy-suggestions")
-async def policy_suggestions(
-    case_id: uuid.UUID,
-    ctx: RequestContext = Depends(require_perm("cases:read")),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    from app.ai.agents.case_ports import merge_curated
+class PolicySuggestionsIn(APIModel):
+    """Draft case facts, so the new-case wizard can preview matching policies before saving."""
 
-    case = await _case(db, ctx, case_id)
+    service_codes: list[str] = Field(default_factory=list, max_length=20)
+    dx_codes: list[str] = Field(default_factory=list, max_length=40)
+    state: str | None = Field(None, max_length=2)
+    payer_type: str = "medicare_ffs"
+    date_of_service: date | None = None
+
+
+async def _suggest(
+    db: AsyncSession,
+    *,
+    service_codes: list[str],
+    dx_codes: list[str],
+    state: str | None,
+    payer_type: str,
+    date_of_service: date | None,
+) -> list[dict]:
+    from app.ai.agents.case_ports import merge_curated
+    from app.ai.compiler.criteria_compiler import approved_set
+
     matches: list[dict] = []
     try:
         from app.ai.sql.tools import resolve_policies
 
         found = await resolve_policies(
             db,
-            service_codes=list(case.service_codes or []),
-            dx_codes=list(case.dx_codes or []),
-            state=case.state,
-            payer_type=case.payer_type,
-            date_of_service=case.date_of_service or date.today(),
+            service_codes=service_codes,
+            dx_codes=dx_codes,
+            state=state,
+            payer_type=payer_type,
+            date_of_service=date_of_service or date.today(),
         )
         matches = [
             m
@@ -72,15 +87,48 @@ async def policy_suggestions(
             else (m.model_dump(by_alias=True) if hasattr(m, "model_dump") else vars(m))
             for m in found
         ]
-    except Exception:
+    except Exception:  # knowledge base not ingested yet: curated sets still apply
         matches = []
-    matches = merge_curated(matches, list(case.service_codes or []), case.payer_type)
-    from app.ai.compiler.criteria_compiler import approved_set
-
+    matches = merge_curated(matches, service_codes, payer_type)
     for m in matches:
         if not m.get("criteriaSetStatus"):
             cs = await approved_set(db, m.get("sourceKey"), m.get("policyVersionId"))
             m["criteriaSetStatus"] = cs.status if cs else "missing"
+    return matches
+
+
+@router.post("/cases/policy-suggestions")
+async def draft_policy_suggestions(
+    body: PolicySuggestionsIn,
+    ctx: RequestContext = Depends(require_perm("cases:read")),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    matches = await _suggest(
+        db,
+        service_codes=[c.strip().upper() for c in body.service_codes if c.strip()],
+        dx_codes=[c.strip().upper() for c in body.dx_codes if c.strip()],
+        state=body.state.upper() if body.state else None,
+        payer_type=body.payer_type,
+        date_of_service=body.date_of_service,
+    )
+    return {"matches": matches}
+
+
+@router.post("/cases/{case_id}/policy-suggestions")
+async def policy_suggestions(
+    case_id: uuid.UUID,
+    ctx: RequestContext = Depends(require_perm("cases:read")),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    case = await _case(db, ctx, case_id)
+    matches = await _suggest(
+        db,
+        service_codes=list(case.service_codes or []),
+        dx_codes=list(case.dx_codes or []),
+        state=case.state,
+        payer_type=case.payer_type,
+        date_of_service=case.date_of_service,
+    )
     return {"matches": matches}
 
 
