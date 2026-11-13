@@ -18,7 +18,13 @@ from sqlalchemy import delete, select
 from app.ai.agents.case_chart import ChartChunk, ChartDoc, LexicalIndex, to_date
 from app.ai.agents.case_graph import CaseSnapshot, LoadedCriteria
 from app.ai.agents.case_results import criterion_result_api, evaluation_api
-from app.ai.compiler.criteria_compiler import approved_set, compile_policy, tree_of, upsert_curated
+from app.ai.compiler.criteria_compiler import (
+    approved_set,
+    compile_policy,
+    transfer_from_family,
+    tree_of,
+    upsert_curated,
+)
 from app.ai.compiler.curated import curated_for_services, load_curated, sections_from_db
 from app.ai.compiler.schema import CriterionLeaf
 from app.db.base import utcnow
@@ -176,6 +182,10 @@ class DbCasePorts:
                 if cs is None and key in load_curated():
                     version_id, sections = await sections_from_db(db, key)
                     cs = await upsert_curated(db, load_curated()[key], version_id or vid, sections or None)
+                if cs is None:
+                    cs = await transfer_from_family(db, key, vid)
+                    if cs is not None:
+                        flags.append(f"criteria_transferred:{key}")
                 if cs is None and self.router is not None and _llm_available(self.router, "compiler-longctx"):
                     try:
                         cs = await compile_policy(

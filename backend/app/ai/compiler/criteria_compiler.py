@@ -466,3 +466,84 @@ def _review_note(report: GroundingReport, agreement_score: float | None) -> str:
 
 def tree_of(cs: CriteriaSet) -> CriteriaTree:
     return CriteriaTree.model_validate(cs.tree)
+
+
+def _norm_title(title: str | None) -> str:
+    return " ".join((title or "").lower().split())
+
+
+async def transfer_from_family(
+    db: AsyncSession, policy_key: str, version_id: str | None = None
+) -> CriteriaSet | None:
+    """Reuse a curated criteria set from another contractor's edition of the same policy.
+
+    Medicare contractors frequently publish the same LCD text under different IDs (e.g. the
+    facet-joint LCD exists once per jurisdiction). A curated tree is transferred only when EVERY
+    quote is found verbatim in the target policy's own current text; otherwise the attempt is
+    stored as `needs_review` for a human and nothing is returned, so an evaluation never runs on
+    criteria that aren't grounded in the policy that actually applies.
+    """
+    try:
+        from app.db.models.knowledge import Policy
+    except Exception:  # knowledge schema unavailable
+        return None
+    target = (await db.execute(select(Policy).where(Policy.source_key == policy_key))).scalar_one_or_none()
+    if target is None:
+        return None
+    curated = load_curated()
+    donors = [
+        t
+        for t in curated.values()
+        if not t.synthetic
+        and t.policy_key != policy_key
+        and _norm_title(t.title) == _norm_title(target.title)
+    ]
+    if not donors:
+        return None
+    pending = (
+        await db.execute(
+            select(CriteriaSet.id).where(
+                CriteriaSet.policy_key == policy_key, CriteriaSet.status == "needs_review"
+            )
+        )
+    ).first()
+    vid, sections = await sections_from_db(db, policy_key)
+    if not sections:
+        return None
+    version_no = await _policy_version_no(db, vid or version_id)
+    for donor in sorted(donors, key=lambda t: t.policy_key):
+        tree = donor.model_copy(deep=True, update={"policy_key": policy_key, "policy_version": version_no})
+        report = ground_tree(tree, sections)
+        grounded = report.pass_rate == 1.0
+        if not grounded and pending is not None:
+            continue
+        verified = sum(1 for g in report.leaves if g.ok)
+        if grounded:
+            await _supersede(db, policy_key)
+        cs = CriteriaSet(
+            policy_version_id=vid or version_id,
+            policy_key=policy_key,
+            policy_version=version_no,
+            title=target.title,
+            status="approved" if grounded else "needs_review",
+            source="curated",
+            tree=apply_grounding(tree, report).model_dump(by_alias=True, exclude_none=True),
+            extractor_model=f"transfer:{donor.policy_key}",
+            verifier_model="verbatim-grounding",
+            agreement=round(report.pass_rate, 4),
+            grounding_pass_rate=round(report.pass_rate, 4),
+            grounding=_report_json(report),
+            notes=(
+                f"Transferred from {donor.policy_key}, another contractor's edition of this policy: "
+                f"{verified}/{len(report.leaves)} quotes re-verified verbatim against {policy_key}."
+            ),
+            reviewed_at=datetime.now(UTC) if grounded else None,
+        )
+        db.add(cs)
+        await db.flush()
+        log.info("criteria.transferred", policy=policy_key, donor=donor.policy_key, grounded=grounded)
+        if grounded:
+            await index_criteria_set(cs)
+            return cs
+        pending = cs
+    return None
