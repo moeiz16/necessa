@@ -12,7 +12,15 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <main id="main" className="mx-auto flex w-full max-w-[380px] flex-1 flex-col justify-center py-12">
           {children}
         </main>
-        <p className="text-xs text-subtle">Synthetic data only in demo mode · Necessa never makes coverage decisions.</p>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-subtle">
+          <span>Synthetic data only in demo mode</span>
+          <span aria-hidden>·</span>
+          <span>Necessa never makes coverage decisions</span>
+          <span aria-hidden>·</span>
+          <Link href="/security" className="hover:text-fg">
+            Security
+          </Link>
+        </p>
       </div>
       <AuthAside />
     </div>

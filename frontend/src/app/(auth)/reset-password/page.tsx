@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { api, errorMessage } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/input";
+import { Field, PasswordInput } from "@/components/ui/input";
 import { StrengthMeter } from "@/components/domain/password-strength";
 
 function ResetInner() {
@@ -62,11 +62,11 @@ function ResetInner() {
         }}
       >
         <Field label="New password" htmlFor="pw">
-          <Input id="pw" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} />
+          <PasswordInput id="pw" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} />
           <StrengthMeter value={pw} />
         </Field>
         <Field label="Confirm password" htmlFor="confirm" error={mismatch ? "Passwords don’t match" : error}>
-          <Input id="confirm" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} aria-invalid={mismatch} />
+          <PasswordInput id="confirm" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} aria-invalid={mismatch} />
         </Field>
         <Button type="submit" variant="primary" size="lg" loading={busy} disabled={pw.length < 12 || mismatch}>
           Update password

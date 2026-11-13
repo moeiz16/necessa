@@ -1,7 +1,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, KeyRound, ShieldCheck, TestTube2 } from "lucide-react";
+import { ArrowRight, ChevronDown, CirclePlay, KeyRound, ShieldCheck } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
@@ -12,18 +13,22 @@ import { useDemoMode, useSession } from "@/lib/api/session";
 import { ROLE_LABEL } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/display";
-import { Field, Input } from "@/components/ui/input";
+import { Field, Input, OtpInput, PasswordInput } from "@/components/ui/input";
 
 const schema = z.object({ email: z.string().email("Enter a valid email"), password: z.string().min(1, "Enter your password") });
 type FormValues = z.infer<typeof schema>;
 
-const DEMO_ACCOUNTS = [
-  { email: "maya@riverbend.demo", name: "Maya Okafor", role: "admin", color: "#3e4bdb" },
-  { email: "jordan@riverbend.demo", name: "Jordan Ellis", role: "coordinator", color: "#0f7a55" },
-  { email: "praman@riverbend.demo", name: "Dr. Priya Raman", role: "clinician", color: "#8b5cf6" },
-  { email: "tessa@riverbend.demo", name: "Tessa Morgan, RN", role: "reviewer", color: "#1fb5cc" },
-  { email: "grace@riverbend.demo", name: "Grace Liu", role: "auditor", color: "#565b64", mfa: true },
-] as const;
+/** Sample accounts. The first five match the API's seeded demo org (`necessa cases seed demo`), so they
+ *  work in both the in-browser demo and against a real backend; the last one is browser-demo only. */
+const DEMO_PASSWORD = "Demo!Pass2026";
+const DEMO_ACCOUNTS: { email: string; name: string; role: string; color: string; mfa?: boolean; demoOnly?: boolean }[] = [
+  { email: "maya.okafor@riverbend.demo", name: "Dr. Maya Okafor", role: "owner", color: "#0f766e" },
+  { email: "jordan.reyes@riverbend.demo", name: "Jordan Reyes", role: "coordinator", color: "#7c3aed" },
+  { email: "sam.whitfield@riverbend.demo", name: "Dr. Sam Whitfield", role: "clinician", color: "#2563eb" },
+  { email: "priya.natarajan@riverbend.demo", name: "Priya Natarajan, RN", role: "reviewer", color: "#db2777" },
+  { email: "leo.martins@riverbend.demo", name: "Leo Martins", role: "rcm_manager", color: "#ea580c" },
+  { email: "grace@riverbend.demo", name: "Grace Liu", role: "auditor", color: "#565b64", mfa: true, demoOnly: true },
+];
 
 function LoginInner() {
   const router = useRouter();
@@ -35,6 +40,7 @@ function LoginInner() {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showAccounts, setShowAccounts] = useState(false);
   const autoRan = useRef(false);
 
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { email: "", password: "" } });
@@ -55,10 +61,18 @@ function LoginInner() {
     }
   };
 
-  const enterDemo = async (email: string = DEMO_ACCOUNTS[0].email) => {
+  const enterDemo = async (email: string = DEMO_ACCOUNTS[0]!.email) => {
     setDemoMode(true);
     demo.toggle(true);
-    await submit({ email, password: "demo" });
+    await submit({ email, password: DEMO_PASSWORD });
+  };
+
+  /** Sign in as a sample account in whichever mode is active (browser demo or the seeded API). */
+  const signInAs = async (email: string, demoOnly?: boolean) => {
+    if (demo.on || demoOnly) return enterDemo(email);
+    form.setValue("email", email);
+    form.setValue("password", DEMO_PASSWORD);
+    await submit({ email, password: DEMO_PASSWORD });
   };
 
   useEffect(() => {
@@ -76,12 +90,14 @@ function LoginInner() {
 
   if (mfa) {
     return (
-      <div className="animate-[rise_240ms]">
-        <span className="flex size-10 items-center justify-center rounded-full bg-brand-soft text-brand">
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>
+        <span className="ring-pulse flex size-11 items-center justify-center rounded-full bg-brand-soft text-brand">
           <ShieldCheck className="size-5" />
         </span>
         <h1 className="mt-5 text-2xl font-semibold tracking-tight text-fg">Two-step verification</h1>
-        <p className="mt-1.5 text-sm text-muted">Enter the 6-digit code from your authenticator app.{demo.on ? " In the demo, use 123456." : ""}</p>
+        <p className="mt-1.5 text-sm text-muted">
+          Enter the 6-digit code from your authenticator app for <span className="font-medium text-fg">{mfa.email}</span>.{demo.on ? " In the demo, use 123456." : ""}
+        </p>
         <form
           className="mt-8 grid gap-4"
           onSubmit={(e) => {
@@ -89,18 +105,8 @@ function LoginInner() {
             void submit(mfa, code);
           }}
         >
-          <Field label="Verification code" htmlFor="otp" error={error}>
-            <Input
-              id="otp"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-              className="h-11 text-center font-mono text-lg tracking-[0.5em]"
-              autoFocus
-              aria-invalid={!!error}
-            />
+          <Field label="Verification code" error={error}>
+            <OtpInput value={code} onChange={setCode} autoFocus invalid={!!error} onComplete={(v) => void submit(mfa, v)} />
           </Field>
           <Button type="submit" variant="primary" size="lg" loading={busy} disabled={code.length !== 6}>
             Verify and continue
@@ -109,12 +115,12 @@ function LoginInner() {
             Use a different account
           </Button>
         </form>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div>
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
       <h1 className="text-2xl font-semibold tracking-tight text-fg">Welcome back</h1>
       <p className="mt-1.5 text-sm text-muted">Sign in to your Necessa workspace.</p>
 
@@ -123,24 +129,30 @@ function LoginInner() {
           <Input id="email" type="email" autoComplete="email" placeholder="you@practice.com" aria-invalid={!!form.formState.errors.email} {...form.register("email")} />
         </Field>
         <Field
-          label={
-            <span className="flex w-full items-center justify-between">
-              Password
-              <Link href="/forgot-password" className="text-xs font-normal text-brand hover:underline">
-                Forgot password?
-              </Link>
-            </span>
+          label="Password"
+          action={
+            <Link href="/forgot-password" className="text-xs font-medium text-brand hover:underline">
+              Forgot password?
+            </Link>
           }
           htmlFor="password"
           error={form.formState.errors.password?.message}
         >
-          <Input id="password" type="password" autoComplete="current-password" aria-invalid={!!form.formState.errors.password} {...form.register("password")} />
+          <PasswordInput id="password" autoComplete="current-password" aria-invalid={!!form.formState.errors.password} {...form.register("password")} />
         </Field>
-        {error ? (
-          <div role="alert" className="rounded-md bg-notmet-soft px-3 py-2 text-[13px] text-notmet-fg">
-            {error}
-          </div>
-        ) : null}
+        <AnimatePresence>
+          {error ? (
+            <motion.div
+              role="alert"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden rounded-md bg-notmet-soft px-3 py-2 text-[13px] text-notmet-fg"
+            >
+              {error}
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
         <Button type="submit" variant="primary" size="lg" loading={busy}>
           Sign in
           <ArrowRight />
@@ -154,40 +166,67 @@ function LoginInner() {
       </div>
 
       <Button type="button" variant="secondary" size="lg" className="w-full" onClick={() => enterDemo()} loading={busy && demo.on}>
-        <TestTube2 />
+        <CirclePlay />
         Explore the demo — no sign-up
       </Button>
 
-      {demo.on ? (
-        <div className="mt-6 rounded-xl border border-border bg-surface p-3">
-          <p className="flex items-center gap-1.5 px-1 text-xs font-medium text-muted">
-            <KeyRound className="size-3.5" /> Demo accounts — sign in as any role to explore RBAC
-          </p>
-          <ul className="mt-2 grid gap-0.5">
-            {DEMO_ACCOUNTS.map((a) => (
-              <li key={a.email}>
-                <button
-                  type="button"
-                  onClick={() => enterDemo(a.email)}
-                  className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-surface-2"
-                >
-                  <Avatar name={a.name} color={a.color} size={24} />
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-fg">{a.name}</span>
-                  <span className="text-[11px] text-subtle">
-                    {ROLE_LABEL[a.role]}
-                    {"mfa" in a ? " · MFA" : ""}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {!isDemoForced() ? (
-            <button type="button" className="mt-2 px-1 text-xs text-brand hover:underline" onClick={() => demo.toggle(false)}>
-              Use the live API instead
-            </button>
+      <div className="mt-4 rounded-xl border border-border bg-surface">
+        <button
+          type="button"
+          onClick={() => setShowAccounts((v) => !v)}
+          aria-expanded={showAccounts || demo.on}
+          className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-medium text-muted outline-none hover:text-fg focus-visible:ring-2 focus-visible:ring-brand/30"
+        >
+          <KeyRound className="size-3.5" />
+          <span className="flex-1">Sample accounts — sign in as any role to explore permissions</span>
+          <ChevronDown className={`size-3.5 transition-transform duration-200 ${showAccounts || demo.on ? "rotate-180" : ""}`} />
+        </button>
+        <AnimatePresence initial={false}>
+          {showAccounts || demo.on ? (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden">
+              <ul className="grid gap-0.5 border-t border-border p-1.5">
+                {DEMO_ACCOUNTS.map((a) => (
+                  <li key={a.email}>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => signInAs(a.email, a.demoOnly)}
+                      className="group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-surface-2 disabled:opacity-60"
+                    >
+                      <Avatar name={a.name} color={a.color} size={24} />
+                      <span className="grid min-w-0 flex-1 leading-tight">
+                        <span className="truncate text-[13px] text-fg">{a.name}</span>
+                        <span className="truncate font-mono text-[10.5px] text-subtle">{a.email}</span>
+                      </span>
+                      <span className="text-right text-[11px] text-subtle">
+                        {ROLE_LABEL[a.role]}
+                        {a.mfa ? " · MFA" : ""}
+                        {a.demoOnly ? <span className="block text-[10px]">browser demo</span> : null}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="border-t border-border px-3 py-2 text-[11px] leading-relaxed text-subtle">
+                {demo.on ? (
+                  <>
+                    You&apos;re using in-browser demo data.{" "}
+                    {!isDemoForced() ? (
+                      <button type="button" className="text-brand hover:underline" onClick={() => demo.toggle(false)}>
+                        Use the live API instead
+                      </button>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    Live API: these work once the demo org is seeded (<span className="font-mono">necessa cases seed demo</span>). Password <span className="font-mono">{DEMO_PASSWORD}</span>.
+                  </>
+                )}
+              </p>
+            </motion.div>
           ) : null}
-        </div>
-      ) : null}
+        </AnimatePresence>
+      </div>
 
       <p className="mt-8 text-center text-[13px] text-muted">
         New to Necessa?{" "}
@@ -195,7 +234,7 @@ function LoginInner() {
           Create an account
         </Link>
       </p>
-    </div>
+    </motion.div>
   );
 }
 

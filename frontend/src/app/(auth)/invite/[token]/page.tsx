@@ -11,7 +11,7 @@ import { fmtDate, ROLE_LABEL } from "@/lib/format";
 import type { Role } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { Badge, Skeleton } from "@/components/ui/display";
-import { Field, Input } from "@/components/ui/input";
+import { Field, Input, PasswordInput } from "@/components/ui/input";
 
 export default function InvitePage() {
   const { token } = useParams<{ token: string }>();
@@ -70,7 +70,7 @@ export default function InvitePage() {
           <Input id="name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
         </Field>
         <Field label="Create a password" htmlFor="pw" hint="12+ characters" error={error}>
-          <Input id="pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={12} />
+          <PasswordInput id="pw" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={12} />
         </Field>
         <Button type="submit" variant="primary" size="lg" loading={busy} disabled={!fullName || password.length < 12}>
           Accept invitation

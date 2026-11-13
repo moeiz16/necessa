@@ -11,7 +11,7 @@ import { ApiError, api, errorMessage } from "@/lib/api/client";
 import { qk } from "@/lib/api/hooks";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/controls";
-import { Field, Input } from "@/components/ui/input";
+import { Field, Input, PasswordInput } from "@/components/ui/input";
 import { StrengthMeter } from "@/components/domain/password-strength";
 
 const schema = z.object({
@@ -54,7 +54,7 @@ export default function SignupPage() {
           <Input id="email" type="email" autoComplete="email" {...form.register("email")} aria-invalid={!!form.formState.errors.email} />
         </Field>
         <Field label="Password" htmlFor="password" error={form.formState.errors.password?.message}>
-          <Input id="password" type="password" autoComplete="new-password" {...form.register("password")} aria-invalid={!!form.formState.errors.password} />
+          <PasswordInput id="password" autoComplete="new-password" {...form.register("password")} aria-invalid={!!form.formState.errors.password} />
           <StrengthMeter value={pw} />
         </Field>
         <label className="flex items-start gap-2.5 text-[13px] text-muted">

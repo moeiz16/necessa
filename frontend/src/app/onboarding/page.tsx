@@ -8,7 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/lib/api/client";
-import { useSession } from "@/lib/api/session";
+import { useDemoMode, useSession } from "@/lib/api/session";
 import type { Org, PayerType, Role } from "@/lib/api/types";
 import { PAYER_LABEL, ROLE_LABEL } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -49,6 +49,7 @@ function OnboardingInner() {
   const params = useSearchParams();
   const qc = useQueryClient();
   const { me, status } = useSession();
+  const demoMode = useDemoMode();
   const creatingNew = params.get("new") === "1";
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -97,8 +98,18 @@ function OnboardingInner() {
   if (finished) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center bg-bg px-6 text-center">
-        <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 260, damping: 18 }}>
-          <svg width="96" height="96" viewBox="0 0 32 32" fill="none" aria-hidden>
+        <motion.div className="relative" initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 260, damping: 18 }}>
+          {[0, 1, 2].map((i) => (
+            <motion.span
+              key={i}
+              aria-hidden
+              className="absolute inset-0 rounded-[28px] border border-brand/40"
+              initial={{ scale: 1, opacity: 0.6 }}
+              animate={{ scale: 1.9 + i * 0.4, opacity: 0 }}
+              transition={{ duration: 1.6, delay: 0.5 + i * 0.25, ease: [0.22, 1, 0.36, 1] }}
+            />
+          ))}
+          <svg width="96" height="96" viewBox="0 0 32 32" fill="none" aria-hidden className="relative">
             <rect x="0.5" y="0.5" width="31" height="31" rx="9" fill="var(--brand)" />
             <motion.path
               d="M9 23V9.5l7.6 9.8L24 8.5"
@@ -117,8 +128,8 @@ function OnboardingInner() {
           {practice.name || "Your practice"} is ready. {data === "demo" ? "We loaded a synthetic dataset so you can see Necessa at work." : "Create your first case to get started."}
         </p>
         <div className="mt-8 flex gap-2">
-          <Button variant="primary" size="lg" onClick={() => router.push(data === "demo" ? "/cases/case-42" : "/cases/new")}>
-            {data === "demo" ? "Open a sample case" : "Create your first case"}
+          <Button variant="primary" size="lg" onClick={() => router.push(data === "demo" ? (demoMode.on ? "/cases/case-42" : "/cases") : "/cases/new")}>
+            {data === "demo" ? (demoMode.on ? "Open a sample case" : "Open the worklist") : "Create your first case"}
             <ArrowRight />
           </Button>
           <Button variant="ghost" size="lg" onClick={() => router.push("/dashboard")}>
@@ -149,11 +160,17 @@ function OnboardingInner() {
           </span>
         </div>
         <div className="mx-auto w-full max-w-xl flex-1 py-10 lg:py-16">
-          <div className="mb-8 h-1 overflow-hidden rounded-full bg-surface-3">
-            <motion.div className="h-full bg-brand" animate={{ width: `${((step + 1) / STEPS.length) * 100}%` }} transition={{ ease: [0.25, 1, 0.5, 1] }} />
+          <div className="mb-3 hidden items-center justify-between text-xs text-subtle lg:flex">
+            <span className="font-medium uppercase tracking-[0.08em]">
+              Step {step + 1} of {STEPS.length} · {STEPS[step]!.label}
+            </span>
+            <span className="tabular">{Math.round(((step + 1) / STEPS.length) * 100)}%</span>
+          </div>
+          <div className="mb-8 h-1 overflow-hidden rounded-full bg-surface-3" role="progressbar" aria-valuenow={step + 1} aria-valuemin={1} aria-valuemax={STEPS.length} aria-label="Setup progress">
+            <motion.div className="h-full rounded-full bg-brand" animate={{ width: `${((step + 1) / STEPS.length) * 100}%` }} transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }} />
           </div>
           <AnimatePresence mode="wait">
-            <motion.section key={step} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.18 }}>
+            <motion.section key={step} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}>
               {step === 0 ? (
                 <>
                   <h1 className="text-2xl font-semibold tracking-tight">Tell us about your practice</h1>
