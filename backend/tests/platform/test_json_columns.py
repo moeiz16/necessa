@@ -9,7 +9,7 @@ from datetime import UTC, date, datetime
 from app.db.session import _json_dumps
 
 
-class _Verdict(str, enum.Enum):
+class _Verdict(enum.StrEnum):
     MET = "MET"
 
 
