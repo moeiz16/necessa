@@ -233,6 +233,14 @@ export interface HighlightSpan {
   label?: string;
 }
 
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node);
+    if ((overflowY === "auto" || overflowY === "scroll") && node.scrollHeight > node.clientHeight) return node;
+  }
+  return null;
+}
+
 /** Renders text with non-overlapping highlighted spans; active span gets a focus ring and is scrolled into view. */
 export function HighlightedText({ text, spans, activeId, className, onSpanClick }: { text: string; spans: HighlightSpan[]; activeId?: string | null; className?: string; onSpanClick?: (id: string) => void }) {
   const sorted = [...spans].filter((s) => s.start >= 0 && s.end > s.start).sort((a, b) => a.start - b.start);
@@ -240,7 +248,14 @@ export function HighlightedText({ text, spans, activeId, className, onSpanClick 
   let cursor = 0;
   const activeRef = React.useRef<HTMLElement | null>(null);
   React.useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    // Center the active span inside its own scroll pane only — `scrollIntoView` would also scroll
+    // every ancestor, jerking the whole page while someone is reading the other pane.
+    const el = activeRef.current;
+    const pane = el ? scrollParent(el) : null;
+    if (!el || !pane) return;
+    const delta = el.getBoundingClientRect().top - pane.getBoundingClientRect().top - pane.clientHeight / 2 + el.offsetHeight / 2;
+    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    pane.scrollBy({ top: delta, behavior: smooth ? "smooth" : "auto" });
   }, [activeId]);
   sorted.forEach((s, i) => {
     if (s.start < cursor) return;

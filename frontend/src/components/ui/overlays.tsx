@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 const panel = "z-50 rounded-lg border border-border bg-surface text-fg shadow-e3 outline-none";
 const anim =
-  "data-[state=open]:animate-[rise_160ms_var(--ease-out-quart)] data-[state=closed]:animate-[fade-in_100ms_reverse]";
+  "origin-[var(--radix-popper-transform-origin)] data-[state=open]:animate-[scale-in_160ms_var(--ease-out)] data-[state=closed]:animate-[scale-out_110ms_var(--ease-out)]";
 
 /* ── Dialog ─────────────────────────────────────────────────────────────── */
 export const Dialog = D.Root;
@@ -25,11 +25,11 @@ export function DialogContent({
 }: React.ComponentProps<typeof D.Content> & { title: React.ReactNode; description?: React.ReactNode; size?: "sm" | "md" | "lg" | "xl"; hideClose?: boolean }) {
   return (
     <D.Portal>
-      <D.Overlay className="fixed inset-0 z-50 bg-[rgb(10_11_13/0.42)] backdrop-blur-[2px] data-[state=open]:animate-[fade-in_160ms]" />
+      <D.Overlay className="fixed inset-0 z-50 bg-[rgb(10_11_13/0.42)] backdrop-blur-[2px] data-[state=open]:animate-[fade-in_160ms] data-[state=closed]:animate-[fade-out_140ms]" />
       <D.Content
         className={cn(
           panel,
-          "fixed left-1/2 top-[12vh] z-50 max-h-[78vh] w-[calc(100vw-2rem)] -translate-x-1/2 overflow-y-auto p-0 scrollbar-thin data-[state=open]:animate-[rise_200ms_var(--ease-out-quart)]",
+          "fixed left-1/2 top-[12vh] z-50 max-h-[78vh] w-[calc(100vw-2rem)] -translate-x-1/2 overflow-y-auto p-0 scrollbar-thin data-[state=open]:animate-[scale-in_220ms_var(--ease-out)] data-[state=closed]:animate-[scale-out_140ms_var(--ease-out)]",
           size === "sm" && "max-w-sm",
           size === "md" && "max-w-lg",
           size === "lg" && "max-w-2xl",
@@ -72,11 +72,13 @@ export function SheetContent({
 }: React.ComponentProps<typeof D.Content> & { title: React.ReactNode; description?: React.ReactNode; side?: "right" | "left" }) {
   return (
     <D.Portal>
-      <D.Overlay className="fixed inset-0 z-50 bg-[rgb(10_11_13/0.32)] data-[state=open]:animate-[fade-in_160ms]" />
+      <D.Overlay className="fixed inset-0 z-50 bg-[rgb(10_11_13/0.32)] data-[state=open]:animate-[fade-in_160ms] data-[state=closed]:animate-[fade-out_160ms]" />
       <D.Content
         className={cn(
           "fixed inset-y-0 z-50 flex w-full max-w-[min(100vw,30rem)] flex-col border-border bg-surface shadow-e3 outline-none",
-          side === "right" ? "right-0 border-l data-[state=open]:animate-[sheet-in-right_260ms_var(--ease-out-quart)]" : "left-0 border-r data-[state=open]:animate-[sheet-in-left_260ms_var(--ease-out-quart)]",
+          side === "right"
+            ? "right-0 border-l data-[state=open]:animate-[sheet-in-right_280ms_var(--ease-out)] data-[state=closed]:animate-[sheet-out-right_200ms_var(--ease-in-out)]"
+            : "left-0 border-r data-[state=open]:animate-[sheet-in-left_280ms_var(--ease-out)] data-[state=closed]:animate-[sheet-out-left_200ms_var(--ease-in-out)]",
           className,
         )}
         {...props}
@@ -139,7 +141,7 @@ export function Tooltip({
         <T.Content
           side={side}
           sideOffset={6}
-          className="z-[60] max-w-xs rounded-md bg-fg px-2 py-1 text-xs font-medium text-bg shadow-e2 data-[state=delayed-open]:animate-[fade-in_120ms]"
+          className="z-[60] max-w-xs rounded-md bg-fg px-2 py-1 text-xs font-medium leading-snug text-bg shadow-e2 data-[state=delayed-open]:animate-[scale-in_120ms_var(--ease-out)] data-[state=instant-open]:animate-[fade-in_80ms]"
         >
           {content}
         </T.Content>
@@ -193,5 +195,113 @@ export function DropdownSubContent({ className, ...props }: React.ComponentProps
     <DM.Portal>
       <DM.SubContent className={cn(panel, anim, "min-w-40 p-1", className)} {...props} />
     </DM.Portal>
+  );
+}
+
+/* ── Confirm dialog (irreversible / sensitive actions) ──────────────────── */
+/**
+ * Use for anything that can't be undone or that has compliance weight (approving a letter, deleting,
+ * revealing PHI with a reason). `requireText` makes the user type a phrase; `withReason` collects a
+ * free-text justification that is passed to `onConfirm` (store it in the audit metadata).
+ */
+export function ConfirmDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
+  tone = "primary",
+  requireText,
+  withReason,
+  reasonLabel = "Reason",
+  onConfirm,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description?: React.ReactNode;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  tone?: "primary" | "danger";
+  requireText?: string;
+  withReason?: boolean;
+  reasonLabel?: string;
+  onConfirm: (reason?: string) => void | Promise<void>;
+  children?: React.ReactNode;
+}) {
+  const [typed, setTyped] = React.useState("");
+  const [reason, setReason] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => {
+    if (!open) {
+      setTyped("");
+      setReason("");
+      setBusy(false);
+    }
+  }, [open]);
+  const ready = (!requireText || typed.trim() === requireText) && (!withReason || reason.trim().length >= 3);
+  return (
+    <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
+      <DialogContent title={title} description={description} size="sm">
+        <div className="grid gap-3">
+          {children}
+          {withReason ? (
+            <label className="grid gap-1.5 text-[13px]">
+              <span className="font-medium text-fg">{reasonLabel}</span>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={3}
+                className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-fg outline-none placeholder:text-subtle focus-visible:border-brand focus-visible:ring-3 focus-visible:ring-brand/15"
+                placeholder="Recorded in the audit log"
+                autoFocus
+              />
+            </label>
+          ) : null}
+          {requireText ? (
+            <label className="grid gap-1.5 text-[13px]">
+              <span className="text-muted">
+                Type <span className="font-mono font-medium text-fg">{requireText}</span> to confirm
+              </span>
+              <input
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                className="h-9 w-full rounded-md border border-border bg-surface px-3 font-mono text-sm text-fg outline-none focus-visible:border-brand focus-visible:ring-3 focus-visible:ring-brand/15"
+                autoFocus={!withReason}
+              />
+            </label>
+          ) : null}
+        </div>
+        <DialogFooter>
+          <D.Close asChild>
+            <button type="button" className="h-8 rounded-md px-3 text-[13px] font-medium text-muted hover:bg-surface-2 hover:text-fg" disabled={busy}>
+              {cancelLabel}
+            </button>
+          </D.Close>
+          <button
+            type="button"
+            disabled={!ready || busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await onConfirm(withReason ? reason.trim() : undefined);
+                onOpenChange(false);
+              } finally {
+                setBusy(false);
+              }
+            }}
+            className={cn(
+              "press inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium disabled:pointer-events-none disabled:opacity-50",
+              tone === "danger" ? "bg-notmet text-white hover:opacity-90" : "bg-brand text-brand-contrast hover:bg-brand-hover",
+            )}
+          >
+            {busy ? <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden /> : null}
+            {confirmLabel}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

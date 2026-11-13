@@ -65,8 +65,14 @@ export function AvatarStack({ people, max = 3, size = 22 }: { people: { fullName
 }
 
 /* ── Card ───────────────────────────────────────────────────────────────── */
-export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("rounded-xl bg-surface shadow-e1", className)} {...props} />;
+/** Surface container. `interactive` adds hover elevation for clickable cards. Accepts `ref` (React 19). */
+export function Card({ className, interactive, ...props }: React.ComponentProps<"div"> & { interactive?: boolean }) {
+  return (
+    <div
+      className={cn("rounded-xl bg-surface shadow-e1", interactive && "cursor-pointer transition-[box-shadow,transform] duration-200 ease-out hover:-translate-y-px hover:shadow-e2", className)}
+      {...props}
+    />
+  );
 }
 export function CardHeader({
   title,
@@ -126,20 +132,24 @@ export function Kbd({ children, className }: { children: React.ReactNode; classN
 export function Breadcrumb({ items }: { items: { label: React.ReactNode; href?: string }[] }) {
   return (
     <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-[13px] text-muted">
-      {items.map((it, i) => (
-        <React.Fragment key={i}>
-          {i > 0 ? <ChevronRight className="size-3.5 shrink-0 text-subtle" /> : null}
-          {it.href ? (
-            <Link href={it.href} className="truncate hover:text-fg">
-              {it.label}
-            </Link>
-          ) : (
-            <span className="truncate text-fg" aria-current="page">
-              {it.label}
-            </span>
-          )}
-        </React.Fragment>
-      ))}
+      {items.map((it, i) => {
+        const last = i === items.length - 1;
+        // Phones show only the current page; earlier crumbs would truncate to unreadable slivers.
+        return (
+          <span key={i} className={last ? "flex min-w-0 items-center gap-1" : "hidden min-w-0 items-center gap-1 sm:flex"}>
+            {i > 0 ? <ChevronRight className="hidden size-3.5 shrink-0 text-subtle sm:block" /> : null}
+            {it.href && !last ? (
+              <Link href={it.href} className="truncate hover:text-fg">
+                {it.label}
+              </Link>
+            ) : (
+              <span className="truncate text-fg" aria-current={last ? "page" : undefined}>
+                {it.label}
+              </span>
+            )}
+          </span>
+        );
+      })}
     </nav>
   );
 }

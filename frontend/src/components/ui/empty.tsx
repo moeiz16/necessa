@@ -85,3 +85,96 @@ export function EmptyState({
     </div>
   );
 }
+
+/** Error state with a correlation reference and retry — used for failed queries inside a page. */
+export function ErrorState({
+  title = "Couldn’t load this",
+  description = "The request failed. Nothing you entered was lost.",
+  onRetry,
+  reference,
+  className,
+  compact,
+}: {
+  title?: React.ReactNode;
+  description?: React.ReactNode;
+  onRetry?: () => void;
+  reference?: string | null;
+  className?: string;
+  compact?: boolean;
+}) {
+  return (
+    <div role="alert" className={cn("flex flex-col items-center justify-center gap-3 text-center", compact ? "py-8" : "py-14", className)}>
+      <span className="flex size-10 items-center justify-center rounded-full bg-notmet-soft text-notmet">
+        <svg viewBox="0 0 16 16" className="size-4" fill="none" aria-hidden>
+          <path d="M8 1.75 14.5 13.5h-13z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+          <path d="M8 6.2v3.2M8 11.4v.01" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      </span>
+      <div className="grid max-w-sm gap-1">
+        <p className="text-sm font-medium text-fg">{title}</p>
+        {description ? <p className="text-[13px] text-muted text-pretty">{description}</p> : null}
+        {reference ? <code className="mx-auto mt-1 rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-muted">ref {reference}</code> : null}
+      </div>
+      {onRetry ? (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="press inline-flex h-8 items-center gap-1.5 rounded-md bg-surface px-3 text-[13px] font-medium text-fg shadow-e1 hover:bg-surface-2"
+        >
+          Try again
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** Inline notice for context, warnings and degraded-mode explanations. Icon + text, never color alone. */
+export function Callout({
+  tone = "info",
+  title,
+  children,
+  icon,
+  action,
+  className,
+}: {
+  tone?: "info" | "warning" | "danger" | "success" | "ai" | "neutral";
+  title?: React.ReactNode;
+  children?: React.ReactNode;
+  icon?: React.ReactNode;
+  action?: React.ReactNode;
+  className?: string;
+}) {
+  const styles = {
+    info: "bg-info-soft/70 text-fg ring-info/20 [&_[data-icon]]:text-info",
+    warning: "bg-insufficient-soft/70 text-fg ring-insufficient/25 [&_[data-icon]]:text-insufficient",
+    danger: "bg-notmet-soft/70 text-fg ring-notmet/25 [&_[data-icon]]:text-notmet",
+    success: "bg-met-soft/70 text-fg ring-met/25 [&_[data-icon]]:text-met",
+    ai: "ai-border text-fg [&_[data-icon]]:text-ai-2",
+    neutral: "bg-surface-2 text-fg ring-border [&_[data-icon]]:text-subtle",
+  }[tone];
+  const glyph = {
+    info: <path d="M8 7.2v4M8 4.8v.01" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />,
+    warning: <path d="M8 4.6v4.2M8 11.2v.01" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />,
+    danger: <path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />,
+    success: <path d="M5.2 8.2l1.9 1.9 3.8-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />,
+    ai: <path d="M8 3.2l1.2 3.6 3.6 1.2-3.6 1.2L8 12.8l-1.2-3.6L3.2 8l3.6-1.2z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />,
+    neutral: <path d="M8 7.2v4M8 4.8v.01" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />,
+  }[tone];
+  return (
+    <div className={cn("flex gap-3 rounded-lg px-3.5 py-3 text-[13px] ring-1 ring-inset", styles, className)}>
+      <span data-icon className="mt-px shrink-0 [&_svg]:size-4">
+        {icon ?? (
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden>
+            {tone !== "ai" ? <circle cx="8" cy="8" r="6.4" stroke="currentColor" strokeWidth="1.3" /> : null}
+            {glyph}
+          </svg>
+        )}
+      </span>
+      <div className="grid min-w-0 flex-1 gap-0.5">
+        {title ? <p className="font-medium text-fg">{title}</p> : null}
+        {children ? <div className="leading-relaxed text-muted">{children}</div> : null}
+      </div>
+      {action ? <div className="shrink-0 self-center">{action}</div> : null}
+    </div>
+  );
+}

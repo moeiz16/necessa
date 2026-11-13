@@ -86,6 +86,14 @@ export function Combobox({
   const [open, setOpen] = React.useState(false);
   const [q, setQ] = React.useState("");
   const listId = React.useId();
+  // With async search (`onSearch`), cmdk keeps the previous highlight when results arrive, so Enter
+  // would select nothing. Control the highlight and move it to the first result on every update.
+  const itemKey = (o: ComboOption) => `${o.value} ${o.label}`;
+  const firstKey = options[0] ? itemKey(options[0]) : "";
+  const [active, setActive] = React.useState(firstKey);
+  React.useEffect(() => {
+    if (onSearch) setActive(firstKey);
+  }, [firstKey, onSearch]);
   const toggle = (v: string) => {
     if (multiple) onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
     else {
@@ -137,7 +145,11 @@ export function Combobox({
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-[min(28rem,calc(100vw-2rem))] p-0" align="start">
-        <Command shouldFilter={!onSearch}>
+        <Command
+          shouldFilter={!onSearch}
+          value={onSearch ? active : undefined}
+          onValueChange={onSearch ? setActive : undefined}
+        >
           <CommandInput
             placeholder={searchPlaceholder}
             value={q}
@@ -149,7 +161,7 @@ export function Combobox({
           <CommandList id={listId}>
             {loading ? <div className="px-3 py-6 text-center text-[13px] text-muted">Searching…</div> : <CommandEmpty>{empty}</CommandEmpty>}
             {options.map((o) => (
-              <CommandItem key={o.value} value={`${o.value} ${o.label}`} onSelect={() => toggle(o.value)}>
+              <CommandItem key={o.value} value={itemKey(o)} onSelect={() => toggle(o.value)}>
                 <span className={cn("flex size-4 items-center justify-center rounded-[4px] border", value.includes(o.value) ? "border-brand bg-brand text-brand-contrast" : "border-border-strong")}>
                   {value.includes(o.value) ? <Check className="size-3 !text-brand-contrast" strokeWidth={3} /> : null}
                 </span>

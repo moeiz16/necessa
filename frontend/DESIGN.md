@@ -55,7 +55,8 @@ Each semantic color has `-soft` (background) and `-fg` (text on soft) variants t
 - **Radius**: `xs 4 · sm 6 · md 8 · lg 12 · xl 16 · 2xl 22`. Controls use 6–8, cards 12, hero surfaces 16+.
 - **Elevation**: `shadow-e1` (resting card, a 1-px ring plus a soft drop), `e2` (hover / raised), `e3` (popovers, dialogs). Borders stay hairline; depth comes from shadow, not heavy strokes.
 - **Focus**: a 2-px Iris ring with offset on every interactive element (`:focus-visible`).
-- **Motion**: 120–240 ms with `cubic-bezier(.25,1,.5,1)` (`--ease-out-quart`). Things *rise* in, they don't bounce. Streaming states use a gentle pulse. Everything respects `prefers-reduced-motion`; the readiness ring and hero animation skip to their final state.
+- **Motion**: three durations — `--dur-fast` 120 ms (press, hover, tooltip), `--dur` 200 ms (UI state, overlays), `--dur-slow` 320 ms (page and section entrances) — on `--ease-out` (`cubic-bezier(.22,1,.36,1)`); loops use `--ease-in-out`. Things *rise* and *scale* in, they don't bounce; overlays animate out as well as in. Live AI work uses a calm sheen (`.ai-sheen`, `.ai-text-shimmer`), never a spinner wall. Everything respects `prefers-reduced-motion`: shimmers stop, count-ups render their final value, entrances are instant.
+- **Motion primitives** (`src/components/ui/motion.tsx`): `FadeIn`, `Stagger` + `StaggerItem` (list reveals; `inView` for scroll), `Reveal` (marketing sections), `CountUp` (KPIs), `PageTransition`, `Collapse` (height disclosure), `Swap` (crossfade changing text), plus `duration`, `ease`, `spring` constants. Utilities: `.press` (tactile 0.98 scale), `.lift` (hover elevation), `.ring-pulse`.
 
 ## 5. Components (`src/components/ui`)
 
@@ -63,7 +64,13 @@ Built on Radix primitives (the unified `radix-ui` package), styled in the shadcn
 
 `button` (primary · secondary · ghost · subtle · outline · danger · **ai** · link) · `input` / `textarea` / `Field` / `Label` · `controls` (Select, Checkbox, Switch, RadioCards, Tabs, Segmented) · `command` (cmdk Command + async Combobox) · `overlays` (Dialog, Sheet, Popover, HoverCard, Tooltip, Dropdown) · `display` (Badge, Avatar/Stack, Card, Skeleton, Kbd, Breadcrumb, PageHeader, DataList, Progress, Stepper, SectionLabel, CodeBlock with SQL highlighting, Dot) · `data-table` (TanStack Table: sort, filter, column visibility, selection, pagination) · `widgets` (Sparkline, StatCard, Timeline, DiffViewer, SplitPane, Dropzone) · `empty` (EmptyState with on-grid line illustrations).
 
+Additional primitives: `ConfirmDialog` (irreversible or compliance-weighted actions, optional typed phrase and audited reason), `ErrorState` (retry + correlation reference), `Callout` (info · warning · danger · success · ai · neutral — icon + text, never color alone), `PasswordInput` (show/hide), `OtpInput` (segmented TOTP with paste), and `Card interactive`.
+
 Domain components (`src/components/domain`): **VerdictBadge / VerdictIcon**, **ReadinessRing** (animated), **ConfidenceMeter**, **CitationChip** (hover card with source quote), **HighlightedText** (evidence/policy marks with an active ring and scroll-into-view), **DeidText** (renders PHI tokens as redaction pills), StatusChip, PriorityChip, PayerChip, DocTypeBadge, CodeChip, live **SlaTimer**.
+
+Trust primitives (`src/components/domain/trust.tsx`) — the clinical-AI transparency kit: `AiBadge` ("AI-suggested", explains itself on hover), `AiWorking` (live analysis indicator), `AiShimmer` (wraps streaming surfaces), `ConfidencePill` (High / Moderate / Low + calibrated %), `WhyButton` (popover explaining an output), `ReviewBadge` (awaiting review · reviewed by · overridden by), `PhiMask` (masked identifier with audited reveal), `Provenance` (source · verified verbatim), `StatusLabel` (icon + text status), `DecisionDisclaimer`.
+
+Charts (`src/components/charts`) are code-split: Recharts loads on demand behind height-reserving skeletons, so chart pages paint immediately with no layout shift.
 
 ## 6. Patterns
 
@@ -72,8 +79,10 @@ Domain components (`src/components/domain`): **VerdictBadge / VerdictIcon**, **R
 - **Show the machinery.** The retrieval inspector, model routing table, eval gates and audit chain are first-class screens, not hidden logs.
 - **Absence ≠ met.** Insufficient evidence uses its own amber state, distinct from red Not met.
 - **Privacy affordances.** PHI is masked by default. Revealing it needs a stated reason and creates an audit event; the UI says so before you click.
-- **States.** Every async view has a skeleton, an empty state with a next step, and an error toast with an RFC 7807 message.
+- **States.** Every async view has a skeleton, an empty state with a next step, and an error state with retry and an RFC 7807 message.
+- **Honest copy.** No certification claims (the project is not HIPAA- or SOC 2-audited); controls are described as "HIPAA-aligned". The UI never says *approved* or *denied* about its own output — it says *ready*, *gaps* or *not supported*, and names the human who decides.
+- **KPI semantics.** Arrow direction shows the sign of a change; color shows whether that is good (green) or needs attention (amber), with "better/worse" for screen readers.
 
 ## 7. Accessibility
 
-WCAG 2.1 AA contrast for text and UI in both themes; keyboard access everywhere (⌘K palette, `G`-prefixed navigation, `?` for help, `[` to toggle the sidebar); skip link; Radix-managed focus in overlays; `aria-live` for streaming and strength meters; and labels on every icon button. Layouts are responsive down to 375 px.
+WCAG 2.2 AA contrast for text and UI in both themes (secondary text `--fg-subtle` is ≥ 4.5:1 on the canvas: `#6b7079` light, `#80868f` dark); 14 px base body size; keyboard access everywhere (⌘K palette, `G`-prefixed navigation, `?` for help, `[` to toggle the sidebar); skip link; Radix-managed focus in overlays; `aria-live` for streaming and strength meters; and labels on every icon button. Layouts are responsive down to 375 px.

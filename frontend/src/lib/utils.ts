@@ -9,11 +9,36 @@ export function sleep(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
 }
 
+const HONORIFIC = /^(dr|mr|mrs|ms|mx|prof)\.?$/i;
+
+/** "Dr. Maya Okafor" → ["Maya", "Okafor"]; "Priya Natarajan, RN" → ["Priya", "Natarajan"]. */
+export function nameParts(name?: string | null): string[] {
+  if (!name) return [];
+  return name
+    .split(",")[0]!
+    .trim()
+    .split(/\s+/)
+    .filter((p) => p && !HONORIFIC.test(p));
+}
+
 export function initials(name?: string | null) {
-  if (!name) return "?";
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const parts = nameParts(name);
+  if (!parts.length) return "?";
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
   return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+}
+
+/** Given name for greetings, honorific-aware ("Dr. Maya Okafor" → "Maya"). */
+export function firstName(name?: string | null) {
+  return nameParts(name)[0] ?? "";
+}
+
+/** Short display name for dense lists ("Dr. Sam Whitfield" → "Dr. Whitfield", "Jordan Reyes" → "Jordan R."). */
+export function shortName(name?: string | null) {
+  if (!name) return "";
+  const parts = nameParts(name);
+  if (/^dr\.?\s/i.test(name.trim())) return `Dr. ${parts[parts.length - 1] ?? ""}`.trim();
+  return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]![0]}.` : (parts[0] ?? name);
 }
 
 export function uid(prefix = "") {
