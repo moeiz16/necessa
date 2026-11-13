@@ -9,12 +9,16 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
 
 from app.core.config import get_settings
 from app.core.errors import install_error_handlers
 from app.core.logging import configure_logging
-from app.core.middleware import RequestContextMiddleware, SecurityHeadersMiddleware
+from app.core.middleware import (
+    CompressionMiddleware,
+    HTTPCacheMiddleware,
+    RequestContextMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.core.ratelimit import RateLimitMiddleware
 
 log = structlog.get_logger("necessa")
@@ -152,7 +156,9 @@ def create_app() -> FastAPI:
 
     # Starlette applies middleware in reverse order of addition: the last added is outermost.
     app.add_middleware(RateLimitMiddleware)
-    app.add_middleware(GZipMiddleware, minimum_size=1024)
+    # Cache policy/ETags see the uncompressed body; 304s skip compression entirely.
+    app.add_middleware(HTTPCacheMiddleware, api_prefix=s.api_prefix)
+    app.add_middleware(CompressionMiddleware, minimum_size=1024)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=s.cors_origins,
