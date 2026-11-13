@@ -1,0 +1,76 @@
+name: knowledge-ingest
+
+# Weekly CMS MCD refresh into the CLOUD stores (Neon Postgres + Qdrant Cloud) using repo secrets.
+# Runs on a US-hosted GitHub runner (the MCD API is geo-restricted in some regions).
+# Licensed MCD content is downloaded to the runner's ephemeral disk only — it is NEVER committed
+# or uploaded as an artifact, and logs print counts, not policy text.
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: "focus | full"
+        default: focus
+        required: true
+      policy_keys:
+        description: "Optional space-separated policy keys (e.g. L33718 A52369)"
+        required: false
+  schedule:
+    - cron: "30 9 * * 5"   # Fridays 09:30 UTC (MCD weekly refresh lands Thursdays)
+
+concurrency:
+  group: knowledge-ingest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: knowledge
+    env:
+      ENVIRONMENT: prod
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      QDRANT_URL: ${{ secrets.QDRANT_URL }}
+      QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      ACCEPT_CMS_LICENSE: "true"
+      INGEST_SCOPE: ${{ github.event.inputs.scope || 'focus' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - name: Install backend
+        working-directory: backend
+        run: pip install -e .
+      - name: Migrate database
+        working-directory: backend
+        run: alembic upgrade head
+      - name: Download MCD exports (CSV only, ephemeral)
+        working-directory: backend
+        run: python -m app.cli rag ingest download
+      - name: Ingest + build index (blue/green, smoke-gated)
+        working-directory: backend
+        run: |
+          KEYS=""
+          for k in ${{ github.event.inputs.policy_keys }}; do KEYS="$KEYS --key $k"; done
+          python -m app.cli rag ingest run --scope "$INGEST_SCOPE" $KEYS > ingest-result.json
+          python - <<'PY'
+          import json; r = json.load(open("ingest-result.json"))
+          print({k: r.get(k) for k in ("documents", "versions_new", "unchanged", "chunks", "seconds")})
+          print("index:", {k: (r.get("index") or {}).get(k) for k in ("status", "points", "embedded", "reused")})
+          PY
+      - name: Prune old index versions
+        working-directory: backend
+        run: python -m app.cli rag index prune --keep 2
+      - name: Wipe licensed data from runner
+        if: always()
+        run: rm -rf data/raw backend/ingest-result.json
