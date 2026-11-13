@@ -6,11 +6,11 @@ export const metadata: Metadata = { title: "Security & compliance" };
 const SECTIONS: { title: string; lead: string; points: string[] }[] = [
   {
     title: "Protected health information",
-    lead: "PHI is isolated by architecture, not just by policy.",
+    lead: "De-identification first, encryption at rest, and the minimum necessary for every call.",
     points: [
       "Charts are de-identified at intake: known identifiers from the patient record and pattern-based identifiers (MRN, member ID, phone, SSN, dates) are tokenized before any model sees them.",
-      "Raw text is encrypted at rest with field-level envelope encryption; revealing identifiers requires a permission and writes an audit event.",
-      "Every model call carries a data class (PUBLIC, INTERNAL, PHI). The gateway refuses PHI-class calls to endpoints without an executed BAA in production.",
+      "Raw text is encrypted at rest with field-level encryption; revealing identifiers requires a permission and writes an audit event.",
+      "Every model call carries a data class (PUBLIC, INTERNAL, PHI). The model router refuses PHI-class calls unless the text is de-identified and the destination is on the approved list — in production, only endpoints covered by a BAA.",
       "Minimum necessary: the model receives only the evidence passages for one criterion at a time — never the full chart.",
     ],
   },
@@ -28,7 +28,7 @@ const SECTIONS: { title: string; lead: string; points: string[] }[] = [
     title: "Application security",
     lead: "Controls mapped to OWASP ASVS L2 and the OWASP Top 10 for LLM Applications (2025).",
     points: [
-      "OIDC-compatible authentication, short-lived access tokens, rotating refresh tokens, optional TOTP MFA (enforceable per organization).",
+      "Argon2id passwords, short-lived access tokens, rotating refresh tokens with reuse detection, and TOTP MFA (enforceable per organization).",
       "Role-based access with tenant isolation enforced server-side and by Postgres row-level security; vector search filters are injected by the server, never the client.",
       "Prompt-injection screening on every upload and retrieved passage; suspicious documents are quarantined and excluded from evidence.",
       "Strict output schemas, verbatim citation validation and an allowlisted, read-only SQL sandbox for analytics questions.",
@@ -61,11 +61,22 @@ export default function SecurityPage() {
       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">Trust center</p>
       <h1 className="mt-3 font-display text-5xl tracking-tight text-fg">Security & compliance</h1>
       <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted">
-        Necessa is engineered for HIPAA-aligned workflows: privacy by architecture, humans in control, and an audit trail for everything the system suggests. This page is an engineering overview, not legal advice.
+        Necessa is engineered for HIPAA-aligned workflows: privacy controls in every layer, humans in control, and an audit trail for everything the system suggests. This page is an engineering overview, not legal advice.
+      </p>
+      <div className="mt-6 flex flex-wrap gap-2 text-xs">
+        {["De-identification at intake", "Field-level encryption", "Hash-chained audit log", "RBAC + tenant isolation", "No coverage decisions"].map((t) => (
+          <span key={t} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 text-muted">
+            <CircleCheck className="size-3.5 text-met" />
+            {t}
+          </span>
+        ))}
+      </div>
+      <p className="mt-6 rounded-lg border border-border bg-surface-2/60 px-4 py-3 text-[13px] text-muted">
+        Necessa has not been audited for HIPAA or SOC 2 compliance. The public demo runs on synthetic data; any real deployment needs Business Associate Agreements with every service that touches PHI.
       </p>
       <div className="mt-14 grid gap-12">
         {SECTIONS.map((s) => (
-          <section key={s.title} className="grid gap-4 md:grid-cols-[240px_1fr]">
+          <section key={s.title} className="grid gap-4 border-t border-border pt-10 first:border-0 first:pt-0 md:grid-cols-[240px_1fr]">
             <div>
               <h2 className="text-[15px] font-semibold tracking-tight text-fg">{s.title}</h2>
               <p className="mt-1 text-[13px] text-muted">{s.lead}</p>
