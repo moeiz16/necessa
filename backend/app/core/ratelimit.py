@@ -16,6 +16,7 @@ from typing import Any
 import structlog
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from app.core.clientip import resolve_client_ip
 from app.core.config import get_settings
 from app.core.errors import problem
 
@@ -106,11 +107,9 @@ limiter = _LimiterHolder()
 
 def _client_key(scope: Scope) -> str:
     headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
-    fwd = headers.get("x-forwarded-for")
-    if fwd:
-        return fwd.split(",")[0].strip()
     client = scope.get("client")
-    return client[0] if client else "unknown"
+    peer = client[0] if client else None
+    return resolve_client_ip(peer, headers.get("x-forwarded-for")) or "unknown"
 
 
 class RateLimitMiddleware:

@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     password_min_length: int = 12
     cookie_secure: bool = False
     cookie_domain: str | None = None
+    # Proxies whose X-Forwarded-For header is trusted (CIDRs allowed). Defaults cover the local
+    # Next.js server; add your load balancer's range in production.
+    trusted_proxies: list[str] = Field(default_factory=lambda: ["127.0.0.1", "::1"])
     rate_limit_per_minute: int = 120
     auth_rate_limit_per_minute: int = 10
 
