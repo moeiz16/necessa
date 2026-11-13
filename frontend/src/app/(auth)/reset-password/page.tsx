@@ -45,6 +45,7 @@ function ResetInner() {
     <div>
       <h1 className="text-2xl font-semibold tracking-tight">Choose a new password</h1>
       <form
+        method="post"
         className="mt-8 grid gap-4"
         onSubmit={async (e) => {
           e.preventDefault();

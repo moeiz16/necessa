@@ -90,15 +90,14 @@ function LoginInner() {
 
   if (mfa) {
     return (
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>
-        <span className="ring-pulse flex size-11 items-center justify-center rounded-full bg-brand-soft text-brand">
-          <ShieldCheck className="size-5" />
-        </span>
-        <h1 className="mt-5 text-2xl font-semibold tracking-tight text-fg">Two-step verification</h1>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18 }}>
+        <ShieldCheck className="size-6 text-muted" />
+        <h1 className="mt-5 text-2xl font-semibold tracking-[-0.02em] text-fg">Two-step verification</h1>
         <p className="mt-1.5 text-sm text-muted">
-          Enter the 6-digit code from your authenticator app for <span className="font-medium text-fg">{mfa.email}</span>.{demo.on ? " In the demo, use 123456." : ""}
+          Enter the 6-digit code from your authenticator app for <span className="font-medium text-fg">{mfa.email}</span>.{demo.on ? " In the sample workspace, use 123456." : ""}
         </p>
         <form
+          method="post"
           className="mt-8 grid gap-4"
           onSubmit={(e) => {
             e.preventDefault();
@@ -120,11 +119,11 @@ function LoginInner() {
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
-      <h1 className="text-2xl font-semibold tracking-tight text-fg">Welcome back</h1>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18 }}>
+      <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">Welcome back</h1>
       <p className="mt-1.5 text-sm text-muted">Sign in to your Necessa workspace.</p>
 
-      <form className="mt-8 grid gap-4" onSubmit={form.handleSubmit((v) => submit(v))} noValidate>
+      <form method="post" className="mt-8 grid gap-4" onSubmit={form.handleSubmit((v) => submit(v))} noValidate>
         <Field label="Work email" htmlFor="email" error={form.formState.errors.email?.message}>
           <Input id="email" type="email" autoComplete="email" placeholder="you@practice.com" aria-invalid={!!form.formState.errors.email} {...form.register("email")} />
         </Field>
@@ -167,10 +166,10 @@ function LoginInner() {
 
       <Button type="button" variant="secondary" size="lg" className="w-full" onClick={() => enterDemo()} loading={busy && demo.on}>
         <CirclePlay />
-        Explore the demo — no sign-up
+        Explore the demo
       </Button>
 
-      <div className="mt-4 rounded-xl border border-border bg-surface">
+      <div className="mt-4 rounded-lg border border-border bg-surface">
         <button
           type="button"
           onClick={() => setShowAccounts((v) => !v)}
@@ -178,12 +177,12 @@ function LoginInner() {
           className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-medium text-muted outline-none hover:text-fg focus-visible:ring-2 focus-visible:ring-brand/30"
         >
           <KeyRound className="size-3.5" />
-          <span className="flex-1">Sample accounts — sign in as any role to explore permissions</span>
-          <ChevronDown className={`size-3.5 transition-transform duration-200 ${showAccounts || demo.on ? "rotate-180" : ""}`} />
+          <span className="flex-1">Sample accounts: try each role</span>
+          <ChevronDown className={`size-3.5 transition-transform duration-150 ${showAccounts || demo.on ? "rotate-180" : ""}`} />
         </button>
         <AnimatePresence initial={false}>
           {showAccounts || demo.on ? (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden">
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden">
               <ul className="grid gap-0.5 border-t border-border p-1.5">
                 {DEMO_ACCOUNTS.map((a) => (
                   <li key={a.email}>
@@ -200,8 +199,8 @@ function LoginInner() {
                       </span>
                       <span className="text-right text-[11px] text-subtle">
                         {ROLE_LABEL[a.role]}
-                        {a.mfa ? " · MFA" : ""}
-                        {a.demoOnly ? <span className="block text-[10px]">browser demo</span> : null}
+                        {a.mfa ? " · 2-step" : ""}
+                        {a.demoOnly ? <span className="block text-[10px]">sample only</span> : null}
                       </span>
                     </button>
                   </li>
@@ -210,16 +209,16 @@ function LoginInner() {
               <p className="border-t border-border px-3 py-2 text-[11px] leading-relaxed text-subtle">
                 {demo.on ? (
                   <>
-                    You&apos;re using in-browser demo data.{" "}
+                    You&apos;re exploring with sample data.{" "}
                     {!isDemoForced() ? (
                       <button type="button" className="text-brand hover:underline" onClick={() => demo.toggle(false)}>
-                        Use the live API instead
+                        Sign in with a real account instead
                       </button>
                     ) : null}
                   </>
                 ) : (
                   <>
-                    Live API: these work once the demo org is seeded (<span className="font-mono">necessa cases seed demo</span>). Password <span className="font-mono">{DEMO_PASSWORD}</span>.
+                    These sample accounts work when the sample workspace is loaded. Password: <span className="font-mono">{DEMO_PASSWORD}</span>.
                   </>
                 )}
               </p>

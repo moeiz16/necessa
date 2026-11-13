@@ -15,15 +15,13 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <div className="animate-[rise_240ms]">
-        <span className="flex size-10 items-center justify-center rounded-full bg-met-soft text-met">
-          <MailCheck className="size-5" />
-        </span>
-        <h1 className="mt-5 text-2xl font-semibold tracking-tight">Check your inbox</h1>
+      <div>
+        <MailCheck className="size-6 text-met" />
+        <h1 className="mt-5 text-2xl font-semibold tracking-[-0.02em]">Check your inbox</h1>
         <p className="mt-1.5 text-sm text-muted">If an account exists for {email}, a reset link is on its way. The link expires in 30 minutes.</p>
         {sent.devLink ? (
-          <div className="mt-6 rounded-lg border border-dashed border-border-strong p-3 text-[13px]">
-            <p className="text-xs text-subtle">Development mode — email delivery is simulated</p>
+          <div className="mt-6 rounded-lg border border-border p-3 text-[13px]">
+            <p className="text-xs text-subtle">Email isn’t connected in this workspace, so here is your link</p>
             <Link href={sent.devLink} className="mt-1 block font-medium text-brand hover:underline">
               Open reset link
             </Link>
@@ -38,9 +36,10 @@ export default function ForgotPasswordPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">Reset your password</h1>
+      <h1 className="text-2xl font-semibold tracking-[-0.02em]">Reset your password</h1>
       <p className="mt-1.5 text-sm text-muted">We&apos;ll email you a secure link to choose a new one.</p>
       <form
+        method="post"
         className="mt-8 grid gap-4"
         onSubmit={async (e) => {
           e.preventDefault();

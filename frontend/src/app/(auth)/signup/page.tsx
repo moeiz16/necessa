@@ -44,9 +44,9 @@ export default function SignupPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight text-fg">Create your workspace</h1>
+      <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">Create your workspace</h1>
       <p className="mt-1.5 text-sm text-muted">Set up your practice in about two minutes.</p>
-      <form className="mt-8 grid gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+      <form method="post" className="mt-8 grid gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
         <Field label="Full name" htmlFor="fullName" error={form.formState.errors.fullName?.message}>
           <Input id="fullName" autoComplete="name" {...form.register("fullName")} aria-invalid={!!form.formState.errors.fullName} />
         </Field>
@@ -60,7 +60,7 @@ export default function SignupPage() {
         <label className="flex items-start gap-2.5 text-[13px] text-muted">
           <Checkbox className="mt-0.5" checked={!!form.watch("terms")} onCheckedChange={(c) => form.setValue("terms", (c === true) as true, { shouldValidate: true })} />
           <span>
-            I understand Necessa supports documentation review and does not make coverage decisions, and I&apos;ll only upload PHI under an executed BAA.
+            I understand Necessa supports documentation review and doesn&apos;t make coverage decisions, and that real patient information may only be added under a signed business associate agreement (BAA).
           </span>
         </label>
         {form.formState.errors.terms ? <p className="-mt-2 text-xs text-notmet-fg">{form.formState.errors.terms.message}</p> : null}

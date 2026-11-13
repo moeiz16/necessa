@@ -27,11 +27,11 @@ export default function InvitePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (inv.isPending) return <Skeleton className="h-64 w-full rounded-xl" />;
+  if (inv.isPending) return <Skeleton className="h-64 w-full rounded-lg" />;
   if (inv.isError)
     return (
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Invitation unavailable</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Invitation unavailable</h1>
         <p className="mt-1.5 text-sm text-muted">{errorMessage(inv.error)} Ask your administrator to send a new one.</p>
         <Button asChild variant="secondary" className="mt-6">
           <Link href="/login">Go to sign in</Link>
@@ -42,14 +42,13 @@ export default function InvitePage() {
   const d = inv.data;
   return (
     <div>
-      <span className="flex size-10 items-center justify-center rounded-full bg-brand-soft text-brand">
-        <MailOpen className="size-5" />
-      </span>
-      <h1 className="mt-5 text-2xl font-semibold tracking-tight">Join {d.orgName}</h1>
+      <MailOpen className="size-6 text-muted" />
+      <h1 className="mt-5 text-2xl font-semibold tracking-[-0.02em]">Join {d.orgName}</h1>
       <p className="mt-1.5 text-sm text-muted">
-        You&apos;ve been invited as <Badge tone="brand">{ROLE_LABEL[d.role]}</Badge> · {d.email} · expires {fmtDate(d.expiresAt)}
+        You&apos;ve been invited as <Badge tone="neutral">{ROLE_LABEL[d.role]}</Badge> · {d.email} · expires {fmtDate(d.expiresAt)}
       </p>
       <form
+        method="post"
         className="mt-8 grid gap-4"
         onSubmit={async (e) => {
           e.preventDefault();

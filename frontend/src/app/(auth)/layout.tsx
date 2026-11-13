@@ -13,12 +13,12 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           {children}
         </main>
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-subtle">
-          <span>Synthetic data only in demo mode</span>
+          <span>Sample data only in the demo</span>
           <span aria-hidden>·</span>
           <span>Necessa never makes coverage decisions</span>
           <span aria-hidden>·</span>
           <Link href="/security" className="hover:text-fg">
-            Security
+            Security & compliance
           </Link>
         </p>
       </div>

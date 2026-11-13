@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Building2, Database, Hospital, Loader2, Plus, Sparkles, Stethoscope, Trash2, Truck, Users, Warehouse, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, Database, Hospital, Loader2, Plus, Stethoscope, Trash2, Truck, Users, Warehouse, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -21,11 +21,11 @@ import { Field, Input } from "@/components/ui/input";
 const STATES = "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY".split(" ");
 
 const STEPS = [
-  { label: "Practice", description: "Who you are" },
-  { label: "Coverage footprint", description: "States & payers" },
+  { label: "Practice", description: "About your practice" },
+  { label: "Where you practice", description: "States and payers" },
   { label: "Team", description: "Invite colleagues" },
-  { label: "Data", description: "Demo or empty" },
-  { label: "Preferences", description: "SLAs & security" },
+  { label: "Starting point", description: "Sample data or empty" },
+  { label: "Deadlines & security", description: "Your preferences" },
 ];
 
 /** NPI check digit: Luhn over "80840" + first 9 digits. */
@@ -67,7 +67,7 @@ function OnboardingInner() {
     if (status === "authenticated" && me?.activeOrg?.onboardingCompletedAt && !creatingNew && !finished) router.replace("/dashboard");
   }, [status, me, router, creatingNew, finished]);
 
-  const npiError = practice.npi && !validNpi(practice.npi) ? "That NPI fails the check-digit test — double-check the 10 digits." : null;
+  const npiError = practice.npi && !validNpi(practice.npi) ? "That NPI doesn’t look right. Please double-check the 10 digits." : null;
   const canNext = [
     practice.name.trim().length > 1 && !npiError,
     states.length > 0 && payers.length > 0 && payers.every((p) => p.name.trim()),
@@ -98,18 +98,8 @@ function OnboardingInner() {
   if (finished) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center bg-bg px-6 text-center">
-        <motion.div className="relative" initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 260, damping: 18 }}>
-          {[0, 1, 2].map((i) => (
-            <motion.span
-              key={i}
-              aria-hidden
-              className="absolute inset-0 rounded-[28px] border border-brand/40"
-              initial={{ scale: 1, opacity: 0.6 }}
-              animate={{ scale: 1.9 + i * 0.4, opacity: 0 }}
-              transition={{ duration: 1.6, delay: 0.5 + i * 0.25, ease: [0.22, 1, 0.36, 1] }}
-            />
-          ))}
-          <svg width="96" height="96" viewBox="0 0 32 32" fill="none" aria-hidden className="relative">
+        <motion.div className="relative" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
+          <svg width="64" height="64" viewBox="0 0 32 32" fill="none" aria-hidden className="relative">
             <rect x="0.5" y="0.5" width="31" height="31" rx="9" fill="var(--brand)" />
             <motion.path
               d="M9 23V9.5l7.6 9.8L24 8.5"
@@ -119,13 +109,13 @@ function OnboardingInner() {
               strokeLinejoin="round"
               initial={{ pathLength: 0 }}
               animate={{ pathLength: 1 }}
-              transition={{ duration: 0.9, ease: "easeOut", delay: 0.2 }}
+              transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
             />
           </svg>
         </motion.div>
-        <h1 className="mt-8 font-display text-5xl tracking-tight text-fg">You&apos;re all set.</h1>
+        <h1 className="mt-8 text-4xl font-semibold tracking-[-0.025em] text-fg">You&apos;re all set.</h1>
         <p className="mt-3 max-w-md text-sm text-muted">
-          {practice.name || "Your practice"} is ready. {data === "demo" ? "We loaded a synthetic dataset so you can see Necessa at work." : "Create your first case to get started."}
+          {practice.name || "Your practice"} is ready. {data === "demo" ? "We added sample patients and cases so you can see Necessa at work." : "Create your first case to get started."}
         </p>
         <div className="mt-8 flex gap-2">
           <Button variant="primary" size="lg" onClick={() => router.push(data === "demo" ? (demoMode.on ? "/cases/case-42" : "/cases") : "/cases/new")}>
@@ -133,7 +123,7 @@ function OnboardingInner() {
             <ArrowRight />
           </Button>
           <Button variant="ghost" size="lg" onClick={() => router.push("/dashboard")}>
-            Go to dashboard
+            Go to home
           </Button>
         </div>
       </div>
@@ -147,9 +137,8 @@ function OnboardingInner() {
         <div className="mt-12">
           <Stepper steps={STEPS} current={step} onStepClick={setStep} />
         </div>
-        <div className="mt-auto rounded-xl bg-surface-2 p-4 text-[13px] text-muted">
-          <Sparkles className="mb-2 size-4 text-ai-2" />
-          Your states decide which Medicare contractors — and which LCDs — apply to each case. You can change everything later in Settings.
+        <div className="mt-auto rounded-lg border border-border p-4 text-[13px] leading-relaxed text-muted">
+          Your states determine which Medicare policies apply to each case. You can change everything later in Settings.
         </div>
       </aside>
       <main id="main" className="flex flex-col px-5 py-6 sm:px-10">
@@ -161,26 +150,26 @@ function OnboardingInner() {
         </div>
         <div className="mx-auto w-full max-w-xl flex-1 py-10 lg:py-16">
           <div className="mb-3 hidden items-center justify-between text-xs text-subtle lg:flex">
-            <span className="font-medium uppercase tracking-[0.08em]">
+            <span className="font-medium">
               Step {step + 1} of {STEPS.length} · {STEPS[step]!.label}
             </span>
             <span className="tabular">{Math.round(((step + 1) / STEPS.length) * 100)}%</span>
           </div>
           <div className="mb-8 h-1 overflow-hidden rounded-full bg-surface-3" role="progressbar" aria-valuenow={step + 1} aria-valuemin={1} aria-valuemax={STEPS.length} aria-label="Setup progress">
-            <motion.div className="h-full rounded-full bg-brand" animate={{ width: `${((step + 1) / STEPS.length) * 100}%` }} transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }} />
+            <motion.div className="h-full rounded-full bg-brand" animate={{ width: `${((step + 1) / STEPS.length) * 100}%` }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }} />
           </div>
           <AnimatePresence mode="wait">
-            <motion.section key={step} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}>
+            <motion.section key={step} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
               {step === 0 ? (
                 <>
                   <h1 className="text-2xl font-semibold tracking-tight">Tell us about your practice</h1>
-                  <p className="mt-1.5 text-sm text-muted">This appears on letters and helps Necessa pick the right policies.</p>
+                  <p className="mt-1.5 text-sm text-muted">This appears on your letters and helps Necessa choose the right policies.</p>
                   <div className="mt-8 grid gap-5">
                     <Field label="Practice name" htmlFor="pname">
                       <Input id="pname" value={practice.name} onChange={(e) => setPractice({ ...practice, name: e.target.value })} placeholder="e.g. Lakeshore Spine & Pain" autoFocus />
                     </Field>
                     <div className="grid gap-5 sm:grid-cols-2">
-                      <Field label="Group NPI" htmlFor="npi" optional error={npiError} hint="10 digits — validated with the CMS check digit">
+                      <Field label="Group NPI" htmlFor="npi" optional error={npiError} hint="10 digits">
                         <Input id="npi" inputMode="numeric" maxLength={10} value={practice.npi} onChange={(e) => setPractice({ ...practice, npi: e.target.value.replace(/\D/g, "") })} className="font-mono" />
                       </Field>
                       <Field label="Primary specialty" htmlFor="spec">
@@ -211,7 +200,7 @@ function OnboardingInner() {
               {step === 1 ? (
                 <>
                   <h1 className="text-2xl font-semibold tracking-tight">Where do you see patients?</h1>
-                  <p className="mt-1.5 text-sm text-muted">States map to Medicare Administrative Contractor jurisdictions — and to the LCDs that apply.</p>
+                  <p className="mt-1.5 text-sm text-muted">Your states determine which Medicare policies apply to each case.</p>
                   <div className="mt-8 grid gap-6">
                     <Field label={`States served · ${states.length} selected`}>
                       <div className="flex flex-wrap gap-1.5">
@@ -225,7 +214,7 @@ function OnboardingInner() {
                               onClick={() => setStates(on ? states.filter((x) => x !== s) : [...states, s])}
                               className={cn(
                                 "h-7 w-11 rounded-md font-mono text-xs transition-colors",
-                                on ? "bg-brand text-brand-contrast shadow-e1" : "bg-surface text-muted ring-1 ring-inset ring-border hover:text-fg",
+                                on ? "bg-brand text-brand-contrast" : "bg-surface text-muted ring-1 ring-inset ring-border hover:text-fg",
                               )}
                             >
                               {s}
@@ -262,7 +251,7 @@ function OnboardingInner() {
               {step === 2 ? (
                 <>
                   <h1 className="text-2xl font-semibold tracking-tight">Invite your team</h1>
-                  <p className="mt-1.5 text-sm text-muted">Roles control who can edit cases, approve letters, review criteria and read the audit log.</p>
+                  <p className="mt-1.5 text-sm text-muted">Roles control who can edit cases, approve letters, review requirement checklists and view the compliance log.</p>
                   <div className="mt-8 grid gap-2">
                     {invites.map((inv, i) => (
                       <div key={i} className="flex gap-2">
@@ -282,7 +271,7 @@ function OnboardingInner() {
                       <Plus /> Add another
                     </Button>
                     <p className="mt-2 flex items-center gap-2 text-xs text-subtle">
-                      <Users className="size-3.5" /> You can skip this — invites can be sent any time from Settings → Organization.
+                      <Users className="size-3.5" /> You can skip this. Invitations can be sent any time from Team & settings.
                     </p>
                   </div>
                 </>
@@ -291,15 +280,15 @@ function OnboardingInner() {
               {step === 3 ? (
                 <>
                   <h1 className="text-2xl font-semibold tracking-tight">How would you like to start?</h1>
-                  <p className="mt-1.5 text-sm text-muted">Policies are shared knowledge. Patient data is always yours alone.</p>
+                  <p className="mt-1.5 text-sm text-muted">Policies are shared. Patient data is always yours alone.</p>
                   <div className="mt-8">
                     <RadioCards
                       columns={1}
                       value={data}
                       onValueChange={(v) => setData(v as "demo" | "empty")}
                       options={[
-                        { value: "demo", label: "Load the synthetic demo dataset", description: "14 fictional patients and cases across ESI, TKA, CPAP, SCS and more — with evaluations, letters and denials.", icon: <Database /> },
-                        { value: "empty", label: "Start with an empty workspace", description: "Begin with your first real case. The Medicare policy library is still available.", icon: <Warehouse /> },
+                        { value: "demo", label: "Start with sample data", description: "14 made-up patients and cases across common procedures, with checked requirements, letters and a denial.", icon: <Database /> },
+                        { value: "empty", label: "Start with an empty workspace", description: "Begin with your first case. The Medicare policy library is still available.", icon: <Warehouse /> },
                       ]}
                     />
                   </div>
@@ -308,14 +297,14 @@ function OnboardingInner() {
 
               {step === 4 ? (
                 <>
-                  <h1 className="text-2xl font-semibold tracking-tight">Service levels & security</h1>
-                  <p className="mt-1.5 text-sm text-muted">Defaults follow CMS-0057-F payer decision timeframes.</p>
+                  <h1 className="text-2xl font-semibold tracking-tight">Deadlines & security</h1>
+                  <p className="mt-1.5 text-sm text-muted">Defaults follow the payer decision deadlines set by CMS-0057-F.</p>
                   <div className="mt-8 grid gap-5">
                     <div className="grid gap-5 sm:grid-cols-2">
-                      <Field label="Standard SLA (hours)" hint="Default 168 h = 7 calendar days">
+                      <Field label="Standard deadline (hours)" hint="Default 168 h = 7 calendar days">
                         <Input type="number" min={24} value={prefs.slaHoursStandard} onChange={(e) => setPrefs({ ...prefs, slaHoursStandard: Number(e.target.value) })} />
                       </Field>
-                      <Field label="Expedited SLA (hours)" hint="Default 72 h">
+                      <Field label="Urgent deadline (hours)" hint="Default 72 h">
                         <Input type="number" min={12} value={prefs.slaHoursExpedited} onChange={(e) => setPrefs({ ...prefs, slaHoursExpedited: Number(e.target.value) })} />
                       </Field>
                     </div>
@@ -333,7 +322,7 @@ function OnboardingInner() {
                     <label className="flex items-center justify-between gap-4 rounded-lg border border-border bg-surface p-3">
                       <span className="grid">
                         <span className="text-[13px] font-medium">Require two-step verification</span>
-                        <span className="text-xs text-muted">Members must enable TOTP MFA before accessing cases.</span>
+                        <span className="text-xs text-muted">Members must turn on a second verification step before opening cases.</span>
                       </span>
                       <Switch checked={prefs.requireMfa} onCheckedChange={(v) => setPrefs({ ...prefs, requireMfa: v })} />
                     </label>
