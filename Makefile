@@ -29,22 +29,22 @@ web:             ## Run the Next.js dev server
 	$(NPM) run dev
 
 seed:            ## Create tables and seed the demo organization (synthetic data)
-	cd backend && .venv/bin/python -m app.cli db init && .venv/bin/python -m app.cli seed demo
+	cd backend && .venv/bin/python -m app.cli db init && .venv/bin/python -m app.cli cases seed demo
 
 data:            ## Download CMS MCD exports (requires ACCEPT_CMS_LICENSE=true)
-	cd backend && .venv/bin/python -m app.cli ingest download
+	cd backend && .venv/bin/python -m app.cli rag ingest download
 
 ingest:          ## Ingest the focus scope into Postgres/SQLite + Qdrant
-	cd backend && .venv/bin/python -m app.cli ingest run --scope focus
+	cd backend && .venv/bin/python -m app.cli rag ingest run --scope focus
 
 ingest-fixtures: ## Ingest the bundled synthetic policies (offline, no license needed)
-	cd backend && .venv/bin/python -m app.cli ingest fixtures
+	cd backend && .venv/bin/python -m app.cli rag ingest fixtures
 
 compile:         ## Compile criteria trees for ingested policies
-	cd backend && .venv/bin/python -m app.cli criteria compile
+	cd backend && .venv/bin/python -m app.cli cases criteria compile
 
-eval:            ## Run the offline evaluation suites and write eval/reports
-	cd backend && .venv/bin/python -m app.cli eval run --suite all
+eval:            ## Run the offline evaluation suites (writes eval/reports)
+	cd backend && for s in retrieval verdicts faithfulness safety criteria; do .venv/bin/python ../eval/harness/run.py --suite $$s || exit 1; done
 
 test: test-backend test-frontend  ## Run all tests
 

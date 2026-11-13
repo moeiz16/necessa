@@ -33,8 +33,22 @@ jobs:
         run: python -m ruff check app tests
       - name: Tests
         run: python -m pytest -q --cov=app --cov-report=term-missing:skip-covered
-      - name: Retrieval regression gate (offline, fixtures)
-        run: python -m app.cli eval run --suite retrieval --source fixtures --gate
+      - name: Migrations apply cleanly
+        env:
+          DATABASE_URL: sqlite+aiosqlite:////tmp/necessa-migrations.db
+        run: python -m alembic upgrade head && python -m alembic check
+      - name: Retrieval regression gate (synthetic fixtures, offline)
+        env:
+          DATA_DIR: /tmp/necessa-data
+          DATABASE_URL: sqlite+aiosqlite:////tmp/necessa-ci.db
+        run: |
+          python -m app.cli db init
+          python -m app.cli rag ingest fixtures
+          python ../eval/harness/run.py --suite retrieval --fail-on-gate
+      - name: Verdict, faithfulness and safety gates (offline)
+        run: |
+          python ../eval/harness/run.py --suite verdicts --fail-on-gate
+          python ../eval/harness/run.py --suite safety --fail-on-gate
 
   frontend:
     runs-on: ubuntu-latest
