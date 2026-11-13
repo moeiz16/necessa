@@ -18,13 +18,20 @@ from datetime import timedelta
 from typing import Any
 
 from fastapi import Depends, Request
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clientip import resolve_client_ip
 from app.core.errors import AppError, forbidden, unauthorized
 from app.core.logging import request_id_ctx
 from app.core.permissions import permissions_for
-from app.core.security import API_KEY_PREFIX, decode_access_token, hash_token, tokens_equal
+from app.core.security import (
+    API_KEY_PREFIX,
+    AccessClaims,
+    decode_access_token,
+    hash_token,
+    tokens_equal,
+)
 from app.db.base import utcnow
 from app.db.models.platform import ApiKey, Membership, Organization, User, UserSession
 from app.db.session import get_db
@@ -80,10 +87,8 @@ class RequestContext:
 
 
 def client_ip(request: Request) -> str | None:
-    fwd = request.headers.get("x-forwarded-for")
-    if fwd:
-        return fwd.split(",")[0].strip()
-    return request.client.host if request.client else None
+    peer = request.client.host if request.client else None
+    return resolve_client_ip(peer, request.headers.get("x-forwarded-for"))
 
 
 def _extract_credentials(request: Request) -> tuple[str | None, str]:
@@ -135,6 +140,51 @@ async def _resolve_api_key(db: AsyncSession, token: str, request: Request) -> Re
     )
 
 
+async def _load_identity(
+    db: AsyncSession, claims: AccessClaims
+) -> tuple[User | None, bool, Membership | None, Organization | None]:
+    """User, session liveness, active membership and org for an access token in ONE statement.
+
+    This runs on every authenticated request, so it matters: one round trip instead of four
+    (user, session, membership, org) — on a remote Postgres each of those is a network hop.
+    Returns (user, session_ok, membership, org); membership/org are None without an active membership.
+    """
+    cols: list[Any] = [User]
+    if claims.session_id:
+        cols.append(UserSession.revoked_at)
+        cols.append(UserSession.id)
+    if claims.org_id:
+        cols += [Membership, Organization]
+    stmt = select(*cols).select_from(User).where(User.id == claims.user_id)
+    if claims.session_id:
+        stmt = stmt.outerjoin(UserSession, UserSession.id == claims.session_id)
+    if claims.org_id:
+        stmt = stmt.outerjoin(
+            Membership,
+            and_(
+                Membership.org_id == claims.org_id,
+                Membership.user_id == User.id,
+                Membership.status == "active",
+            ),
+        ).outerjoin(Organization, Organization.id == Membership.org_id)
+    row = (await db.execute(stmt)).first()
+    if row is None:
+        return None, False, None, None
+    user = row[0]
+    idx = 1
+    session_ok = True
+    if claims.session_id:
+        revoked_at, sess_id = row[idx], row[idx + 1]
+        session_ok = sess_id is not None and revoked_at is None
+        idx += 2
+    membership = org = None
+    if claims.org_id:
+        membership, org = row[idx], row[idx + 1]
+        if membership is None:
+            org = None
+    return user, session_ok, membership, org
+
+
 async def _resolve(request: Request, db: AsyncSession, *, optional: bool) -> RequestContext | None:
     token, source = _extract_credentials(request)
     if not token:
@@ -151,26 +201,11 @@ async def _resolve(request: Request, db: AsyncSession, *, optional: bool) -> Req
         raise
     if source == "cookie":
         _check_csrf(request)
-    user = await db.get(User, claims.user_id)
+    user, session_ok, membership, org = await _load_identity(db, claims)
     if not user or not user.is_active:
         raise unauthorized("Account is disabled or no longer exists.", code="inactive_user")
-    if claims.session_id:
-        sess = await db.get(UserSession, claims.session_id)
-        if not sess or sess.revoked_at:
-            raise unauthorized("Session has been revoked.", code="session_revoked")
-    org = membership = None
-    if claims.org_id:
-        membership = (
-            await db.execute(
-                select(Membership).where(
-                    Membership.org_id == claims.org_id,
-                    Membership.user_id == user.id,
-                    Membership.status == "active",
-                )
-            )
-        ).scalar_one_or_none()
-        if membership:
-            org = await db.get(Organization, claims.org_id)
+    if not session_ok:
+        raise unauthorized("Session has been revoked.", code="session_revoked")
     role = membership.role if membership else None
     return RequestContext(
         user=user,
