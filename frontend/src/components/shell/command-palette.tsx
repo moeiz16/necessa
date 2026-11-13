@@ -1,17 +1,28 @@
 "use client";
 
-import { ArrowRight, FilePlus2, FolderKanban, Keyboard, LogOut, Monitor, Moon, Sparkles, Sun, TestTube2, BookOpen, Hash } from "lucide-react";
+import { ArrowRight, BookOpen, Clock3, FilePlus2, FolderKanban, Hash, Keyboard, LogOut, Monitor, Moon, Sparkles, Sun, TestTube2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { Dialog as D } from "radix-ui";
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { useCases, useCodeSearch, usePolicies } from "@/lib/api/hooks";
 import { useDemoMode, useSession } from "@/lib/api/session";
+import { lsGet, lsSet } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { Kbd } from "@/components/ui/display";
 import { DocTypeBadge, StatusChip } from "@/components/domain/verdict";
 import { ALL_NAV } from "./nav";
 import { useUi } from "./ui-state";
+
+type Recent = { href: string; label: string; kind: "case" | "policy" | "code" | "page" };
+const RECENT_KEY = "necessa.palette.recent";
+
+function rememberRecent(r: Recent) {
+  const prev = lsGet<Recent[]>(RECENT_KEY, []).filter((x) => x.href !== r.href);
+  lsSet(RECENT_KEY, [r, ...prev].slice(0, 6));
+}
+
+const RECENT_ICON = { case: FolderKanban, policy: BookOpen, code: Hash, page: ArrowRight } as const;
 
 export function CommandPalette() {
   const { paletteOpen, setPaletteOpen, setShortcutsOpen } = useUi();
@@ -25,7 +36,13 @@ export function CommandPalette() {
   const policies = usePolicies(dq.length >= 2 ? { q: dq, limit: 5 } : { limit: 0 });
   const codes = useCodeSearch(dq.length >= 2 ? dq : "", undefined);
 
-  const go = (href: string) => {
+  const [recent, setRecent] = useState<Recent[]>([]);
+  useEffect(() => {
+    if (paletteOpen) setRecent(lsGet<Recent[]>(RECENT_KEY, []));
+  }, [paletteOpen]);
+
+  const go = (href: string, remember?: Omit<Recent, "href">) => {
+    if (remember) rememberRecent({ href, ...remember });
     setPaletteOpen(false);
     setQ("");
     router.push(href);
@@ -34,9 +51,9 @@ export function CommandPalette() {
   return (
     <D.Root open={paletteOpen} onOpenChange={setPaletteOpen}>
       <D.Portal>
-        <D.Overlay className="fixed inset-0 z-50 bg-[rgb(10_11_13/0.38)] backdrop-blur-[2px] data-[state=open]:animate-[fade-in_140ms]" />
+        <D.Overlay className="fixed inset-0 z-50 bg-[rgb(10_11_13/0.38)] backdrop-blur-[2px] data-[state=open]:animate-[fade-in_140ms] data-[state=closed]:animate-[fade-out_120ms]" />
         <D.Content
-          className="fixed left-1/2 top-[14vh] z-50 w-[calc(100vw-2rem)] max-w-[640px] -translate-x-1/2 overflow-hidden rounded-xl border border-border bg-surface shadow-e3 outline-none data-[state=open]:animate-[rise_180ms_var(--ease-out-quart)]"
+          className="fixed left-1/2 top-[14vh] z-50 w-[calc(100vw-2rem)] max-w-[640px] -translate-x-1/2 overflow-hidden rounded-xl border border-border bg-surface shadow-e3 outline-none data-[state=open]:animate-[scale-in_180ms_var(--ease-out)] data-[state=closed]:animate-[scale-out_120ms_var(--ease-out)]"
           aria-describedby={undefined}
         >
           <D.Title className="sr-only">Command palette</D.Title>
@@ -51,15 +68,30 @@ export function CommandPalette() {
                     <span className="min-w-0 flex-1 truncate">
                       Ask: <span className="text-fg">“{q.trim()}”</span>
                     </span>
-                    <span className="text-[11px] text-subtle">hybrid RAG · cited</span>
+                    <span className="text-[11px] text-subtle">cited answer</span>
                   </CommandItem>
+                </CommandGroup>
+              ) : null}
+
+              {!dq && recent.length ? (
+                <CommandGroup heading="Recently opened">
+                  {recent.map((r) => {
+                    const Icon = RECENT_ICON[r.kind] ?? Clock3;
+                    return (
+                      <CommandItem key={r.href} value={`recent ${r.label}`} onSelect={() => go(r.href, { label: r.label, kind: r.kind })}>
+                        <Icon />
+                        <span className="min-w-0 flex-1 truncate">{r.label}</span>
+                        <Clock3 className="ml-auto !size-3.5 !text-subtle" />
+                      </CommandItem>
+                    );
+                  })}
                 </CommandGroup>
               ) : null}
 
               {cases.data?.items.length ? (
                 <CommandGroup heading={dq.length >= 2 ? "Cases" : "Recent cases"}>
                   {cases.data.items.slice(0, 5).map((c) => (
-                    <CommandItem key={c.id} value={`case ${c.number} ${c.title} ${c.patient.displayName}`} onSelect={() => go(`/cases/${c.id}`)}>
+                    <CommandItem key={c.id} value={`case ${c.number} ${c.title} ${c.patient.displayName}`} onSelect={() => go(`/cases/${c.id}`, { label: `${c.number} · ${c.title}`, kind: "case" })}>
                       <FolderKanban />
                       <span className="font-mono text-xs text-muted">{c.number}</span>
                       <span className="min-w-0 flex-1 truncate">{c.title}</span>
@@ -72,7 +104,7 @@ export function CommandPalette() {
               {dq.length >= 2 && policies.data?.items.length ? (
                 <CommandGroup heading="Policies">
                   {policies.data.items.slice(0, 5).map((p) => (
-                    <CommandItem key={p.id} value={`policy ${p.sourceKey} ${p.title}`} onSelect={() => go(`/policies/${p.id}`)}>
+                    <CommandItem key={p.id} value={`policy ${p.sourceKey} ${p.title}`} onSelect={() => go(`/policies/${p.id}`, { label: `${p.sourceKey} · ${p.title}`, kind: "policy" })}>
                       <BookOpen />
                       <span className="font-mono text-xs text-muted">{p.sourceKey}</span>
                       <span className="min-w-0 flex-1 truncate">{p.title}</span>
@@ -85,7 +117,7 @@ export function CommandPalette() {
               {dq.length >= 2 && codes.data?.length ? (
                 <CommandGroup heading="Codes">
                   {codes.data.slice(0, 4).map((c) => (
-                    <CommandItem key={c.code} value={`code ${c.code} ${c.shortDesc}`} onSelect={() => go(`/codes?code=${c.code}&system=${c.system}`)}>
+                    <CommandItem key={c.code} value={`code ${c.code} ${c.shortDesc}`} onSelect={() => go(`/codes?code=${c.code}&system=${c.system}`, { label: `${c.code} · ${c.shortDesc}`, kind: "code" })}>
                       <Hash />
                       <span className="font-mono text-xs text-fg">{c.code}</span>
                       <span className="min-w-0 flex-1 truncate text-muted">{c.shortDesc}</span>

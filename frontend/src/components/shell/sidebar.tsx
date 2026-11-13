@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, ChevronsUpDown, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
+import { Check, ChevronsUpDown, PanelLeftClose, PanelLeftOpen, Plus, ShieldCheck } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -71,28 +72,40 @@ export function OrgSwitcher({ collapsed }: { collapsed?: boolean }) {
   );
 }
 
-function NavLink({ item, collapsed, count }: { item: NavItem; collapsed: boolean; count?: number }) {
+function NavLink({ item, collapsed, count, layoutGroup }: { item: NavItem; collapsed: boolean; count?: number; layoutGroup: string }) {
   const pathname = usePathname();
-  const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`)) || pathname === item.href;
+  const reduce = useReducedMotion();
+  const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
   const Icon = item.icon;
   const link = (
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex h-8 items-center gap-2.5 rounded-md text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand/30",
+        "group relative flex h-8 items-center gap-2.5 rounded-md text-[13px] font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-brand/30",
         collapsed ? "w-8 justify-center" : "px-2",
-        active ? "bg-surface text-fg shadow-e1" : "text-muted hover:bg-surface-2 hover:text-fg",
+        active ? "text-fg" : "text-muted hover:bg-surface-2 hover:text-fg",
       )}
     >
-      <Icon className={cn("size-4 shrink-0", active ? "text-brand" : "text-subtle group-hover:text-muted")} />
-      {!collapsed ? <span className="truncate">{item.label}</span> : null}
-      {!collapsed && count ? <span className="tabular ml-auto rounded-full bg-surface-3 px-1.5 text-[11px] leading-[18px] text-muted">{count}</span> : null}
-      {collapsed && count ? <span className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-brand" /> : null}
+      {active ? (
+        <motion.span
+          layoutId={`${layoutGroup}-active`}
+          className="absolute inset-0 rounded-md bg-surface shadow-e1"
+          transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 40, mass: 0.7 }}
+          aria-hidden
+        />
+      ) : null}
+      {active && !collapsed ? <span className="absolute -left-2 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-brand" aria-hidden /> : null}
+      <Icon className={cn("relative size-4 shrink-0 transition-colors", active ? "text-brand" : "text-subtle group-hover:text-muted")} />
+      {!collapsed ? <span className="relative truncate">{item.label}</span> : null}
+      {!collapsed && count ? (
+        <span className={cn("tabular relative ml-auto rounded-full px-1.5 text-[11px] leading-[18px]", active ? "bg-brand-soft text-brand-fg" : "bg-surface-3 text-muted")}>{count}</span>
+      ) : null}
+      {collapsed && count ? <span className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-brand ring-2 ring-bg" /> : null}
     </Link>
   );
   return collapsed ? (
-    <Tooltip content={item.label} side="right">
+    <Tooltip content={item.shortcut ? `${item.label}  ·  ${item.shortcut}` : item.label} side="right">
       {link}
     </Tooltip>
   ) : (
@@ -100,7 +113,7 @@ function NavLink({ item, collapsed, count }: { item: NavItem; collapsed: boolean
   );
 }
 
-export function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
+export function SidebarNav({ collapsed = false, onNavigate, layoutGroup = "sidebar" }: { collapsed?: boolean; onNavigate?: () => void; layoutGroup?: string }) {
   const { can } = useSession();
   const stats = useCaseStats();
   const review = useCriteriaSets("needs_review");
@@ -115,7 +128,7 @@ export function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: bool
           <div key={section.section} className="grid gap-0.5">
             {!collapsed ? <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-subtle">{section.section}</p> : <span className="mx-auto mb-1 h-px w-5 bg-border" />}
             {items.map((item) => (
-              <NavLink key={item.href} item={item} collapsed={collapsed} count={item.badge ? counts[item.badge] : undefined} />
+              <NavLink key={item.href} item={item} collapsed={collapsed} layoutGroup={layoutGroup} count={item.badge ? counts[item.badge] : undefined} />
             ))}
           </div>
         );
@@ -129,7 +142,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   return (
     <aside
       className={cn(
-        "sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-border bg-bg transition-[width] duration-200 ease-out md:flex",
+        "sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-border bg-bg transition-[width] duration-300 ease-out md:flex",
         collapsed ? "w-[60px] items-center" : "w-[244px]",
       )}
     >
@@ -160,21 +173,28 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
             <Avatar name={me?.user.fullName} color={me?.user.avatarColor} size={26} />
           </>
         ) : (
-          <div className="flex items-center gap-2.5 rounded-lg bg-surface p-2.5 shadow-e1">
-            <span className="flex size-7 items-center justify-center rounded-md bg-met-soft text-met">
-              <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden>
-                <path d="M8 1.5l5 2v4c0 3.3-2.2 5.7-5 7-2.8-1.3-5-3.7-5-7v-4z" stroke="currentColor" strokeWidth="1.4" />
-                <path d="M5.6 8l1.7 1.7L10.6 6.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-            <div className="grid min-w-0 leading-tight">
-              <span className="text-xs font-medium text-fg">PHI zone isolated</span>
-              <span className="truncate text-[11px] text-subtle">De-identified before every model call</span>
-            </div>
-          </div>
+<TrustCard />
         )}
       </div>
     </aside>
+  );
+}
+
+/** Accurate, always-visible statement of the privacy controls actually in force. */
+export function TrustCard() {
+  return (
+    <Link
+      href="/security"
+      className="group flex items-center gap-2.5 rounded-lg bg-surface p-2.5 shadow-e1 outline-none transition-shadow hover:shadow-e2 focus-visible:ring-2 focus-visible:ring-brand/30"
+    >
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-met-soft text-met">
+        <ShieldCheck className="size-3.5" />
+      </span>
+      <span className="grid min-w-0 leading-tight">
+        <span className="text-xs font-medium text-fg">De-identification on</span>
+        <span className="text-[11px] leading-snug text-subtle">Audit logging on · humans decide</span>
+      </span>
+    </Link>
   );
 }
 

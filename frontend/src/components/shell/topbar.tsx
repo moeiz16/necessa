@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, BellRing, CheckCheck, FileWarning, Gavel, Keyboard, LogOut, Menu, Moon, Search, Settings, ShieldAlert, Sparkles, Sun, TestTube2, Timer, UserRound, Workflow, BookOpen } from "lucide-react";
+import { Bell, BellRing, CheckCheck, FileWarning, FlaskConical, Gavel, Keyboard, LogOut, Menu, Moon, Search, Settings, ShieldAlert, Sparkles, Sun, TestTube2, Timer, UserRound, Workflow, BookOpen } from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,67 +11,117 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, Badge, Kbd } from "@/components/ui/display";
 import { EmptyState } from "@/components/ui/empty";
-import { Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger, Popover, PopoverContent, PopoverTrigger, Tooltip } from "@/components/ui/overlays";
+import { Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger, Sheet, SheetContent, SheetTrigger, Tooltip } from "@/components/ui/overlays";
+import { AnimatePresence, motion } from "motion/react";
+import { useState } from "react";
 import { useUi } from "./ui-state";
 
 const NOTIF_ICON: Record<string, typeof Bell> = { sla: Timer, evaluation: Workflow, security: ShieldAlert, policy: BookOpen, criteria: FileWarning, denial: Gavel };
+
+function dayBucket(iso: string) {
+  const d = new Date(iso);
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  if (d.getTime() >= start) return "Today";
+  if (d.getTime() >= start - 86_400_000) return "Yesterday";
+  return "Earlier";
+}
 
 function Notifications() {
   const { data = [] } = useNotifications();
   const mark = useMarkNotifications();
   const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState<"all" | "unread">("all");
   const unread = data.filter((n) => !n.readAt).length;
+  const list = filter === "unread" ? data.filter((n) => !n.readAt) : data;
+  const groups = ["Today", "Yesterday", "Earlier"].map((g) => ({ g, items: list.filter((n) => dayBucket(n.createdAt) === g) })).filter((x) => x.items.length);
   return (
-    <Popover>
+    <Sheet open={open} onOpenChange={setOpen}>
       <Tooltip content="Notifications">
-        <PopoverTrigger asChild>
+        <SheetTrigger asChild>
           <Button variant="ghost" size="icon" aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`} className="relative">
             {unread ? <BellRing /> : <Bell />}
-            {unread ? <span className="tabular absolute right-0.5 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-notmet px-1 text-[9px] font-semibold text-white">{unread}</span> : null}
+            <AnimatePresence>
+              {unread ? (
+                <motion.span
+                  key={unread}
+                  initial={{ scale: 0.4, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.4, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 520, damping: 26 }}
+                  className="tabular absolute right-0.5 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-notmet px-1 text-[9px] font-semibold text-white ring-2 ring-bg"
+                >
+                  {unread > 9 ? "9+" : unread}
+                </motion.span>
+              ) : null}
+            </AnimatePresence>
           </Button>
-        </PopoverTrigger>
+        </SheetTrigger>
       </Tooltip>
-      <PopoverContent align="end" className="w-[min(380px,calc(100vw-1.5rem))] p-0">
-        <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
-          <p className="text-[13px] font-semibold">Notifications</p>
+      <SheetContent title="Notifications" description="SLA alerts, evaluation results, policy changes and security events." className="max-w-[min(100vw,26rem)]">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-surface/95 px-4 py-2.5 backdrop-blur">
+          <div className="flex rounded-md bg-surface-2 p-0.5 text-xs font-medium" role="tablist" aria-label="Filter notifications">
+            {(["all", "unread"] as const).map((f) => (
+              <button
+                key={f}
+                role="tab"
+                aria-selected={filter === f}
+                onClick={() => setFilter(f)}
+                className={cn("rounded-[5px] px-2.5 py-1 capitalize transition-colors", filter === f ? "bg-surface text-fg shadow-e1" : "text-muted hover:text-fg")}
+              >
+                {f}
+                {f === "unread" && unread ? <span className="tabular ml-1 text-brand-fg">{unread}</span> : null}
+              </button>
+            ))}
+          </div>
           <Button variant="ghost" size="xs" onClick={() => mark.mutate(undefined)} disabled={!unread}>
             <CheckCheck />
             Mark all read
           </Button>
         </div>
-        <div className="max-h-[420px] overflow-y-auto scrollbar-thin">
-          {data.length === 0 ? (
-            <EmptyState compact art="inbox" title="You're all caught up" description="SLA alerts, evaluation results and policy changes appear here." />
-          ) : (
-            data.map((n) => {
-              const Icon = NOTIF_ICON[n.type] ?? Bell;
-              return (
-                <button
-                  key={n.id}
-                  onClick={() => {
-                    if (!n.readAt) mark.mutate(n.id);
-                    if (n.link) router.push(n.link);
-                  }}
-                  className={cn("flex w-full gap-3 border-b border-border/60 px-3 py-3 text-left transition-colors last:border-0 hover:bg-surface-2", !n.readAt && "bg-brand-soft/25")}
-                >
-                  <span className={cn("mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-surface-2 text-muted", n.type === "security" && "bg-notmet-soft text-notmet", n.type === "sla" && "bg-insufficient-soft text-insufficient")}>
-                    <Icon className="size-3.5" />
-                  </span>
-                  <span className="grid min-w-0 gap-0.5">
-                    <span className="flex items-center gap-2">
-                      <span className="truncate text-[13px] font-medium text-fg">{n.title}</span>
-                      {!n.readAt ? <span className="size-1.5 shrink-0 rounded-full bg-brand" /> : null}
-                    </span>
-                    <span className="line-clamp-2 text-xs text-muted">{n.body}</span>
-                    <span className="text-[11px] text-subtle">{fmtRelative(n.createdAt)}</span>
-                  </span>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+        {list.length === 0 ? (
+          <EmptyState art="inbox" title={filter === "unread" ? "No unread notifications" : "You're all caught up"} description="SLA alerts, evaluation results and policy changes appear here." />
+        ) : (
+          <div className="pb-4">
+            {groups.map(({ g, items }) => (
+              <section key={g} aria-label={g}>
+                <p className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-subtle">{g}</p>
+                <ul>
+                  {items.map((n) => {
+                    const Icon = NOTIF_ICON[n.type] ?? Bell;
+                    return (
+                      <li key={n.id}>
+                        <button
+                          onClick={() => {
+                            if (!n.readAt) mark.mutate(n.id);
+                            if (n.link) {
+                              setOpen(false);
+                              router.push(n.link);
+                            }
+                          }}
+                          className={cn("relative flex w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2", !n.readAt && "bg-brand-soft/20")}
+                        >
+                          {!n.readAt ? <span className="absolute left-1.5 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-brand" aria-label="Unread" /> : null}
+                          <span className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-muted", n.type === "security" && "bg-notmet-soft text-notmet", n.type === "sla" && "bg-insufficient-soft text-insufficient", n.type === "evaluation" && "bg-brand-soft text-brand")}>
+                            <Icon className="size-4" />
+                          </span>
+                          <span className="grid min-w-0 gap-0.5">
+                            <span className={cn("truncate text-[13px] text-fg", !n.readAt && "font-medium")}>{n.title}</span>
+                            <span className="line-clamp-2 text-xs leading-relaxed text-muted">{n.body}</span>
+                            <span className="text-[11px] text-subtle">{fmtRelative(n.createdAt)}</span>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -131,9 +181,9 @@ function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
   return (
     <Tooltip content="Toggle theme">
-      <Button variant="ghost" size="icon" aria-label="Toggle theme" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
-        <Sun className="hidden dark:block" />
-        <Moon className="dark:hidden" />
+      <Button variant="ghost" size="icon" aria-label="Toggle theme" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")} className="overflow-hidden">
+        <Sun className="hidden transition-transform duration-300 ease-out hover:rotate-45 dark:block" />
+        <Moon className="transition-transform duration-300 ease-out hover:-rotate-12 dark:hidden" />
       </Button>
     </Tooltip>
   );
@@ -146,7 +196,7 @@ export function DemoPill() {
     <Dropdown>
       <DropdownTrigger asChild>
         <button className="inline-flex h-6 items-center gap-1.5 rounded-full border border-dashed border-insufficient/50 bg-insufficient-soft/60 px-2 text-[11px] font-medium text-insufficient-fg outline-none">
-          <TestTube2 className="size-3" />
+          <FlaskConical className="size-3" />
           Demo data
         </button>
       </DropdownTrigger>
