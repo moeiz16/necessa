@@ -260,6 +260,7 @@ async def suite_retrieval(
     results = []
     latencies = []
     skipped: list[str] = []
+    failures: list[str] = []
     for i, it in enumerate(items):
         exp = it["expected"]
         if exp and ingested and not any(k in ingested for k in exp):
@@ -276,6 +277,7 @@ async def suite_retrieval(
             abstained = bool(getattr(res.route, "abstained", False))
         except Exception as exc:
             keys, abstained = [], False
+            failures.append(str(exc)[:200])
             log.warning("eval.retrieval_failed", item=it["id"], error=str(exc)[:200])
         latencies.append((time.monotonic() - t0) * 1000)
         if not exp:  # S11: success = abstain or nothing relevant
@@ -318,6 +320,14 @@ async def suite_retrieval(
                 },
             }
         )
+    if results and len(failures) == len(results):
+        # Every query errored: report the cause instead of a misleading all-zero score.
+        hint = (
+            " (the embedded vector store is locked by another process, e.g. the running API)"
+            if any("already accessed" in f for f in failures)
+            else ""
+        )
+        raise RuntimeError(f"retrieval failed for every query{hint}: {failures[0]}")
     scored = [r["metrics"] for r in results if "recall@10" in r["metrics"]]
     metrics = (
         {
