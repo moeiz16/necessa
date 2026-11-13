@@ -25,7 +25,7 @@
     {
       "key": "coding",
       "title": "Applicable Codes",
-      "text": "Procedure codes: 63650 (percutaneous implantation of neurostimulator electrode array, epidural), 63685 (insertion or replacement of spinal neurostimulator pulse generator). Supporting diagnosis codes include G89.4 (chronic pain syndrome), M96.1 (postlaminectomy syndrome), G90.5 series (complex regional pain syndrome I)."
+      "text": "Procedure codes: 63650 (trial lead placement), 63685 (generator placement). Supporting diagnosis codes include G89.4 (chronic pain syndrome), M96.1 (postlaminectomy syndrome), G90.5 series (complex regional pain syndrome I)."
     }
   ],
   "codes": [
