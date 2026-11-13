@@ -19,15 +19,15 @@ import { Topbar } from "./topbar";
 import { UiStateProvider, useUi } from "./ui-state";
 
 const SHORTCUTS: { keys: string[]; label: string }[] = [
-  { keys: ["⌘", "K"], label: "Command palette & search" },
+  { keys: ["⌘", "K"], label: "Search" },
   { keys: ["/"], label: "Search" },
   { keys: ["C"], label: "New case" },
-  { keys: ["G", "D"], label: "Go to dashboard" },
+  { keys: ["G", "D"], label: "Go to home" },
   { keys: ["G", "C"], label: "Go to cases" },
   { keys: ["G", "E"], label: "Go to denials & appeals" },
   { keys: ["G", "A"], label: "Go to Ask Necessa" },
   { keys: ["G", "P"], label: "Go to policy library" },
-  { keys: ["G", "R"], label: "Go to analytics" },
+  { keys: ["G", "R"], label: "Go to insights" },
   { keys: ["["], label: "Toggle sidebar" },
   { keys: ["?"], label: "Show this dialog" },
 ];
@@ -36,7 +36,7 @@ function ShortcutsDialog() {
   const { shortcutsOpen, setShortcutsOpen } = useUi();
   return (
     <Dialog open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
-      <DialogContent title="Keyboard shortcuts" description="Move through Necessa without leaving the keyboard." size="sm">
+      <DialogContent title="Keyboard shortcuts" description="Move around Necessa without the mouse." size="sm">
         <ul className="grid gap-2">
           {SHORTCUTS.map((s) => (
             <li key={s.label} className="flex items-center justify-between text-[13px]">
@@ -96,8 +96,8 @@ function MobileNav() {
   return (
     <D.Root open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
       <D.Portal>
-        <D.Overlay className="fixed inset-0 z-50 bg-[rgb(10_11_13/0.4)] backdrop-blur-[1px] data-[state=open]:animate-[fade-in_140ms] data-[state=closed]:animate-[fade-out_160ms] md:hidden" />
-        <D.Content className="fixed inset-y-0 left-0 z-50 flex w-[min(86vw,300px)] flex-col border-r border-border bg-bg shadow-e3 outline-none data-[state=open]:animate-[sheet-in-left_260ms_var(--ease-out)] data-[state=closed]:animate-[sheet-out-left_200ms_var(--ease-in-out)] md:hidden" aria-describedby={undefined}>
+        <D.Overlay className="fixed inset-0 z-50 bg-[rgb(10_10_10/0.36)] data-[state=open]:animate-[fade-in_150ms] data-[state=closed]:animate-[fade-out_150ms] md:hidden" />
+        <D.Content className="fixed inset-y-0 left-0 z-50 flex w-[min(86vw,300px)] flex-col border-r border-border bg-bg shadow-e3 outline-none data-[state=open]:animate-[sheet-in-left_200ms_var(--ease-out)] data-[state=closed]:animate-[sheet-out-left_160ms_var(--ease-in-out)] md:hidden" aria-describedby={undefined}>
           <D.Title className="sr-only">Navigation</D.Title>
           <div className="flex h-14 items-center justify-between px-4">
             <Logo />
@@ -127,12 +127,12 @@ function BackendWatch() {
     return onBackendUnreachable(() => {
       if (shown || demo.on) return;
       shown = true;
-      toast.error("Can’t reach the Necessa API", {
-        description: "Start the backend on :8000, or explore with in-browser demo data.",
+      toast.error("We can’t reach Necessa right now", {
+        description: "Check your connection, or explore with sample data in the meantime.",
         icon: <WifiOff className="size-4" />,
         duration: 12_000,
         action: {
-          label: "Use demo data",
+          label: "Use sample data",
           onClick: () => {
             demo.toggle(true);
             location.href = "/login?demo=1";
@@ -158,10 +158,10 @@ function Splash() {
           strokeLinejoin="round"
           initial={reduce ? false : { pathLength: 0 }}
           animate={{ pathLength: 1 }}
-          transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], repeat: reduce ? 0 : Infinity, repeatType: "reverse", repeatDelay: 0.25 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         />
       </svg>
-      <span className="text-xs text-subtle">Loading your workspace…</span>
+      <span className="text-xs text-subtle">Loading your workspace</span>
     </div>
   );
 }
@@ -189,11 +189,11 @@ function ShellInner({ children }: { children: ReactNode }) {
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-bg px-6 text-center">
         <WifiOff className="size-6 text-subtle" />
         <div>
-          <p className="text-sm font-medium">Can’t reach the Necessa API</p>
-          <p className="mt-1 text-[13px] text-muted">Check that the backend is running on port 8000.</p>
+          <p className="text-sm font-medium">We can’t reach Necessa right now</p>
+          <p className="mt-1 text-[13px] text-muted">Please check your connection and try again.</p>
         </div>
         <Button variant="primary" onClick={() => (location.href = "/login?demo=1")}>
-          Explore with demo data
+          Explore with sample data
         </Button>
       </div>
     );
@@ -228,9 +228,9 @@ export function AppPage({ children, crumbs, wide, flush, className }: { children
       <Topbar>{crumbs}</Topbar>
       <motion.main
         id="main"
-        initial={reduce ? false : { opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+        initial={reduce ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
         className={flush ? `min-h-0 flex-1 ${className ?? ""}` : `mx-auto w-full flex-1 px-4 py-6 sm:px-6 lg:px-8 ${wide ? "max-w-[1600px]" : "max-w-[1320px]"} ${className ?? ""}`}
       >
         {children}

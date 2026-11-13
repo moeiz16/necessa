@@ -2,16 +2,13 @@ import {
   Activity,
   BookOpen,
   ChartColumn,
-  Cpu,
-  FlaskConical,
   FolderKanban,
   Gavel,
-  LayoutDashboard,
-  Network,
-  ScrollText,
+  Home,
+  Search,
+  ShieldCheck,
   Settings,
   Sparkles,
-  Database,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/lib/api/types";
@@ -25,36 +22,37 @@ export interface NavItem {
   badge?: "cases" | "review";
 }
 
+/**
+ * Customer-facing navigation. The operator consoles (/knowledge, /admin/models, /admin/evals) are
+ * deliberately not linked from the product UI; they stay reachable by URL for operators.
+ */
 export const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: "Workspace",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, shortcut: "G D" },
+      { href: "/dashboard", label: "Home", icon: Home, shortcut: "G D" },
       { href: "/cases", label: "Cases", icon: FolderKanban, shortcut: "G C", badge: "cases" },
       { href: "/denials", label: "Denials & appeals", icon: Gavel, shortcut: "G E" },
       { href: "/assistant", label: "Ask Necessa", icon: Sparkles, shortcut: "G A" },
     ],
   },
   {
-    section: "Knowledge",
+    section: "Reference",
     items: [
       { href: "/policies", label: "Policy library", icon: BookOpen, shortcut: "G P" },
-      { href: "/codes", label: "Code explorer", icon: Network },
+      { href: "/codes", label: "Coverage lookup", icon: Search },
     ],
   },
   {
-    section: "Insights",
-    items: [{ href: "/analytics", label: "Analytics", icon: ChartColumn, perm: "analytics:read", shortcut: "G R" }],
-  },
-  {
-    section: "Administration",
+    section: "Reporting",
     items: [
-      { href: "/knowledge", label: "Knowledge ops", icon: Database, perm: "knowledge:admin", badge: "review" },
-      { href: "/admin/models", label: "Models & providers", icon: Cpu, perm: "knowledge:admin" },
-      { href: "/admin/evals", label: "Evaluations", icon: FlaskConical, perm: "evals:read" },
-      { href: "/admin/audit", label: "Audit log", icon: ScrollText, perm: "audit:read" },
-      { href: "/settings", label: "Settings", icon: Settings },
+      { href: "/analytics", label: "Insights", icon: ChartColumn, perm: "analytics:read", shortcut: "G R" },
+      { href: "/admin/audit", label: "Compliance", icon: ShieldCheck, perm: "audit:read" },
     ],
+  },
+  {
+    section: "Account",
+    items: [{ href: "/settings", label: "Team & settings", icon: Settings }],
   },
 ];
 

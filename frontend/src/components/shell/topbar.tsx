@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, BellRing, CheckCheck, FileWarning, FlaskConical, Gavel, Keyboard, LogOut, Menu, Moon, Search, Settings, ShieldAlert, Sparkles, Sun, TestTube2, Timer, UserRound, Workflow, BookOpen } from "lucide-react";
+import { Bell, CheckCheck, FileWarning, Gavel, Keyboard, LogOut, Menu, Moon, Search, Settings, ShieldAlert, Sparkles, Sun, Timer, UserRound, Workflow, BookOpen } from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -41,16 +41,16 @@ function Notifications() {
       <Tooltip content="Notifications">
         <SheetTrigger asChild>
           <Button variant="ghost" size="icon" aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`} className="relative">
-            {unread ? <BellRing /> : <Bell />}
+            <Bell />
             <AnimatePresence>
               {unread ? (
                 <motion.span
                   key={unread}
-                  initial={{ scale: 0.4, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.4, opacity: 0 }}
-                  transition={{ type: "spring", stiffness: 520, damping: 26 }}
-                  className="tabular absolute right-0.5 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-notmet px-1 text-[9px] font-semibold text-white ring-2 ring-bg"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="tabular absolute right-0.5 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-brand px-1 text-[9px] font-medium text-brand-contrast ring-2 ring-bg"
                 >
                   {unread > 9 ? "9+" : unread}
                 </motion.span>
@@ -59,8 +59,8 @@ function Notifications() {
           </Button>
         </SheetTrigger>
       </Tooltip>
-      <SheetContent title="Notifications" description="SLA alerts, evaluation results, policy changes and security events." className="max-w-[min(100vw,26rem)]">
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-surface/95 px-4 py-2.5 backdrop-blur">
+      <SheetContent title="Notifications" description="Payer deadlines, case updates, policy changes and security alerts." className="max-w-[min(100vw,26rem)]">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2.5">
           <div className="flex rounded-md bg-surface-2 p-0.5 text-xs font-medium" role="tablist" aria-label="Filter notifications">
             {(["all", "unread"] as const).map((f) => (
               <button
@@ -68,7 +68,7 @@ function Notifications() {
                 role="tab"
                 aria-selected={filter === f}
                 onClick={() => setFilter(f)}
-                className={cn("rounded-[5px] px-2.5 py-1 capitalize transition-colors", filter === f ? "bg-surface text-fg shadow-e1" : "text-muted hover:text-fg")}
+                className={cn("rounded-[5px] px-2.5 py-1 capitalize transition-colors", filter === f ? "bg-surface text-fg" : "text-muted hover:text-fg")}
               >
                 {f}
                 {f === "unread" && unread ? <span className="tabular ml-1 text-brand-fg">{unread}</span> : null}
@@ -81,12 +81,12 @@ function Notifications() {
           </Button>
         </div>
         {list.length === 0 ? (
-          <EmptyState art="inbox" title={filter === "unread" ? "No unread notifications" : "You're all caught up"} description="SLA alerts, evaluation results and policy changes appear here." />
+          <EmptyState art="inbox" title={filter === "unread" ? "No unread notifications" : "You're all caught up"} description="Payer deadlines, case updates and policy changes appear here." />
         ) : (
           <div className="pb-4">
             {groups.map(({ g, items }) => (
               <section key={g} aria-label={g}>
-                <p className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-subtle">{g}</p>
+                <p className="px-4 pb-1 pt-3 text-[11px] font-medium text-subtle">{g}</p>
                 <ul>
                   {items.map((n) => {
                     const Icon = NOTIF_ICON[n.type] ?? Bell;
@@ -100,10 +100,10 @@ function Notifications() {
                               router.push(n.link);
                             }
                           }}
-                          className={cn("relative flex w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2", !n.readAt && "bg-brand-soft/20")}
+                          className={cn("relative flex w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2", !n.readAt && "bg-surface-2/60")}
                         >
                           {!n.readAt ? <span className="absolute left-1.5 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-brand" aria-label="Unread" /> : null}
-                          <span className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-muted", n.type === "security" && "bg-notmet-soft text-notmet", n.type === "sla" && "bg-insufficient-soft text-insufficient", n.type === "evaluation" && "bg-brand-soft text-brand")}>
+                          <span className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-2 text-muted", n.type === "security" && "text-notmet", n.type === "sla" && "text-insufficient")}>
                             <Icon className="size-4" />
                           </span>
                           <span className="grid min-w-0 gap-0.5">
@@ -147,7 +147,7 @@ function UserMenu() {
         </div>
         {me.membership ? (
           <div className="px-2 pb-2">
-            <Badge tone="brand" size="xs">
+            <Badge tone="neutral" size="xs">
               {ROLE_LABEL[me.membership.role]}
             </Badge>
           </div>
@@ -182,8 +182,8 @@ function ThemeToggle() {
   return (
     <Tooltip content="Toggle theme">
       <Button variant="ghost" size="icon" aria-label="Toggle theme" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")} className="overflow-hidden">
-        <Sun className="hidden transition-transform duration-300 ease-out hover:rotate-45 dark:block" />
-        <Moon className="transition-transform duration-300 ease-out hover:-rotate-12 dark:hidden" />
+        <Sun className="hidden dark:block" />
+        <Moon className="dark:hidden" />
       </Button>
     </Tooltip>
   );
@@ -195,15 +195,14 @@ export function DemoPill() {
   return (
     <Dropdown>
       <DropdownTrigger asChild>
-        <button className="inline-flex h-6 items-center gap-1.5 rounded-full border border-dashed border-insufficient/50 bg-insufficient-soft/60 px-2 text-[11px] font-medium text-insufficient-fg outline-none">
-          <FlaskConical className="size-3" />
-          Demo data
+        <button className="hidden h-6 items-center rounded-full border border-border px-2 text-[11px] text-subtle outline-none transition-colors hover:border-border-strong hover:text-muted focus-visible:ring-2 focus-visible:ring-brand/30 sm:inline-flex">
+          Sample data
         </button>
       </DropdownTrigger>
       <DropdownContent className="w-72">
-        <DropdownLabel>Demo mode</DropdownLabel>
+        <DropdownLabel>Sample data</DropdownLabel>
         <p className="px-2 pb-2 text-xs text-muted">
-          You&apos;re exploring an in-browser simulation with synthetic patients and real CMS policy identifiers. Nothing leaves this browser.
+          You&apos;re exploring Necessa with made-up patients and real public Medicare policy references. Nothing you do here is saved to a server.
         </p>
         <DropdownSeparator />
         <DropdownItem
@@ -214,18 +213,8 @@ export function DemoPill() {
             location.reload();
           }}
         >
-          <Workflow /> Reset demo data
+          <Workflow /> Reset sample data
         </DropdownItem>
-        {!process.env.NEXT_PUBLIC_DEMO_MODE ? (
-          <DropdownItem
-            onSelect={() => {
-              demo.toggle(false);
-              location.href = "/login";
-            }}
-          >
-            <TestTube2 /> Switch to live API
-          </DropdownItem>
-        ) : null}
       </DropdownContent>
     </Dropdown>
   );
@@ -234,17 +223,17 @@ export function DemoPill() {
 export function Topbar({ children }: { children?: React.ReactNode }) {
   const { setPaletteOpen, setMobileNavOpen } = useUi();
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-bg/85 px-3 backdrop-blur-md supports-[backdrop-filter]:bg-bg/70 sm:px-5">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-bg px-3 sm:px-5">
       <Button variant="ghost" size="icon" className="md:hidden" aria-label="Open navigation" onClick={() => setMobileNavOpen(true)}>
         <Menu />
       </Button>
       <div className="min-w-0 flex-1">{children}</div>
       <button
         onClick={() => setPaletteOpen(true)}
-        className="hidden h-8 w-[min(34vw,320px)] items-center gap-2 rounded-md border border-border bg-surface px-2.5 text-[13px] text-subtle shadow-e1 outline-none transition-colors hover:border-border-strong hover:text-muted focus-visible:ring-2 focus-visible:ring-brand/30 sm:flex"
+        className="hidden h-8 w-[min(34vw,320px)] items-center gap-2 rounded-md border border-border bg-surface px-2.5 text-[13px] text-subtle outline-none transition-colors hover:border-border-strong hover:text-muted focus-visible:ring-2 focus-visible:ring-brand/30 sm:flex"
       >
         <Search className="size-4" />
-        <span className="flex-1 truncate text-left">Search or ask anything…</span>
+        <span className="flex-1 truncate text-left">Search cases, policies, codes…</span>
         <Kbd>⌘K</Kbd>
       </button>
       <Button variant="ghost" size="icon" className="sm:hidden" aria-label="Search" onClick={() => setPaletteOpen(true)}>
@@ -254,7 +243,7 @@ export function Topbar({ children }: { children?: React.ReactNode }) {
       <Tooltip content="Ask Necessa">
         <Button asChild variant="ghost" size="icon" aria-label="Ask Necessa">
           <Link href="/assistant">
-            <Sparkles className="text-ai-2" />
+            <Sparkles />
           </Link>
         </Button>
       </Tooltip>

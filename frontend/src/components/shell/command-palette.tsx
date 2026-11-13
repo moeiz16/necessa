@@ -1,12 +1,15 @@
 "use client";
 
-import { ArrowRight, BookOpen, Clock3, FilePlus2, FolderKanban, Hash, Keyboard, LogOut, Monitor, Moon, Sparkles, Sun, TestTube2 } from "lucide-react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { ArrowRight, BookOpen, Clock3, FilePlus2, FolderKanban, Hash, Keyboard, LogOut, Monitor, Moon, Sparkles, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { Dialog as D } from "radix-ui";
 import { useDeferredValue, useEffect, useState } from "react";
-import { useCases, useCodeSearch, usePolicies } from "@/lib/api/hooks";
-import { useDemoMode, useSession } from "@/lib/api/session";
+import { api } from "@/lib/api/client";
+import { useCases } from "@/lib/api/hooks";
+import { useSession } from "@/lib/api/session";
+import type { CodeResult, Page, PolicySummary } from "@/lib/api/types";
 import { lsGet, lsSet } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { Kbd } from "@/components/ui/display";
@@ -29,12 +32,23 @@ export function CommandPalette() {
   const router = useRouter();
   const { setTheme } = useTheme();
   const { can, logout } = useSession();
-  const demo = useDemoMode();
   const [q, setQ] = useState("");
   const dq = useDeferredValue(q.trim());
   const cases = useCases(dq.length >= 2 ? { q: dq, limit: 5 } : { limit: 5, sort: "-updatedAt" });
-  const policies = usePolicies(dq.length >= 2 ? { q: dq, limit: 5 } : { limit: 0 });
-  const codes = useCodeSearch(dq.length >= 2 ? dq : "", undefined);
+  // Only searched once there is something to search for (an empty query is rejected by the API).
+  const searching = dq.length >= 2;
+  const policies = useQuery({
+    queryKey: ["palette", "policies", dq],
+    queryFn: () => api.get<Page<PolicySummary>>("/policies", { q: dq, limit: 5 }),
+    enabled: searching,
+    placeholderData: keepPreviousData,
+  });
+  const codes = useQuery({
+    queryKey: ["palette", "codes", dq],
+    queryFn: () => api.get<CodeResult[]>("/codes/search", { q: dq }),
+    enabled: searching,
+    placeholderData: keepPreviousData,
+  });
 
   const [recent, setRecent] = useState<Recent[]>([]);
   useEffect(() => {
@@ -51,24 +65,24 @@ export function CommandPalette() {
   return (
     <D.Root open={paletteOpen} onOpenChange={setPaletteOpen}>
       <D.Portal>
-        <D.Overlay className="fixed inset-0 z-50 bg-[rgb(10_11_13/0.38)] backdrop-blur-[2px] data-[state=open]:animate-[fade-in_140ms] data-[state=closed]:animate-[fade-out_120ms]" />
+        <D.Overlay className="fixed inset-0 z-50 bg-[rgb(10_10_10/0.32)] data-[state=open]:animate-[fade-in_150ms] data-[state=closed]:animate-[fade-out_120ms]" />
         <D.Content
-          className="fixed left-1/2 top-[14vh] z-50 w-[calc(100vw-2rem)] max-w-[640px] -translate-x-1/2 overflow-hidden rounded-xl border border-border bg-surface shadow-e3 outline-none data-[state=open]:animate-[scale-in_180ms_var(--ease-out)] data-[state=closed]:animate-[scale-out_120ms_var(--ease-out)]"
+          className="fixed left-1/2 top-[14vh] z-50 w-[calc(100vw-2rem)] max-w-[640px] -translate-x-1/2 overflow-hidden rounded-lg border border-border bg-surface shadow-e3 outline-none data-[state=open]:animate-[scale-in_160ms_var(--ease-out)] data-[state=closed]:animate-[scale-out_120ms_var(--ease-out)]"
           aria-describedby={undefined}
         >
           <D.Title className="sr-only">Command palette</D.Title>
           <Command shouldFilter={dq.length < 2} loop>
-            <CommandInput placeholder="Search cases, policies, codes — or ask Necessa anything…" value={q} onValueChange={setQ} autoFocus />
+            <CommandInput placeholder="Search cases, policies and codes, or ask a question…" value={q} onValueChange={setQ} autoFocus />
             <CommandList>
-              <CommandEmpty>No matches. Press Enter to ask Necessa.</CommandEmpty>
+              <CommandEmpty>No matches. Try a different search.</CommandEmpty>
               {q.trim().length > 2 ? (
                 <CommandGroup heading="Ask Necessa">
                   <CommandItem value={`ask ${q}`} onSelect={() => go(`/assistant?q=${encodeURIComponent(q.trim())}`)}>
-                    <Sparkles className="!text-ai-2" />
+                    <Sparkles />
                     <span className="min-w-0 flex-1 truncate">
                       Ask: <span className="text-fg">“{q.trim()}”</span>
                     </span>
-                    <span className="text-[11px] text-subtle">cited answer</span>
+                    <span className="text-[11px] text-subtle">answer with sources</span>
                   </CommandItem>
                 </CommandGroup>
               ) : null}
@@ -101,7 +115,7 @@ export function CommandPalette() {
                 </CommandGroup>
               ) : null}
 
-              {dq.length >= 2 && policies.data?.items.length ? (
+              {searching && policies.data?.items.length ? (
                 <CommandGroup heading="Policies">
                   {policies.data.items.slice(0, 5).map((p) => (
                     <CommandItem key={p.id} value={`policy ${p.sourceKey} ${p.title}`} onSelect={() => go(`/policies/${p.id}`, { label: `${p.sourceKey} · ${p.title}`, kind: "policy" })}>
@@ -114,7 +128,7 @@ export function CommandPalette() {
                 </CommandGroup>
               ) : null}
 
-              {dq.length >= 2 && codes.data?.length ? (
+              {searching && codes.data?.length ? (
                 <CommandGroup heading="Codes">
                   {codes.data.slice(0, 4).map((c) => (
                     <CommandItem key={c.code} value={`code ${c.code} ${c.shortDesc}`} onSelect={() => go(`/codes?code=${c.code}&system=${c.system}`, { label: `${c.code} · ${c.shortDesc}`, kind: "code" })}>
@@ -166,17 +180,12 @@ export function CommandPalette() {
                 <CommandItem value="theme system" onSelect={() => { setTheme("system"); setPaletteOpen(false); }}>
                   <Monitor /> System theme
                 </CommandItem>
-                {!process.env.NEXT_PUBLIC_DEMO_MODE ? (
-                  <CommandItem value="toggle demo data mode" onSelect={() => { demo.toggle(!demo.on); setPaletteOpen(false); router.refresh(); }}>
-                    <TestTube2 /> {demo.on ? "Use live API" : "Use demo data"}
-                  </CommandItem>
-                ) : null}
                 <CommandItem value="sign out logout" onSelect={async () => { setPaletteOpen(false); await logout(); router.push("/login"); }}>
                   <LogOut /> Sign out
                 </CommandItem>
               </CommandGroup>
             </CommandList>
-            <div className="flex items-center justify-between border-t border-border bg-surface-2/50 px-3 py-2 text-[11px] text-subtle">
+            <div className="flex items-center justify-between border-t border-border px-3 py-2 text-[11px] text-subtle">
               <span className="flex items-center gap-1.5">
                 <Kbd>↑</Kbd>
                 <Kbd>↓</Kbd> navigate <Kbd>↵</Kbd> open

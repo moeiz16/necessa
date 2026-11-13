@@ -1,13 +1,12 @@
 "use client";
 
 import { Check, ChevronsUpDown, PanelLeftClose, PanelLeftOpen, Plus, ShieldCheck } from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/lib/api/client";
-import { qk, useCaseStats, useCriteriaSets } from "@/lib/api/hooks";
+import { qk, useCaseStats } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
 import { ROLE_LABEL } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -41,7 +40,7 @@ export function OrgSwitcher({ collapsed }: { collapsed?: boolean }) {
           )}
           aria-label="Switch organization"
         >
-          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-fg text-[11px] font-semibold text-bg">{org.name.slice(0, 1)}</span>
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-fg text-[11px] font-medium text-bg">{org.name.slice(0, 1)}</span>
           {!collapsed ? (
             <>
               <span className="grid min-w-0 flex-1 leading-tight">
@@ -72,9 +71,8 @@ export function OrgSwitcher({ collapsed }: { collapsed?: boolean }) {
   );
 }
 
-function NavLink({ item, collapsed, count, layoutGroup }: { item: NavItem; collapsed: boolean; count?: number; layoutGroup: string }) {
+function NavLink({ item, collapsed, count }: { item: NavItem; collapsed: boolean; count?: number; layoutGroup?: string }) {
   const pathname = usePathname();
-  const reduce = useReducedMotion();
   const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
   const Icon = item.icon;
   const link = (
@@ -82,25 +80,14 @@ function NavLink({ item, collapsed, count, layoutGroup }: { item: NavItem; colla
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex h-8 items-center gap-2.5 rounded-md text-[13px] font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-brand/30",
+        "group relative flex h-8 items-center gap-2.5 rounded-md text-[13px] outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-brand/30",
         collapsed ? "w-8 justify-center" : "px-2",
-        active ? "text-fg" : "text-muted hover:bg-surface-2 hover:text-fg",
+        active ? "bg-surface-2 font-medium text-fg" : "text-muted hover:bg-surface-2/70 hover:text-fg",
       )}
     >
-      {active ? (
-        <motion.span
-          layoutId={`${layoutGroup}-active`}
-          className="absolute inset-0 rounded-md bg-surface shadow-e1"
-          transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 40, mass: 0.7 }}
-          aria-hidden
-        />
-      ) : null}
-      {active && !collapsed ? <span className="absolute -left-2 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-brand" aria-hidden /> : null}
-      <Icon className={cn("relative size-4 shrink-0 transition-colors", active ? "text-brand" : "text-subtle group-hover:text-muted")} />
-      {!collapsed ? <span className="relative truncate">{item.label}</span> : null}
-      {!collapsed && count ? (
-        <span className={cn("tabular relative ml-auto rounded-full px-1.5 text-[11px] leading-[18px]", active ? "bg-brand-soft text-brand-fg" : "bg-surface-3 text-muted")}>{count}</span>
-      ) : null}
+      <Icon className={cn("size-4 shrink-0", active ? "text-fg" : "text-subtle group-hover:text-muted")} />
+      {!collapsed ? <span className="truncate">{item.label}</span> : null}
+      {!collapsed && count ? <span className="tabular ml-auto text-[11px] text-subtle">{count}</span> : null}
       {collapsed && count ? <span className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-brand ring-2 ring-bg" /> : null}
     </Link>
   );
@@ -116,17 +103,16 @@ function NavLink({ item, collapsed, count, layoutGroup }: { item: NavItem; colla
 export function SidebarNav({ collapsed = false, onNavigate, layoutGroup = "sidebar" }: { collapsed?: boolean; onNavigate?: () => void; layoutGroup?: string }) {
   const { can } = useSession();
   const stats = useCaseStats();
-  const review = useCriteriaSets("needs_review");
   const open = stats.data ? Object.entries(stats.data.byStatus).filter(([k]) => !["approved", "closed"].includes(k)).reduce((a, [, v]) => a + v, 0) : undefined;
-  const counts: Record<string, number | undefined> = { cases: open, review: can("knowledge:admin") ? review.data?.total ?? undefined : undefined };
+  const counts: Record<string, number | undefined> = { cases: open };
   return (
-    <nav className="grid gap-5" aria-label="Main" onClick={onNavigate}>
+    <nav className="grid gap-4" aria-label="Main" onClick={onNavigate}>
       {NAV.map((section) => {
         const items = section.items.filter((i) => !i.perm || can(i.perm));
         if (!items.length) return null;
         return (
           <div key={section.section} className="grid gap-0.5">
-            {!collapsed ? <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-subtle">{section.section}</p> : <span className="mx-auto mb-1 h-px w-5 bg-border" />}
+            {!collapsed ? <p className="px-2 pb-1 text-[11px] font-medium text-subtle">{section.section}</p> : <span className="mx-auto mb-1 h-px w-5 bg-border" />}
             {items.map((item) => (
               <NavLink key={item.href} item={item} collapsed={collapsed} layoutGroup={layoutGroup} count={item.badge ? counts[item.badge] : undefined} />
             ))}
@@ -142,7 +128,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   return (
     <aside
       className={cn(
-        "sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-border bg-bg transition-[width] duration-300 ease-out md:flex",
+        "sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-border bg-bg transition-[width] duration-200 ease-out md:flex",
         collapsed ? "w-[60px] items-center" : "w-[244px]",
       )}
     >
@@ -180,19 +166,17 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   );
 }
 
-/** Accurate, always-visible statement of the privacy controls actually in force. */
+/** Quiet, accurate statement of the protections in force. */
 export function TrustCard() {
   return (
     <Link
       href="/security"
-      className="group flex items-center gap-2.5 rounded-lg bg-surface p-2.5 shadow-e1 outline-none transition-shadow hover:shadow-e2 focus-visible:ring-2 focus-visible:ring-brand/30"
+      className="group flex items-center gap-2.5 rounded-md border border-border bg-surface p-2.5 outline-none transition-colors hover:border-border-strong focus-visible:ring-2 focus-visible:ring-brand/30"
     >
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-met-soft text-met">
-        <ShieldCheck className="size-3.5" />
-      </span>
+      <ShieldCheck className="size-4 shrink-0 text-met" />
       <span className="grid min-w-0 leading-tight">
-        <span className="text-xs font-medium text-fg">De-identification on</span>
-        <span className="text-[11px] leading-snug text-subtle">Audit logging on · humans decide</span>
+        <span className="text-xs font-medium text-fg">Your data is protected</span>
+        <span className="text-[11px] leading-snug text-subtle">Activity is logged</span>
       </span>
     </Link>
   );
