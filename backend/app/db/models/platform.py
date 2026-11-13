@@ -145,7 +145,11 @@ class ApiKey(UUIDPkMixin, OrgScopedMixin, Base):
 
 class Notification(UUIDPkMixin, OrgScopedMixin, Base):
     __tablename__ = "notifications"
-    __table_args__ = (Index("ix_notifications_user_unread", "user_id", "read_at"),)
+    __table_args__ = (
+        Index("ix_notifications_user_unread", "user_id", "read_at"),
+        # the bell / inbox: WHERE org_id AND user_id ORDER BY created_at DESC LIMIT n
+        Index("ix_notifications_org_user_created", "org_id", "user_id", "created_at"),
+    )
 
     user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, ForeignKey("users.id", ondelete="CASCADE"))
     type: Mapped[str] = mapped_column(String(64))
@@ -160,7 +164,12 @@ class AuditLog(Base):
     """Append-only, hash-chained (per org) audit trail."""
 
     __tablename__ = "audit_log"
-    __table_args__ = (Index("ix_audit_org_created", "org_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_audit_org_created", "org_id", "created_at"),
+        # chain head lookup on EVERY audited request (WHERE org_id ORDER BY id DESC LIMIT 1), chain
+        # verification and the audit browser all walk an org's rows in id order
+        Index("ix_audit_org_id", "org_id", "id"),
+    )
 
     id: Mapped[int] = mapped_column(
         BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True

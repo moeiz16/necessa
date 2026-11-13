@@ -69,6 +69,7 @@ class Case(UUIDPkMixin, OrgScopedMixin, TimestampMixin, Base):
         Index("ix_cases_org_status", "org_id", "status"),
         Index("ix_cases_org_due", "org_id", "due_at"),
         Index("ix_cases_org_updated", "org_id", "updated_at"),
+        Index("ix_cases_org_created", "org_id", "created_at"),  # analytics date ranges
     )
 
     number: Mapped[str] = mapped_column(String(24))
@@ -140,7 +141,10 @@ class CaseChunk(UUIDPkMixin, OrgScopedMixin, Base):
 
 class CaseEvent(UUIDPkMixin, OrgScopedMixin, Base):
     __tablename__ = "case_events"
-    __table_args__ = (Index("ix_case_events_case_created", "case_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_case_events_case_created", "case_id", "created_at"),
+        Index("ix_case_events_org_created", "org_id", "created_at"),  # org activity feed
+    )
 
     case_id: Mapped[uuid.UUID] = mapped_column(UUIDType, ForeignKey("cases.id", ondelete="CASCADE"))
     actor_id: Mapped[uuid.UUID | None] = mapped_column(UUIDType, nullable=True)
@@ -151,6 +155,10 @@ class CaseEvent(UUIDPkMixin, OrgScopedMixin, Base):
 
 class CaseEvaluation(UUIDPkMixin, OrgScopedMixin, Base):
     __tablename__ = "case_evaluations"
+    __table_args__ = (
+        Index("ix_case_evaluations_case_started", "case_id", "started_at"),  # evaluation history
+        Index("ix_case_evaluations_org_started", "org_id", "started_at"),  # analytics date ranges
+    )
 
     case_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("cases.id", ondelete="CASCADE"), index=True
@@ -173,6 +181,7 @@ class CaseEvaluation(UUIDPkMixin, OrgScopedMixin, Base):
 
 class CriterionResult(UUIDPkMixin, OrgScopedMixin, Base):
     __tablename__ = "criterion_results"
+    __table_args__ = (Index("ix_criterion_results_org_created", "org_id", "created_at"),)
 
     evaluation_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("case_evaluations.id", ondelete="CASCADE"), index=True
@@ -199,6 +208,7 @@ class CriterionResult(UUIDPkMixin, OrgScopedMixin, Base):
 
 class Letter(UUIDPkMixin, OrgScopedMixin, TimestampMixin, Base):
     __tablename__ = "letters"
+    __table_args__ = (Index("ix_letters_org_created", "org_id", "created_at"),)
 
     case_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("cases.id", ondelete="CASCADE"), index=True
@@ -217,6 +227,7 @@ class Letter(UUIDPkMixin, OrgScopedMixin, TimestampMixin, Base):
 
 class Denial(UUIDPkMixin, OrgScopedMixin, TimestampMixin, Base):
     __tablename__ = "denials"
+    __table_args__ = (Index("ix_denials_org_created", "org_id", "created_at"),)
 
     case_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("cases.id", ondelete="CASCADE"), index=True

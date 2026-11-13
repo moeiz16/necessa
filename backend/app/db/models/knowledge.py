@@ -207,6 +207,9 @@ class PolicyCodeGroup(Base):
 
 class Code(Base):
     __tablename__ = "codes"
+    # The code explorer looks codes up without a system (exact + `LIKE 'E06%'` prefix) and the PK leads
+    # with code_system. varchar_pattern_ops lets Postgres serve prefix LIKE (and =) from this index.
+    __table_args__ = (Index("ix_codes_code", "code", postgresql_ops={"code": "varchar_pattern_ops"}),)
 
     code_system: Mapped[str] = mapped_column(String(16), primary_key=True)  # HCPCS|ICD10CM|ICD10PCS
     code: Mapped[str] = mapped_column(String(32), primary_key=True)
