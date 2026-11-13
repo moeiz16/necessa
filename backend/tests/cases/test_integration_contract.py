@@ -35,13 +35,16 @@ async def test_case_detail_reveal_is_permissioned_and_audited(client):
     masked = (await acct.get(f"/api/v1/cases/{case['id']}")).json()
     assert masked.get("patientRevealed") is None
 
-    revealed = await acct.get(f"/api/v1/cases/{case['id']}", params={"reveal": "true"})
+    revealed = await acct.get(
+        f"/api/v1/cases/{case['id']}", params={"reveal": "true", "reason": "Preparing PA submission"}
+    )
     assert revealed.status_code == 200, revealed.text
     assert set(revealed.json()["patientRevealed"]) == {"fullName", "dob", "memberId", "mrn"}
 
     log = await acct.get("/api/v1/audit", params={"action": "phi.patient_revealed"})
     assert log.status_code == 200
-    assert any(e["action"] == "phi.patient_revealed" for e in log.json()["items"])
+    entry = next(e for e in log.json()["items"] if e["action"] == "phi.patient_revealed")
+    assert entry["metadata"]["reason"] == "Preparing PA submission"
 
 
 async def test_unknown_case_reveal_is_404(client):

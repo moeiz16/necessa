@@ -431,6 +431,9 @@ class DbCasePorts:
         try:
             from app.core.events import publish
 
+            if event.startswith(("evaluation.", "criterion.")) and "evaluationId" not in data:
+                # Clients match events to the run they started; replays can carry older runs.
+                data = {"evaluationId": str(self.evaluation_id), **data}
             await publish(f"case:{self.case_id}", event, data)
         except Exception:
             log.debug("case.publish_failed", event=event)

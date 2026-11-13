@@ -116,6 +116,9 @@ async def create_case(
 async def get_case(
     case_id: uuid.UUID,
     reveal: bool = False,
+    reason: str | None = Query(
+        None, max_length=200, description="Purpose of use, recorded with a PHI reveal"
+    ),
     ctx: RequestContext = Depends(require_perm("cases:read")),
     db: AsyncSession = Depends(get_db),
 ):
@@ -128,8 +131,12 @@ async def get_case(
     patient = await case_svc.get_patient(db, ctx.org_id, case.patient_id)
     demo = case_svc.patient_out(patient, reveal=True).get("demographics") or {}
     await audit(
-        db, ctx, action="phi.patient_revealed", resource_type="patient", resource_id=patient.id,
-        metadata={"caseId": str(case.id)},
+        db,
+        ctx,
+        action="phi.patient_revealed",
+        resource_type="patient",
+        resource_id=patient.id,
+        metadata={"caseId": str(case.id), "reason": (reason or "").strip() or None},
     )
     out = CaseOut.model_validate(detail)
     out.patient_revealed = {k: demo.get(k) for k in ("fullName", "dob", "memberId", "mrn")}
@@ -305,6 +312,9 @@ async def get_document(
     case_id: uuid.UUID,
     doc_id: uuid.UUID,
     reveal: bool = False,
+    reason: str | None = Query(
+        None, max_length=200, description="Purpose of use, recorded with a PHI reveal"
+    ),
     ctx: RequestContext = Depends(require_perm("cases:read")),
     db: AsyncSession = Depends(get_db),
 ):
@@ -321,7 +331,7 @@ async def get_document(
             action="phi.document_revealed",
             resource_type="case_document",
             resource_id=doc.id,
-            metadata={"caseId": str(case.id)},
+            metadata={"caseId": str(case.id), "reason": (reason or "").strip() or None},
         )
     out = CaseDocumentDetailOut.model_validate(doc)
     out.text = doc_svc.document_text(doc, reveal)
