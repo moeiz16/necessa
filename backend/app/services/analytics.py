@@ -14,9 +14,10 @@ import uuid
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import org_cache
 from app.db.base import utcnow
 from app.db.models.cases import (
     OPEN_STATUSES,
@@ -49,26 +50,62 @@ def _effective(verdict: str, override: str | None) -> str:
     return override or verdict
 
 
+OVERVIEW_CACHE_TTL_S = 30.0
+
+
 async def overview(db: AsyncSession, org_id: uuid.UUID, range_days: int = 30) -> dict:
+    """Dashboard KPIs. Cached per org for a few seconds; any committed write to the org invalidates."""
+    return await org_cache.get_or_compute(
+        "analytics.overview",
+        org_id,
+        range_days,
+        OVERVIEW_CACHE_TTL_S,
+        lambda: _overview(db, org_id, range_days),
+    )
+
+
+async def _overview(db: AsyncSession, org_id: uuid.UUID, range_days: int) -> dict:
+    """Aggregates run in the database; only range-bounded rows come back (never the whole org)."""
     now = utcnow()
     since = now - timedelta(days=range_days)
-    cases = (
+    is_open = Case.status.in_(OPEN_STATUSES)
+    totals = (
         await db.execute(
             select(
-                Case.status,
-                Case.readiness,
-                Case.readiness_score,
-                Case.due_at,
-                Case.created_at,
-                Case.submitted_at,
-                Case.payer_type,
-                Case.outcome,
-                Case.outcome_at,
+                func.coalesce(func.sum(case((is_open, 1), else_=0)), 0),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (is_open & (Case.due_at >= now) & (Case.due_at < now + timedelta(hours=48)), 1),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (
+                                ((Case.status == "denied") | (Case.outcome == "denied"))
+                                & (func.coalesce(Case.outcome_at, Case.created_at) >= since),
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ),
             ).where(Case.org_id == org_id)
         )
+    ).one()
+    open_cases, due_soon, denied = (int(x or 0) for x in totals)
+    in_range = (
+        await db.execute(
+            select(
+                Case.readiness, Case.readiness_score, Case.created_at, Case.submitted_at, Case.payer_type
+            ).where(Case.org_id == org_id, Case.created_at >= since)
+        )
     ).all()
-    open_cases = [c for c in cases if c.status in OPEN_STATUSES]
-    in_range = [c for c in cases if c.created_at >= since]
     evaluated = [c for c in in_range if c.readiness != "unknown"]
     scores = [c.readiness_score for c in evaluated if c.readiness_score is not None]
     turnaround = [
@@ -76,30 +113,36 @@ async def overview(db: AsyncSession, org_id: uuid.UUID, range_days: int = 30) ->
         for c in in_range
         if c.submitted_at and c.submitted_at >= c.created_at
     ]
-    denied = sum(
-        1
-        for c in cases
-        if (c.status == "denied" or c.outcome == "denied") and (c.outcome_at or c.created_at) >= since
-    )
 
-    crit_rows = (
+    # Gap criteria grouped by text in SQL; `override or verdict` is the reviewer-effective verdict.
+    effective = func.coalesce(func.nullif(CriterionResult.override_verdict, ""), CriterionResult.verdict)
+    gap_groups = (
         await db.execute(
-            select(
-                CriterionResult.criterion_text, CriterionResult.verdict, CriterionResult.override_verdict
-            ).where(CriterionResult.org_id == org_id, CriterionResult.created_at >= since)
+            select(CriterionResult.criterion_text, func.count())
+            .where(
+                CriterionResult.org_id == org_id,
+                CriterionResult.created_at >= since,
+                effective != "MET",
+            )
+            .group_by(CriterionResult.criterion_text)
         )
     ).all()
-    gap_rows = [r for r in crit_rows if _effective(r.verdict, r.override_verdict) != "MET"]
-    top_gaps = Counter(r.criterion_text.strip()[:160] for r in gap_rows).most_common(8)
+    gap_counter: Counter[str] = Counter()
+    for text_, n in sorted(gap_groups, key=lambda r: r[0]):
+        gap_counter[text_.strip()[:160]] += n
+    gaps_total = sum(gap_counter.values())
+    top_gaps = gap_counter.most_common(8)
 
-    evals = (
+    completed_evals = (
         await db.execute(
-            select(CaseEvaluation.readiness, CaseEvaluation.finished_at, CaseEvaluation.status).where(
-                CaseEvaluation.org_id == org_id, CaseEvaluation.started_at >= since
+            select(CaseEvaluation.readiness, CaseEvaluation.finished_at).where(
+                CaseEvaluation.org_id == org_id,
+                CaseEvaluation.started_at >= since,
+                CaseEvaluation.status.in_(("completed", "awaiting_review")),
+                CaseEvaluation.finished_at.is_not(None),
             )
         )
     ).all()
-    completed_evals = [e for e in evals if e.status in ("completed", "awaiting_review") and e.finished_at]
     letters = (
         await db.execute(
             select(func.count())
@@ -107,11 +150,19 @@ async def overview(db: AsyncSession, org_id: uuid.UUID, range_days: int = 30) ->
             .where(Letter.org_id == org_id, Letter.created_at >= since)
         )
     ).scalar_one()
-    denial_rows = (
+    denial_groups = (
         await db.execute(
-            select(Denial.category, Denial.status).where(Denial.org_id == org_id, Denial.created_at >= since)
+            select(Denial.category, Denial.status, func.count())
+            .where(Denial.org_id == org_id, Denial.created_at >= since)
+            .group_by(Denial.category, Denial.status)
         )
     ).all()
+    denial_reasons: Counter[str] = Counter()
+    overturned = 0
+    for category, status, n in sorted(denial_groups, key=lambda r: (r[0] or "", r[1] or "")):
+        denial_reasons[category] += n
+        if status == "overturned":
+            overturned += n
 
     by_day: dict[str, int] = defaultdict(int)
     for c in in_range:
@@ -137,31 +188,26 @@ async def overview(db: AsyncSession, org_id: uuid.UUID, range_days: int = 30) ->
         for wk, c in sorted(weekly.items())
     ]
     hours_saved = (len(completed_evals) * MINUTES_PER_EVALUATION + letters * MINUTES_PER_LETTER) / 60
+    payer_mix = Counter(c.payer_type for c in sorted(in_range, key=lambda r: r.payer_type))
     return {
         "range_days": range_days,
         "kpis": {
-            "open_cases": len(open_cases),
-            "due_soon": sum(
-                1 for c in open_cases if c.due_at and now <= c.due_at < now + timedelta(hours=48)
-            ),
+            "open_cases": open_cases,
+            "due_soon": due_soon,
             "ready_rate": round(sum(1 for c in evaluated if c.readiness == "ready") / len(evaluated), 4)
             if evaluated
             else 0.0,
             "avg_readiness_score": round(sum(scores) / len(scores), 4) if scores else None,
-            "gaps_caught_pre_submission": len(gap_rows),
+            "gaps_caught_pre_submission": gaps_total,
             "denied_cases": denied,
-            "appeals_overturned": sum(1 for d in denial_rows if d.status == "overturned"),
+            "appeals_overturned": overturned,
             "avg_turnaround_hours": round(sum(turnaround) / len(turnaround), 1) if turnaround else None,
             "estimated_hours_saved": round(hours_saved, 1),
         },
         "trends": {"casesByDay": cases_by_day, "readinessByWeek": readiness_by_week},
         "top_gap_criteria": [{"criterionText": t, "count": n} for t, n in top_gaps],
-        "denial_reasons": [
-            {"category": k, "count": v} for k, v in Counter(d.category for d in denial_rows).most_common()
-        ],
-        "payer_mix": [
-            {"payerType": k, "count": v} for k, v in Counter(c.payer_type for c in in_range).most_common()
-        ],
+        "denial_reasons": [{"category": k, "count": v} for k, v in denial_reasons.most_common()],
+        "payer_mix": [{"payerType": k, "count": v} for k, v in payer_mix.most_common()],
         "methodology": METHODOLOGY,
     }
 

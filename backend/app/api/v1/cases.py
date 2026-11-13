@@ -291,6 +291,7 @@ async def add_text_document(
 @router.get("/cases/{case_id}/documents", response_model=list[CaseDocumentOut])
 async def list_documents(
     case_id: uuid.UUID,
+    limit: int = Query(200, ge=1, le=500),
     ctx: RequestContext = Depends(require_perm("cases:read")),
     db: AsyncSession = Depends(get_db),
 ):
@@ -298,7 +299,10 @@ async def list_documents(
     rows = (
         (
             await db.execute(
-                select(CaseDocument).where(CaseDocument.case_id == case.id).order_by(CaseDocument.created_at)
+                select(CaseDocument)
+                .where(CaseDocument.case_id == case.id)
+                .order_by(CaseDocument.created_at)
+                .limit(limit)
             )
         )
         .scalars()
@@ -369,10 +373,11 @@ async def delete_document(
 @router.get("/cases/{case_id}/timeline", response_model=list[CaseEventOut])
 async def get_timeline(
     case_id: uuid.UUID,
+    limit: int = Query(200, ge=1, le=500),
     ctx: RequestContext = Depends(require_perm("cases:read")),
     db: AsyncSession = Depends(get_db),
 ):
-    return await case_svc.timeline(db, await case_svc.get_case(db, ctx.org_id, case_id))
+    return await case_svc.timeline(db, await case_svc.get_case(db, ctx.org_id, case_id), limit=limit)
 
 
 @router.post("/cases/{case_id}/comments", response_model=CaseEventOut, status_code=status.HTTP_201_CREATED)

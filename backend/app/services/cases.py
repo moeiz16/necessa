@@ -14,8 +14,10 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import String, cast, func, or_, select, tuple_
+from sqlalchemy import case as sa_case
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import org_cache
 from app.core.crypto import decrypt_json, encrypt_json
 from app.core.errors import bad_request, conflict, not_found
 from app.db.base import utcnow
@@ -490,32 +492,54 @@ async def case_detail(db: AsyncSession, c: Case) -> dict:
     }
 
 
+STATS_CACHE_TTL_S = 15.0
+
+
 async def case_stats(db: AsyncSession, org_id: uuid.UUID, user_id: uuid.UUID) -> dict:
-    rows = (
+    """Worklist counters. Cached per (org, user) briefly; any committed write to the org invalidates."""
+    return await org_cache.get_or_compute(
+        "cases.stats", org_id, user_id, STATS_CACHE_TTL_S, lambda: _case_stats(db, org_id, user_id)
+    )
+
+
+async def _case_stats(db: AsyncSession, org_id: uuid.UUID, user_id: uuid.UUID) -> dict:
+    # One GROUP BY in the database (at most statuses * readiness * priorities rows) instead of
+    # streaming every case of the org into Python.
+    now = utcnow()
+    soon = now + timedelta(hours=48)
+    is_due_soon = (Case.due_at >= now) & (Case.due_at < soon)
+    groups = (
         await db.execute(
-            select(Case.status, Case.readiness, Case.priority, Case.due_at, Case.assignee_id).where(
-                Case.org_id == org_id
+            select(
+                Case.status,
+                Case.readiness,
+                Case.priority,
+                func.count(),
+                func.coalesce(func.sum(sa_case((Case.due_at < now, 1), else_=0)), 0),
+                func.coalesce(func.sum(sa_case((is_due_soon, 1), else_=0)), 0),
+                func.coalesce(func.sum(sa_case((Case.assignee_id == user_id, 1), else_=0)), 0),
             )
+            .where(Case.org_id == org_id)
+            .group_by(Case.status, Case.readiness, Case.priority)
         )
     ).all()
-    now = utcnow()
     by_status: dict[str, int] = {}
     by_readiness: dict[str, int] = {}
     by_priority: dict[str, int] = {}
-    overdue = due_soon = mine = 0
-    for status, readiness, priority, due_at, assignee in rows:
-        by_status[status] = by_status.get(status, 0) + 1
+    total = overdue = due_soon = mine = 0
+    for status, readiness, priority, n, n_overdue, n_soon, n_mine in sorted(
+        groups, key=lambda r: (r[0], r[1], r[2])
+    ):
+        total += n
+        by_status[status] = by_status.get(status, 0) + n
         if status in OPEN_STATUSES:
-            by_readiness[readiness] = by_readiness.get(readiness, 0) + 1
-            by_priority[priority] = by_priority.get(priority, 0) + 1
-            if due_at and due_at < now:
-                overdue += 1
-            elif due_at and due_at < now + timedelta(hours=48):
-                due_soon += 1
-            if assignee == user_id:
-                mine += 1
+            by_readiness[readiness] = by_readiness.get(readiness, 0) + n
+            by_priority[priority] = by_priority.get(priority, 0) + n
+            overdue += int(n_overdue)
+            due_soon += int(n_soon)
+            mine += int(n_mine)
     return {
-        "total": len(rows),
+        "total": total,
         "by_status": by_status,
         "by_readiness": by_readiness,
         "by_priority": by_priority,
