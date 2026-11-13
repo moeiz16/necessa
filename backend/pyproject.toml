@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Necessa — medical-necessity intelligence for prior authorization & denial appeals (hybrid RAG platform)"
 readme = "../README.md"
 requires-python = ">=3.12"
-license = { text = "Apache-2.0" }
+license = { text = "MIT" }
 dependencies = [
   # web
   "fastapi>=0.115",
