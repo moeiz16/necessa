@@ -4,13 +4,11 @@ import {
   BadgeCheck,
   ChevronDown,
   CircleAlert,
-  Eye,
   FileText,
   Files,
   Gavel,
   History,
   ListChecks,
-  LockKeyhole,
   MoreHorizontal,
   PanelRight,
   Pencil,
@@ -21,68 +19,37 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/lib/api/client";
-import { useCase, useCreateConversation, useEvaluation, useMembers, useRecordOutcome, useUpdateCase } from "@/lib/api/hooks";
+import { useCase, useEvaluation, useMembers, useRecordOutcome, useUpdateCase } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
 import type { NextAction } from "@/lib/api/types";
 import { fmtDate, PAYER_LABEL } from "@/lib/format";
 import { AppPage } from "@/components/shell/app-shell";
 import { CriteriaPanel } from "@/components/cases/criteria-panel";
-import { DenialsPanel } from "@/components/cases/denials-panel";
 import { DocumentsPanel } from "@/components/cases/documents-panel";
 import { EvidencePanel } from "@/components/cases/evidence-panel";
-import { LETTER_KINDS, LettersPanel } from "@/components/cases/letters-panel";
+import { LETTER_KINDS } from "@/components/cases/letter-kinds";
 import { CaseAuditPanel, GapsPanel, NextActions, TimelinePanel } from "@/components/cases/side-panels";
+import { CompactCaseBar, RevealDialog, RevealState, usePhiReveal, useScrolledPast } from "@/components/cases/case-chrome";
+import { evaluationModels } from "@/components/cases/criteria-panel";
 import { useCaseStream } from "@/components/cases/use-case-stream";
-import { ChatThread, Composer, AssistantIntro } from "@/components/assistant/chat";
-import { useChat } from "@/components/assistant/use-chat";
+import { AiBadge, ReviewBadge } from "@/components/domain/trust";
 import { CodeChip, PayerChip, PriorityChip, ReadinessRing, SlaTimer, StatusChip } from "@/components/domain/verdict";
 import { Button } from "@/components/ui/button";
 import { Select, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/controls";
 import { Avatar, Badge, Breadcrumb, Card, CardBody, CardHeader, DataList, Skeleton } from "@/components/ui/display";
 import { EmptyState } from "@/components/ui/empty";
 import { Field, Textarea } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogFooter, Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger, Sheet, SheetContent } from "@/components/ui/overlays";
+import { Dialog, DialogContent, DialogFooter, Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger } from "@/components/ui/overlays";
 
-function AskDrawer({ caseId, caseNumber, open, onOpenChange }: { caseId: string; caseNumber: string; open: boolean; onOpenChange: (v: boolean) => void }) {
-  const [convId, setConvId] = useState<string | null>(null);
-  const create = useCreateConversation();
-  const chat = useChat(convId);
-  const busy = !!chat.pending && chat.pending.stage !== "done" && chat.pending.stage !== "error";
-  const ensure = async () => {
-    if (convId) return convId;
-    const c = await create.mutateAsync(`Case ${caseNumber}`);
-    setConvId(c.id);
-    return c.id;
-  };
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent title={`Ask about ${caseNumber}`} description="Answers are grounded in the matched policy and this case's de-identified chart." className="max-w-[min(100vw,34rem)]">
-        <div className="flex h-full flex-col">
-          <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-            <ChatThread compact messages={chat.messages} pending={chat.pending} pendingUser={chat.pendingUser} empty={<AssistantIntro title="Ask about this case" />} />
-          </div>
-          <div className="border-t border-border p-3">
-            <Composer
-              context={`case:${caseId}`}
-              showSuggestions={!chat.messages.length && !chat.pending}
-              busy={busy}
-              onStop={chat.stop}
-              placeholder="e.g. What would close the conservative-care gap?"
-              onSend={async (t) => {
-                const id = await ensure();
-                void chat.send(t, { caseId, conversationId: id });
-              }}
-            />
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-}
+/* Heavy, tab-specific panels load on demand (markdown rendering, chat, denial tooling). */
+const LettersPanel = dynamic(() => import("@/components/cases/letters-panel").then((m) => m.LettersPanel), { ssr: false, loading: () => <Skeleton className="h-96 rounded-xl" /> });
+const DenialsPanel = dynamic(() => import("@/components/cases/denials-panel").then((m) => m.DenialsPanel), { ssr: false, loading: () => <Skeleton className="h-96 rounded-xl" /> });
+const AskDrawer = dynamic(() => import("@/components/cases/ask-drawer").then((m) => m.AskDrawer), { ssr: false });
 
 function OutcomeDialog({ caseId, open, onOpenChange }: { caseId: string; open: boolean; onOpenChange: (v: boolean) => void }) {
   const [outcome, setOutcome] = useState("approved");
@@ -125,7 +92,7 @@ function CaseInner() {
   const { id } = useParams<{ id: string }>();
   const params = useSearchParams();
   const router = useRouter();
-  const { can } = useSession();
+  const { can, me } = useSession();
   const c = useCase(id);
   const evaluation = useEvaluation(id, c.data?.latestEvaluationId);
   const members = useMembers();
@@ -135,7 +102,20 @@ function CaseInner() {
   const [criterion, setCriterion] = useState<string | null>(null);
   const [askOpen, setAskOpen] = useState(false);
   const [outcomeOpen, setOutcomeOpen] = useState(false);
-  const [patient, setPatient] = useState<{ fullName: string; dob: string; memberId: string; mrn: string } | null>(null);
+  const phi = usePhiReveal<{ fullName: string; dob: string; memberId: string; mrn: string }>(async (reason) => {
+    try {
+      const r = await api.get<{ patientRevealed: { fullName: string; dob: string; memberId: string; mrn: string } | null }>(`/cases/${id}`, { reveal: true, reason });
+      toast.message("Access logged", { description: `PHI reveal recorded in the audit trail · ${reason}` });
+      return r.patientRevealed;
+    } catch (e) {
+      toast.error(errorMessage(e));
+      return null;
+    }
+  });
+  const patient = phi.value;
+  const membership = me?.membership;
+  const canReveal = !!membership && ((membership.permissions as string[]).includes("phi:reveal") || ["owner", "admin", "coordinator", "clinician"].includes(membership.role));
+  const header = useScrolledPast<HTMLDivElement>();
   const autoEval = useRef(false);
 
   const canWrite = can("cases:write");
@@ -197,22 +177,37 @@ function CaseInner() {
   const readiness = live.aggregate?.readiness ?? k.readiness;
   const score = live.aggregate?.readinessScore ?? k.readinessScore;
   const gapsCount = (live.running ? live.gaps?.length : ev?.gaps.length) ?? 0;
-  const revealPatient = async () => {
-    try {
-      const r = await api.get<{ patientRevealed: typeof patient }>(`/cases/${id}`, { reveal: true });
-      setPatient(r.patientRevealed);
-      toast.message("Access logged", { description: "PHI reveal recorded in the audit trail." });
-    } catch (e) {
-      toast.error(errorMessage(e));
-    }
-  };
+  const ringReadiness = live.running && !live.aggregate ? "unknown" : readiness;
+  const models = evaluationModels(ev);
+  const evidenceMode = tab === "evidence" || tab === "letters";
+  const evLoading = !!k.latestEvaluationId && evaluation.isPending && !live.running;
+  const panelSkeleton = (
+    <div className="grid gap-2" aria-busy>
+      <Skeleton className="h-16 rounded-xl" />
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Skeleton key={i} className="h-12 rounded-lg" />
+      ))}
+    </div>
+  );
 
   return (
     <AppPage crumbs={<Breadcrumb items={[{ label: "Cases", href: "/cases" }, { label: k.number }]} />} wide>
+      <CompactCaseBar
+        show={header.past}
+        number={k.number}
+        title={k.title}
+        status={live.running ? "evaluating" : k.status}
+        readiness={ringReadiness}
+        score={score}
+        dueAt={!["approved", "closed", "denied"].includes(k.status) ? k.dueAt : null}
+        running={live.running}
+        onEvaluate={runEvaluate}
+        canEvaluate={canWrite}
+      />
       {/* Header */}
-      <div className="flex flex-col gap-4 pb-5 lg:flex-row lg:items-start lg:justify-between">
+      <div ref={header.ref} className="flex flex-col gap-4 pb-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 items-start gap-4">
-          <ReadinessRing size={58} stroke={5} readiness={live.running && !live.aggregate ? "unknown" : readiness} score={score} />
+          <ReadinessRing size={58} stroke={5} readiness={ringReadiness} score={score} />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-xs text-subtle">{k.number}</span>
@@ -233,9 +228,20 @@ function CaseInner() {
               <span>DOS {fmtDate(k.dateOfService)}</span>
               {!["approved", "closed", "denied"].includes(k.status) ? <SlaTimer dueAt={k.dueAt} /> : null}
             </div>
+            {ev && !live.running ? (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-subtle">
+                {ev.status === "completed" ? <ReviewBadge state="reviewed" /> : <AiBadge label="AI-suggested verdicts" />}
+                {ev.status !== "completed" ? <ReviewBadge state="pending" /> : null}
+                <span>
+                  Evaluated {fmtDate(ev.finishedAt ?? ev.startedAt, "MMM d, h:mm a")}
+                  {models.judge ? ` · judge ${models.judge.split("/").pop()}` : ""}
+                  {models.verifier ? ` · verifier ${models.verifier.split("/").pop()}` : ""}
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 xl:flex-nowrap">
           <Button variant="secondary" onClick={() => setAskOpen(true)}>
             <Sparkles className="text-ai-2" /> Ask about this case
           </Button>
@@ -300,9 +306,9 @@ function CaseInner() {
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <Tabs value={tab} onValueChange={switchTab}>
-          <TabsList className="mb-4">
+      <div className={evidenceMode ? "grid grid-cols-1 gap-6" : "grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_300px]"}>
+        <Tabs value={tab} onValueChange={switchTab} className="min-w-0">
+          <TabsList className="mb-4 max-w-full overflow-x-auto scrollbar-thin">
             <TabsTrigger value="criteria">
               <ListChecks /> Criteria
             </TabsTrigger>
@@ -331,7 +337,7 @@ function CaseInner() {
             ) : null}
           </TabsList>
           <TabsContent value="criteria">
-            <CriteriaPanel
+            {evLoading ? panelSkeleton : <CriteriaPanel
               caseId={id}
               evaluation={live.running ? undefined : ev}
               live={live}
@@ -341,13 +347,22 @@ function CaseInner() {
                 setCriterion(cid);
                 switchTab("evidence");
               }}
-            />
+            />}
           </TabsContent>
           <TabsContent value="evidence">
-            <EvidencePanel caseId={id} evaluation={ev} criterionId={criterion} onCriterion={setCriterion} />
+            {evLoading ? panelSkeleton : <EvidencePanel caseId={id} evaluation={ev} criterionId={criterion} onCriterion={setCriterion} />}
           </TabsContent>
           <TabsContent value="gaps">
-            <GapsPanel caseId={id} evaluation={ev} onReEvaluate={runEvaluate} canWrite={canWrite} />
+            {evLoading ? panelSkeleton : <GapsPanel
+              caseId={id}
+              evaluation={ev}
+              onReEvaluate={runEvaluate}
+              canWrite={canWrite}
+              onJump={(cid) => {
+                setCriterion(cid);
+                switchTab("evidence");
+              }}
+            />}
           </TabsContent>
           <TabsContent value="documents">
             <DocumentsPanel caseId={id} />
@@ -368,22 +383,12 @@ function CaseInner() {
           ) : null}
         </Tabs>
 
-        <aside className="grid content-start gap-4">
+        <aside className={evidenceMode ? "hidden" : "grid content-start gap-4"}>
           <Card>
             <CardHeader
               title="Case details"
               icon={<PanelRight />}
-              actions={
-                patient ? (
-                  <Badge tone="insufficient" size="xs">
-                    <Eye /> PHI visible
-                  </Badge>
-                ) : (
-                  <Button size="xs" variant="ghost" onClick={revealPatient}>
-                    <LockKeyhole /> Reveal
-                  </Button>
-                )
-              }
+              actions={<RevealState visible={!!patient} remaining={phi.remaining} onHide={phi.hide} onReveal={() => phi.setOpen(true)} canReveal={canReveal} />}
             />
             <CardBody>
               <DataList
@@ -453,9 +458,9 @@ function CaseInner() {
               ) : (
                 <span className="text-[13px] text-muted">Unassigned</span>
               )}
-              {ev?.tokenUsage ? (
+              {ev?.tokenUsage && ev.tokenUsage.promptTokens + ev.tokenUsage.completionTokens > 0 ? (
                 <p className="mt-3 text-xs text-subtle">
-                  Last evaluation: {(ev.tokenUsage.promptTokens + ev.tokenUsage.completionTokens).toLocaleString()} tokens · {ev.modelInfo?.judge}
+                  Last evaluation: {(ev.tokenUsage.promptTokens + ev.tokenUsage.completionTokens).toLocaleString()} tokens{models.judge ? ` · ${models.judge}` : ""}
                 </p>
               ) : null}
             </CardBody>
@@ -463,7 +468,8 @@ function CaseInner() {
         </aside>
       </div>
 
-      <AskDrawer caseId={id} caseNumber={k.number} open={askOpen} onOpenChange={setAskOpen} />
+      {askOpen ? <AskDrawer caseId={id} caseNumber={k.number} open={askOpen} onOpenChange={setAskOpen} /> : null}
+      {phi.open ? <RevealDialog open={phi.open} onOpenChange={phi.setOpen} onConfirm={phi.confirm} /> : null}
       {outcomeOpen ? <OutcomeDialog caseId={id} open={outcomeOpen} onOpenChange={setOutcomeOpen} /> : null}
     </AppPage>
   );

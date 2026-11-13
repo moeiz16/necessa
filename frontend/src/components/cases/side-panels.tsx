@@ -18,17 +18,18 @@ import {
   Sparkles,
   Workflow,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAddTextDocument, useAudit, useComment, useNextActions, useTimeline } from "@/lib/api/hooks";
 import type { Evaluation, Gap, NextAction } from "@/lib/api/types";
 import { fmtDateTime, fmtRelative, titleCase } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/controls";
-import { Avatar, Badge, Card, CardBody, CardHeader, Skeleton } from "@/components/ui/display";
+import { Avatar, Badge, Card, CardBody, CardHeader, Progress, Skeleton } from "@/components/ui/display";
 import { EmptyState } from "@/components/ui/empty";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/overlays";
+import { Stagger, StaggerItem } from "@/components/ui/motion";
 import { Timeline } from "@/components/ui/widgets";
 import { VerdictBadge } from "@/components/domain/verdict";
 
@@ -94,31 +95,66 @@ export function NextActions({ caseId, onAction }: { caseId: string; onAction: (a
       <p className="flex items-center gap-1.5 px-1 text-xs font-medium text-muted">
         <Sparkles className="size-3.5 text-ai-2" /> Suggested next steps
       </p>
-      <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+      <Stagger className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {data.slice(0, 3).map((a, i) => {
           const Icon = ACTION_ICON[a.type];
           return (
-            <button key={i} onClick={() => onAction(a)} className="group flex items-start gap-2.5 rounded-lg bg-surface px-3 py-2.5 text-left shadow-e1 transition-shadow hover:shadow-e2">
-              <span className={cn("mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md", a.priority === "high" ? "bg-notmet-soft text-notmet" : "bg-brand-soft text-brand")}>
-                <Icon className="size-3.5" />
-              </span>
-              <span className="grid min-w-0 gap-0.5">
-                <span className="text-[13px] font-medium text-fg">{a.title}</span>
-                <span className="line-clamp-2 text-xs text-muted">{a.detail}</span>
-              </span>
-              <ArrowRight className="ml-auto mt-1 size-3.5 shrink-0 text-subtle transition-transform group-hover:translate-x-0.5" />
-            </button>
+            <StaggerItem key={i}>
+              <button onClick={() => onAction(a)} className="group flex h-full w-full items-start gap-2.5 rounded-lg bg-surface px-3 py-2.5 text-left shadow-e1 outline-none transition-shadow hover:shadow-e2 focus-visible:ring-2 focus-visible:ring-brand/30">
+                <span className={cn("mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md", a.priority === "high" ? "bg-notmet-soft text-notmet" : "bg-brand-soft text-brand")}>
+                  <Icon className="size-3.5" />
+                </span>
+                <span className="grid min-w-0 gap-0.5">
+                  <span className="text-[13px] font-medium text-fg">{a.title}</span>
+                  <span className="line-clamp-2 text-xs text-muted">{a.detail}</span>
+                </span>
+                <ArrowRight className="ml-auto mt-1 size-3.5 shrink-0 text-subtle transition-transform group-hover:translate-x-0.5" />
+              </button>
+            </StaggerItem>
           );
         })}
-      </div>
+      </Stagger>
     </div>
   );
 }
 
 /* ── Gaps ───────────────────────────────────────────────────────────────── */
-export function GapsPanel({ caseId, evaluation, onReEvaluate, canWrite }: { caseId: string; evaluation?: Evaluation; onReEvaluate: () => void; canWrite: boolean }) {
+const SEVERITY_ORDER = { blocker: 0, major: 1, minor: 2 } as const;
+
+function useAddressed(evaluationId?: string) {
+  const key = evaluationId ? `necessa.gaps.${evaluationId}` : null;
+  const [set, setSet] = useState<Set<string>>(() => new Set());
+  // Load after mount / when the evaluation changes (never during SSR, so hydration stays stable).
+  useEffect(() => {
+    if (!key) return;
+    try {
+      setSet(new Set(JSON.parse(localStorage.getItem(key) ?? "[]") as string[]));
+    } catch {
+      setSet(new Set());
+    }
+  }, [key]);
+  const toggle = (id: string) =>
+    setSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        if (key) localStorage.setItem(key, JSON.stringify([...next]));
+      } catch {
+        /* storage unavailable */
+      }
+      return next;
+    });
+  return { addressed: set, toggle };
+}
+
+function attestationTemplate(text: string) {
+  return `PRE-PROCEDURE ATTESTATION\nRegarding: ${text}\n\nI attest that, as of the date below, ________________________________.\n\nSigned: ____________________   Date: __________`;
+}
+
+export function GapsPanel({ caseId, evaluation, onReEvaluate, canWrite, onJump }: { caseId: string; evaluation?: Evaluation; onReEvaluate: () => void; canWrite: boolean; onJump?: (criterionId: string) => void }) {
   const [addFor, setAddFor] = useState<Gap | null>(null);
-  const [resolved, setResolved] = useState<Set<string>>(new Set());
+  const { addressed, toggle } = useAddressed(evaluation?.id);
   if (!evaluation) return <Card><EmptyState art="search" title="No gaps yet" description="Run an evaluation to see what documentation is missing." /></Card>;
   if (!evaluation.gaps.length)
     return (
@@ -127,65 +163,116 @@ export function GapsPanel({ caseId, evaluation, onReEvaluate, canWrite }: { case
       </Card>
     );
   const criterion = (id: string) => evaluation.criteria.find((c) => c.criterionId === id);
+  const gaps = [...evaluation.gaps].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+  const done = gaps.filter((g) => addressed.has(g.criterionId)).length;
+  const counts = { blocker: 0, major: 0, minor: 0 };
+  gaps.forEach((g) => (counts[g.severity] += 1));
+  const prefillFor = (g: Gap) => {
+    const c = criterion(g.criterionId);
+    return c?.kind === "negative_attestation" ? attestationTemplate(c.text) : "";
+  };
+
   return (
     <div className="grid gap-3">
-      {evaluation.gaps.map((g) => {
-        const c = criterion(g.criterionId);
-        const done = resolved.has(g.criterionId);
-        return (
-          <Card key={g.criterionId} className={cn("overflow-hidden", done && "opacity-60")}>
-            <div className={cn("h-0.5", g.severity === "blocker" ? "bg-notmet" : g.severity === "major" ? "bg-insufficient" : "bg-subtle")} />
-            <div className="grid gap-4 p-4 md:grid-cols-[1fr_auto]">
-              <div className="grid gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={g.severity === "blocker" ? "notmet" : g.severity === "major" ? "insufficient" : "neutral"} size="xs">
-                    {g.severity}
-                  </Badge>
-                  <span className="font-mono text-xs text-subtle">{g.criterionId}</span>
-                  {c ? <VerdictBadge verdict={c.effectiveVerdict} size="xs" short /> : null}
+      <Card className="flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3">
+        <div className="grid min-w-[200px] flex-1 gap-1.5">
+          <p className="flex items-center justify-between text-[13px]">
+            <span className="font-medium text-fg">
+              {done} of {gaps.length} gap{gaps.length === 1 ? "" : "s"} addressed
+            </span>
+            <span className="text-xs text-subtle">Track your fixes, then re-run to update verdicts</span>
+          </p>
+          <Progress value={gaps.length ? done / gaps.length : 0} tone={done === gaps.length ? "met" : "brand"} />
+        </div>
+        <div className="flex items-center gap-1.5">
+          {counts.blocker ? <Badge tone="notmet" size="xs">{counts.blocker} blocker{counts.blocker > 1 ? "s" : ""}</Badge> : null}
+          {counts.major ? <Badge tone="insufficient" size="xs">{counts.major} major</Badge> : null}
+          {counts.minor ? <Badge tone="neutral" size="xs">{counts.minor} minor</Badge> : null}
+        </div>
+      </Card>
+
+      <ul className="grid gap-2.5">
+        {gaps.map((g) => {
+          const c = criterion(g.criterionId);
+          const isDone = addressed.has(g.criterionId);
+          const policyLevel = g.criterionId.startsWith("policy:");
+          return (
+            <li key={g.criterionId}>
+              <Card className={cn("overflow-hidden transition-opacity duration-200", isDone && "opacity-70")}>
+                <div className={cn("h-0.5", g.severity === "blocker" ? "bg-notmet" : g.severity === "major" ? "bg-insufficient" : "bg-subtle")} />
+                <div className="grid gap-4 p-4 md:grid-cols-[auto_1fr_auto]">
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={isDone}
+                    aria-label={isDone ? "Mark as not addressed" : "Mark as addressed"}
+                    onClick={() => toggle(g.criterionId)}
+                    className={cn(
+                      "mt-0.5 flex size-5 items-center justify-center rounded-md border transition-colors focus-visible:ring-2 focus-visible:ring-brand/30",
+                      isDone ? "border-met bg-met text-white" : "border-border-strong bg-surface hover:border-brand",
+                    )}
+                  >
+                    {isDone ? <BadgeCheck className="size-3.5" /> : null}
+                  </button>
+                  <div className="grid min-w-0 gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={g.severity === "blocker" ? "notmet" : g.severity === "major" ? "insufficient" : "neutral"} size="xs" className="capitalize">
+                        {g.severity}
+                      </Badge>
+                      {c ? (
+                        <button type="button" onClick={() => onJump?.(c.criterionId)} className="font-mono text-xs text-subtle hover:text-brand-fg hover:underline">
+                          {c.criterionId.split(":").pop()}
+                        </button>
+                      ) : null}
+                      {c ? <VerdictBadge verdict={c.effectiveVerdict} size="xs" short /> : null}
+                    </div>
+                    <h3 className={cn("text-[14px] font-semibold tracking-tight text-fg", isDone && "line-through decoration-subtle")}>{g.title}</h3>
+                    <p className="text-[13px] leading-relaxed text-muted">{g.detail}</p>
+                    <div className="rounded-lg bg-met-soft/50 p-3">
+                      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-met-fg">
+                        <Sparkles className="size-3" /> Suggested fix
+                      </p>
+                      <p className="mt-1 text-[13px] text-fg">{g.suggestedFix}</p>
+                    </div>
+                    {g.policyQuote ? (
+                      <p className="text-xs text-subtle">
+                        Policy: <span className="italic">“{g.policyQuote}”</span>
+                      </p>
+                    ) : null}
+                  </div>
+                  {canWrite ? (
+                    <div className="flex flex-wrap gap-2 md:flex-col">
+                      {policyLevel ? (
+                        <Button asChild size="sm" variant="primary">
+                          <a href="/knowledge?tab=criteria">
+                            <ShieldCheck /> Criteria review
+                          </a>
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="primary" onClick={() => setAddFor(g)}>
+                          <ClipboardPaste /> Add documentation
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => toggle(g.criterionId)}>
+                        <BadgeCheck /> {isDone ? "Undo" : "Mark addressed"}
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
-                <h3 className="text-[14px] font-semibold tracking-tight text-fg">{g.title}</h3>
-                <p className="text-[13px] text-muted">{g.detail}</p>
-                <div className="rounded-lg bg-met-soft/50 p-3">
-                  <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-met-fg">
-                    <Sparkles className="size-3" /> Suggested fix
-                  </p>
-                  <p className="mt-1 text-[13px] text-fg">{g.suggestedFix}</p>
-                </div>
-                <p className="text-xs text-subtle">
-                  Policy: <span className="italic">“{g.policyQuote}”</span>
-                </p>
-              </div>
-              {canWrite ? (
-                <div className="flex gap-2 md:flex-col">
-                  <Button size="sm" variant="primary" onClick={() => setAddFor(g)}>
-                    <ClipboardPaste /> Add documentation
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setResolved((s) => new Set(s).add(g.criterionId))} disabled={done}>
-                    <BadgeCheck /> {done ? "Marked resolved" : "Mark resolved"}
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-          </Card>
-        );
-      })}
+              </Card>
+            </li>
+          );
+        })}
+      </ul>
       {canWrite ? (
-        <div className="flex items-center justify-between rounded-xl border border-dashed border-border-strong px-4 py-3 text-[13px] text-muted">
-          Added documentation? Re-run the check to update verdicts.
-          <Button size="sm" variant="secondary" onClick={onReEvaluate}>
+        <div className={cn("flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-[13px] transition-colors", done ? "border-brand/40 bg-brand-soft/30 text-fg" : "border-dashed border-border-strong text-muted")}>
+          {done ? `${done} gap${done === 1 ? "" : "s"} addressed — re-run the check so verdicts reflect the new documentation.` : "Added documentation? Re-run the check to update verdicts."}
+          <Button size="sm" variant={done ? "primary" : "secondary"} onClick={onReEvaluate}>
             <RotateCcw /> Re-run evaluation
           </Button>
         </div>
       ) : null}
-      {addFor ? (
-        <AddNoteDialog
-          caseId={caseId}
-          open={!!addFor}
-          onOpenChange={(v) => !v && setAddFor(null)}
-          prefill={addFor.criterionId === "C7" ? "PRE-PROCEDURE ATTESTATION\nNo active systemic or local infection at the planned injection site. Anticoagulants: none. Bleeding history: none.\nSigned: " : ""}
-        />
-      ) : null}
+      {addFor ? <AddNoteDialog caseId={caseId} open={!!addFor} onOpenChange={(v) => !v && setAddFor(null)} prefill={prefillFor(addFor)} /> : null}
     </div>
   );
 }
@@ -197,7 +284,11 @@ const EVENT_META: Record<string, { icon: typeof Activity; label: (p: Record<stri
   document_removed: { icon: FileText, label: () => "removed a document" },
   policy_resolved: { icon: ShieldCheck, label: (p) => `matched ${p.sourceKey} v${p.version}`, tone: "brand" },
   evaluation_started: { icon: Play, label: () => "started a medical-necessity check", tone: "brand" },
-  evaluation_completed: { icon: Workflow, label: (p) => `finished evaluating — readiness ${Math.round(Number(p.score ?? 0) * 100)}%${p.gaps ? `, ${p.gaps} gaps` : ""}`, tone: "met" },
+  evaluation_completed: {
+    icon: Workflow,
+    label: (p) => `finished evaluating — readiness ${p.readiness === "unknown" || p.score == null ? "unknown" : `${Math.round(Number(p.score) * 100)}%`}${p.gaps ? `, ${p.gaps} gap${Number(p.gaps) === 1 ? "" : "s"}` : ""}`,
+    tone: "met",
+  },
   verdict_overridden: { icon: Pencil, label: (p) => `overrode ${p.criterionId} to ${String(p.to).replace("_", " ").toLowerCase()}`, tone: "insufficient" },
   review_completed: { icon: BadgeCheck, label: () => "completed clinical review", tone: "met" },
   letter_drafted: { icon: Pencil, label: (p) => `drafted a ${String(p.kind ?? "letter").replace(/_/g, " ")}` },

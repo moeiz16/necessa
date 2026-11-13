@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, EyeOff, FileJson, FileText, FileUp, ImageIcon, LockKeyhole, ScanText, ShieldAlert, ShieldCheck, Stethoscope, Trash2 } from "lucide-react";
+import { Eye, EyeOff, FileJson, FileText, FileUp, ImageIcon, ScanText, ShieldAlert, ShieldCheck, Stethoscope, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useCaseDocument, useCaseDocuments, useDeleteDocument, useUploadDocument } from "@/lib/api/hooks";
 import { useSession } from "@/lib/api/session";
@@ -10,10 +10,10 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Skeleton } from "@/components/ui/display";
 import { EmptyState } from "@/components/ui/empty";
-import { Field, Textarea } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, Tooltip } from "@/components/ui/overlays";
 import { Dropzone } from "@/components/ui/widgets";
 import { DeidText } from "@/components/domain/verdict";
+import { REVEAL_SECONDS, RevealDialog } from "./case-chrome";
 import { AddNoteDialog } from "./side-panels";
 
 const KIND_ICON: Record<CaseDocument["kind"], typeof FileText> = {
@@ -26,42 +26,27 @@ const KIND_ICON: Record<CaseDocument["kind"], typeof FileText> = {
   other: FileText,
 };
 
-function RevealDialog({ open, onOpenChange, onConfirm }: { open: boolean; onOpenChange: (v: boolean) => void; onConfirm: () => void }) {
-  const [reason, setReason] = useState("");
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Reveal protected health information?" description="Identifiers are decrypted for this view only. The access, your reason and the time are written to the audit log." size="sm">
-        <Field label="Reason for access" hint="Minimum-necessary standard (HIPAA §164.502(b))">
-          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Verify member ID before submission" autoFocus className="min-h-20" />
-        </Field>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            disabled={reason.trim().length < 5}
-            onClick={() => {
-              onConfirm();
-              onOpenChange(false);
-            }}
-          >
-            <LockKeyhole /> Reveal and log access
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 export function DocumentsPanel({ caseId, initialDocId }: { caseId: string; initialDocId?: string | null }) {
   const { can } = useSession();
   const docs = useCaseDocuments(caseId);
   const upload = useUploadDocument(caseId);
   const del = useDeleteDocument(caseId);
   const [active, setActive] = useState<string | null>(initialDocId ?? null);
-  const [reveal, setReveal] = useState(false);
+  const [revealUntil, setRevealUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const [askReveal, setAskReveal] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const reveal = !!revealUntil;
+  useEffect(() => {
+    if (!revealUntil) return;
+    const t = setInterval(() => {
+      setNow(Date.now());
+      if (Date.now() >= revealUntil) setRevealUntil(null);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [revealUntil]);
+  const setReveal = (v: boolean) => setRevealUntil(v ? Date.now() + REVEAL_SECONDS * 1000 : null);
+  const remaining = revealUntil ? Math.max(0, Math.round((revealUntil - now) / 1000)) : 0;
   const [noteOpen, setNoteOpen] = useState(false);
   const list = useMemo(() => docs.data ?? [], [docs.data]);
   useEffect(() => {
@@ -130,27 +115,40 @@ export function DocumentsPanel({ caseId, initialDocId }: { caseId: string; initi
       <Card className="flex min-h-[520px] flex-col overflow-hidden">
         {meta ? (
           <>
-            <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
-              <p className="min-w-0 flex-1 truncate text-[13px] font-medium">{meta.filename}</p>
-              <span className="text-xs text-subtle">
-                Uploaded by {meta.uploadedBy?.fullName ?? "—"} · {fmtRelative(meta.createdAt)}
-              </span>
-              {reveal ? (
-                <Button size="xs" variant="ghost" onClick={() => setReveal(false)}>
-                  <EyeOff /> Hide PHI
-                </Button>
-              ) : (
-                <Tooltip content="Decrypts identifiers for this view and writes an audit event">
-                  <Button size="xs" variant="secondary" onClick={() => setAskReveal(true)}>
-                    <Eye /> Reveal PHI
-                  </Button>
-                </Tooltip>
-              )}
-              {canWrite ? (
-                <Button size="icon-sm" variant="ghost" aria-label="Delete document" onClick={() => del.mutate(meta.id, { onSuccess: () => setActive(null) })}>
-                  <Trash2 />
-                </Button>
-              ) : null}
+            <div className="flex items-start gap-3 border-b border-border px-4 py-2.5">
+              <div className="grid min-w-0 flex-1 gap-0.5">
+                <p className="truncate text-[13px] font-medium text-fg" title={meta.filename}>
+                  {meta.filename}
+                </p>
+                <span className="truncate text-xs text-subtle">
+                  {titleCase(meta.kind)} · uploaded by {meta.uploadedBy?.fullName ?? "—"} · {fmtRelative(meta.createdAt)}
+                </span>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                {reveal ? (
+                  <>
+                    <span className="tabular inline-flex items-center gap-1 rounded-md bg-insufficient-soft px-1.5 py-0.5 text-[11px] font-medium text-insufficient-fg" title="Identifiers re-mask automatically">
+                      <Eye className="size-3" /> {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}
+                    </span>
+                    <Button size="xs" variant="ghost" onClick={() => setReveal(false)}>
+                      <EyeOff /> Mask
+                    </Button>
+                  </>
+                ) : (
+                  <Tooltip content="Decrypts identifiers for this view and writes an audit event">
+                    <Button size="xs" variant="secondary" onClick={() => setAskReveal(true)}>
+                      <Eye /> Reveal PHI
+                    </Button>
+                  </Tooltip>
+                )}
+                {canWrite ? (
+                  <Tooltip content="Delete document">
+                    <Button size="icon-sm" variant="ghost" aria-label="Delete document" onClick={() => setConfirmDelete(true)}>
+                      <Trash2 />
+                    </Button>
+                  </Tooltip>
+                ) : null}
+              </div>
             </div>
             {meta.quarantined ? (
               <div className="flex gap-3 border-b border-notmet/20 bg-notmet-soft/60 px-4 py-3 text-[13px] text-notmet-fg">
@@ -173,7 +171,41 @@ export function DocumentsPanel({ caseId, initialDocId }: { caseId: string; initi
           <EmptyState art="documents" title="Select a document" />
         )}
       </Card>
-      <RevealDialog open={askReveal} onOpenChange={setAskReveal} onConfirm={() => setReveal(true)} />
+      {askReveal ? (
+        <RevealDialog
+          open={askReveal}
+          onOpenChange={setAskReveal}
+          onConfirm={async () => {
+            setReveal(true);
+            return true;
+          }}
+        />
+      ) : null}
+      {confirmDelete && meta ? (
+        <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+          <DialogContent title="Delete this document?" description={`${meta.filename} will be removed from the chart and excluded from future evaluations. The deletion is recorded in the audit trail.`} size="sm">
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                loading={del.isPending}
+                onClick={() =>
+                  del.mutate(meta.id, {
+                    onSuccess: () => {
+                      setActive(null);
+                      setConfirmDelete(false);
+                    },
+                  })
+                }
+              >
+                <Trash2 /> Delete document
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
       {noteOpen ? <AddNoteDialog caseId={caseId} open={noteOpen} onOpenChange={setNoteOpen} /> : null}
     </div>
   );

@@ -12,18 +12,15 @@ import type { Letter, LetterKind } from "@/lib/api/types";
 import { fmtRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Segmented } from "@/components/ui/controls";
+import { Checkbox, Segmented } from "@/components/ui/controls";
 import { Avatar, Badge, Card, Skeleton } from "@/components/ui/display";
 import { EmptyState } from "@/components/ui/empty";
 import { Textarea } from "@/components/ui/input";
-import { Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownTrigger } from "@/components/ui/overlays";
+import { Dialog, DialogContent, DialogFooter, Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownTrigger } from "@/components/ui/overlays";
+import { AiBadge, DecisionDisclaimer } from "@/components/domain/trust";
+import { LETTER_KINDS } from "./letter-kinds";
 
-export const LETTER_KINDS: { kind: LetterKind; label: string; description: string }[] = [
-  { kind: "lmn", label: "Letter of medical necessity", description: "Clinician-signed narrative citing chart evidence" },
-  { kind: "pa_cover", label: "PA cover letter", description: "Short submission summary with criteria checklist" },
-  { kind: "appeal", label: "Redetermination / appeal", description: "Addresses the denial reason criterion by criterion" },
-  { kind: "peer_to_peer_prep", label: "Peer-to-peer brief", description: "Talking points for the reviewer call" },
-];
+export { LETTER_KINDS };
 
 function download(name: string, content: string, type: string) {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -52,6 +49,8 @@ export function LettersPanel({ caseId, draft, onDraft }: { caseId: string; draft
   const update = useUpdateLetter(caseId);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<"preview" | "edit">("preview");
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [attested, setAttested] = useState(false);
   const [text, setText] = useState("");
   const list = letters.data ?? [];
   const active = list.find((l) => l.id === (activeId ?? draft?.letterId)) ?? list[0];
@@ -134,7 +133,10 @@ export function LettersPanel({ caseId, draft, onDraft }: { caseId: string; draft
       {active ? (
         <Card className="flex min-h-[560px] flex-col overflow-hidden">
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
-            <p className="min-w-0 flex-1 truncate text-[13px] font-medium">{active.title}</p>
+            <p className="min-w-0 flex-1 truncate text-[13px] font-medium" title={active.title}>
+              {active.title}
+            </p>
+            {!streaming ? <AiBadge label="AI-drafted" detail="Written only from verified chart evidence and footnoted to the policy and chart. A clinician reviews and approves it before submission." /> : null}
             {streaming ? (
               <Badge tone="ai" size="sm">
                 <Sparkles className="text-ai-2" /> Drafting…
@@ -183,8 +185,10 @@ export function LettersPanel({ caseId, draft, onDraft }: { caseId: string; draft
               {mode === "edit" && !streaming ? (
                 <Textarea value={text} onChange={(e) => setText(e.target.value)} className="min-h-[440px] font-mono text-[12.5px] leading-relaxed" aria-label="Letter markdown" />
               ) : (
-                <article id={`letter-${active.id}`} className="prose-letter max-w-none font-serif text-[14.5px] leading-[1.75] text-fg [&_blockquote]:my-3 [&_blockquote]:rounded-md [&_blockquote]:border-l-2 [&_blockquote]:border-insufficient [&_blockquote]:bg-insufficient-soft/50 [&_blockquote]:px-3 [&_blockquote]:py-2 [&_blockquote]:font-sans [&_blockquote]:text-[13px] [&_p]:my-3 [&_strong]:font-semibold">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{body || "…"}</ReactMarkdown>
+                <article id={`letter-${active.id}`} className="prose-letter mx-auto max-w-[68ch] font-serif text-[14.5px] leading-[1.75] text-fg [&_blockquote]:my-3 [&_blockquote]:rounded-md [&_blockquote]:border-l-2 [&_blockquote]:border-insufficient [&_blockquote]:bg-insufficient-soft/50 [&_blockquote]:px-3 [&_blockquote]:py-2 [&_blockquote]:font-sans [&_blockquote]:text-[13px] [&_p]:my-3 [&_strong]:font-semibold">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: TokenOrCode }}>
+                    {withTokenPills(body) || "…"}
+                  </ReactMarkdown>
                   {streaming ? <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-brand align-middle" /> : null}
                 </article>
               )}
@@ -210,13 +214,16 @@ export function LettersPanel({ caseId, draft, onDraft }: { caseId: string; draft
             </aside>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-surface-2/40 px-4 py-2.5">
-            {active.approvedBy ? (
-              <span className="flex items-center gap-2 text-xs text-met-fg">
-                <Avatar name={active.approvedBy.fullName} color={active.approvedBy.avatarColor} size={18} /> Approved by {active.approvedBy.fullName} · {fmtRelative(active.approvedAt)}
-              </span>
-            ) : (
-              <span className="text-xs text-muted">Requires clinician approval before export to the payer.</span>
-            )}
+            <div className="flex flex-wrap items-center gap-3">
+              <ApprovalSteps status={active.status} />
+              {active.approvedBy ? (
+                <span className="flex items-center gap-2 text-xs text-met-fg">
+                  <Avatar name={active.approvedBy.fullName} color={active.approvedBy.avatarColor} size={18} /> Approved by {active.approvedBy.fullName} · {fmtRelative(active.approvedAt)}
+                </span>
+              ) : (
+                <span className="text-xs text-muted">A clinician approves every letter before it goes to the payer.</span>
+              )}
+            </div>
             <div className="flex gap-2">
               {dirty ? (
                 <>
@@ -234,14 +241,89 @@ export function LettersPanel({ caseId, draft, onDraft }: { caseId: string; draft
                 </Button>
               ) : null}
               {active.status !== "approved" && can("letters:approve") && !streaming ? (
-                <Button size="sm" variant="primary" loading={update.isPending} onClick={() => update.mutate({ letterId: active.id, status: "approved", contentMd: dirty ? text : undefined }, { onSuccess: () => toast.success("Letter approved") })}>
+                <Button size="sm" variant="primary" onClick={() => setApproveOpen(true)}>
                   <BadgeCheck /> Approve
                 </Button>
               ) : null}
             </div>
           </div>
+          {approveOpen ? (
+            <Dialog open={approveOpen} onOpenChange={setApproveOpen}>
+              <DialogContent title="Approve this letter" description="Your approval is recorded with the letter version and its citations." size="sm">
+                <div className="grid gap-3 text-[13px]">
+                  <label className="flex items-start gap-2.5 rounded-lg border border-border p-3 text-fg">
+                    <Checkbox checked={attested} onCheckedChange={(v) => setAttested(v === true)} className="mt-0.5" />
+                    <span>I reviewed the letter and checked each of its {active.citations.length} citation{active.citations.length === 1 ? "" : "s"} against the chart and the policy.</span>
+                  </label>
+                  <DecisionDisclaimer />
+                </div>
+                <DialogFooter>
+                  <Button variant="ghost" onClick={() => setApproveOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    disabled={!attested}
+                    loading={update.isPending}
+                    onClick={() =>
+                      update.mutate(
+                        { letterId: active.id, status: "approved", contentMd: dirty ? text : undefined },
+                        {
+                          onSuccess: () => {
+                            toast.success("Letter approved");
+                            setApproveOpen(false);
+                            setAttested(false);
+                          },
+                        },
+                      )
+                    }
+                  >
+                    <BadgeCheck /> Approve letter
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          ) : null}
         </Card>
       ) : null}
     </div>
+  );
+}
+
+/** PHI placeholders (`[PATIENT_NAME]`, `«Patient Name»`) render as tokens, never as look-alike real text. */
+function withTokenPills(md: string) {
+  return md.replace(/\[([A-Z][A-Z_]{2,})\]/g, "`⟦$1⟧`").replace(/«([^»\n]{2,40})»/g, "`⟦$1⟧`");
+}
+
+function TokenOrCode({ children, className }: { children?: React.ReactNode; className?: string }) {
+  const text = String(children ?? "");
+  if (text.startsWith("⟦") && text.endsWith("⟧")) {
+    const label = text.slice(1, -1).replace(/_/g, " ").toLowerCase();
+    return (
+      <span className="mx-px rounded-[4px] bg-surface-3 px-1 py-px font-sans text-[11px] font-medium not-italic text-muted ring-1 ring-inset ring-border" title="PHI token — re-inserted only on audited export">
+        {label}
+      </span>
+    );
+  }
+  return <code className={className}>{children}</code>;
+}
+
+const APPROVAL_STEPS = [
+  { id: "draft", label: "Draft" },
+  { id: "in_review", label: "In review" },
+  { id: "approved", label: "Approved" },
+] as const;
+
+function ApprovalSteps({ status }: { status: string }) {
+  const current = Math.max(0, APPROVAL_STEPS.findIndex((s) => s.id === (status === "exported" ? "approved" : status)));
+  return (
+    <ol className="flex items-center gap-1 text-[11px]" aria-label="Approval workflow">
+      {APPROVAL_STEPS.map((s, i) => (
+        <li key={s.id} className="flex items-center gap-1" aria-current={i === current ? "step" : undefined}>
+          <span className={cn("rounded-full px-1.5 py-0.5 font-medium", i < current ? "bg-met-soft text-met-fg" : i === current ? (s.id === "approved" ? "bg-met text-white" : "bg-brand-soft text-brand-fg") : "text-subtle")}>{s.label}</span>
+          {i < APPROVAL_STEPS.length - 1 ? <span className="text-subtle">›</span> : null}
+        </li>
+      ))}
+    </ol>
   );
 }
