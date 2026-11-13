@@ -172,28 +172,30 @@ export const MODEL_GROUPS: ModelGroup[] = [
 
 export function buildModelUsage(days = 7): ModelUsage {
   const r = rng(7);
-  const byDay = Array.from({ length: days }, (_, i) => {
+  const today = new Date();
+  const daily = Array.from({ length: days }, (_, i) => {
+    const date = dateOnly(new Date(today.getTime() - (days - 1 - i) * 86400_000).toISOString());
     const calls = 380 + Math.round(r() * 260);
-    return {
-      date: dateOnly(new Date(Date.now() - (days - 1 - i) * 86400_000).toISOString()),
-      calls,
-      tokens: calls * (1900 + Math.round(r() * 700)),
-      errors: Math.round(calls * (0.004 + r() * 0.02)),
-      cacheHits: Math.round(calls * (0.18 + r() * 0.12)),
-      fallbacks: Math.round(calls * (0.02 + r() * 0.05)),
-    };
+    return { date, provider: "groq", calls, tokens: calls * (1900 + Math.round(r() * 700)) };
   });
-  return {
-    byDay,
-    byProvider: [
-      { provider: "groq", calls: 2190, tokens: 4_120_000, p50LatencyMs: 640, errorRate: 0.009 },
-      { provider: "gemini", calls: 812, tokens: 2_380_000, p50LatencyMs: 1310, errorRate: 0.004 },
-      { provider: "cohere", calls: 1460, tokens: 0, p50LatencyMs: 290, errorRate: 0.002 },
-      { provider: "openrouter", calls: 88, tokens: 140_000, p50LatencyMs: 2100, errorRate: 0.11 },
-    ],
-    byGroup: MODEL_GROUPS.map((g) => ({ group: g.name, calls: g.deployments.reduce((a, d) => a + d.usedToday, 0) * 6, tokens: g.deployments.reduce((a, d) => a + d.usedToday, 0) * 9_400 })),
-    totals: { calls: byDay.reduce((a, d) => a + d.calls, 0), tokens: byDay.reduce((a, d) => a + d.tokens, 0), cacheHitRate: 0.24, fallbackRate: 0.041, errorRate: 0.011 },
-  };
+  const byDeployment = MODEL_GROUPS.flatMap((g) =>
+    g.deployments.slice(0, 2).map((d, i) => {
+      const calls = Math.round(((d.usedToday ?? 0) * (i === 0 ? 6 : 2) * days) / 7);
+      return {
+        provider: d.provider,
+        model: d.model,
+        group: g.name,
+        calls,
+        promptTokens: calls * 1900,
+        completionTokens: calls * 260,
+        avgLatencyMs: d.p50LatencyMs ?? 800,
+        errors: Math.round(calls * (d.errorRate ?? 0)),
+        cacheHits: Math.round(calls * 0.2),
+        fallbacks: i === 0 ? 0 : Math.round(calls * 0.6),
+      };
+    }),
+  );
+  return { range: `${days}d`, byDeployment, daily, blockedByPolicy: 3, costUsd: 0 };
 }
 
 /* ── Evals ──────────────────────────────────────────────────────────────── */
@@ -260,7 +262,7 @@ export function buildIngestionRuns(): IngestionRun[] {
   return [
     { id: "ing-9", source: "mcd", scope: { scope: "focus", refresh: "weekly" }, status: "succeeded", stats: { documentsSeen: 3363, changed: 41, sectionsUpserted: 188, chunksEmbedded: 612, skippedUnchanged: 3322, durationS: 486 }, startedAt: daysAgo(1, 9), finishedAt: daysAgo(1, 8.8) },
     { id: "ing-8", source: "codesets", scope: { icd10cm: "FY2027", hcpcs: "2026-Q4" }, status: "succeeded", stats: { codes: 79_544, changed: 1_204, durationS: 71 }, startedAt: daysAgo(6, 4), finishedAt: daysAgo(6, 3.9) },
-    { id: "ing-7", source: "mcd", scope: { scope: "focus", refresh: "weekly" }, status: "failed", stats: { documentsSeen: 3358, changed: 12, chunksEmbedded: 140 }, error: "Embedding quota exhausted (gemini 429 RESOURCE_EXHAUSTED). Run paused and resumed automatically next window.", startedAt: daysAgo(8, 9), finishedAt: daysAgo(8, 8.7) },
+    { id: "ing-7", source: "mcd", scope: { scope: "focus", refresh: "weekly" }, status: "failed", stats: { documentsSeen: 3358, changed: 12, chunksEmbedded: 140 }, error: "The refresh paused when a usage limit was reached and will resume automatically.", startedAt: daysAgo(8, 9), finishedAt: daysAgo(8, 8.7) },
     { id: "ing-6", source: "mcd", scope: { scope: "focus", refresh: "initial" }, status: "succeeded", stats: { documentsSeen: 3351, changed: 3351, sectionsUpserted: 9_874, chunksEmbedded: 21_406, durationS: 14_220 }, startedAt: daysAgo(31, 9), finishedAt: daysAgo(31, 5) },
     { id: "ing-5", source: "fixtures", scope: { set: "synthetic-v2" }, status: "succeeded", stats: { documents: 6, chunks: 54, durationS: 9 }, startedAt: daysAgo(40), finishedAt: daysAgo(40) },
   ];
@@ -382,7 +384,7 @@ export function buildConversations(): Conversation[] {
       ],
     },
     { id: "conv-2", title: "CPAP adherence window", pinned: false, createdAt: daysAgo(5), updatedAt: daysAgo(5), messages: [] },
-    { id: "conv-3", title: "Top gap criteria this month", pinned: false, createdAt: daysAgo(9), updatedAt: daysAgo(9), messages: [] },
+    { id: "conv-3", title: "Top documentation gaps this month", pinned: false, createdAt: daysAgo(9), updatedAt: daysAgo(9), messages: [] },
   ];
 }
 

@@ -227,21 +227,21 @@ async function* assistantStream(db: DemoDB, conversationId: string, content: str
 
   if (plan.kind === "injection") {
     await sleep(200);
-    guardrails.push({ kind: "injection", message: "This message looks like an attempt to override system instructions. It was not sent to a model." });
+    guardrails.push({ kind: "injection", message: "This message looks like an attempt to change how Necessa works, so it wasn't processed." });
     yield ev("guardrail", guardrails[0]!);
     answer = "I can't follow instructions that try to change how I operate. I can help with coverage policies, documentation requirements, codes and your case data.";
   } else if (plan.kind === "abstain") {
     await sleep(200);
     guardrails.push({ kind: "policy", message: "Clinical treatment advice is outside Necessa's scope." });
     yield ev("guardrail", guardrails[0]!);
-    answer = "I can't give treatment or prescribing advice — that decision belongs to the treating clinician. I can tell you what a payer policy requires to document medical necessity for a given service, or check a case against those criteria.";
+    answer = "I can't give treatment or prescribing advice — that decision belongs to the treating clinician. I can tell you what a payer policy requires to document medical necessity for a given service, or check a case against those requirements.";
   } else if (plan.kind === "analytics") {
     await sleep(500);
     sql = buildSql(content);
     yield ev("tool", { name: "text_to_sql", args: { question: content, views: ["v_case_gap_stats", "v_case_summary", "v_case_denials"] }, result: { validated: true, readOnly: true, rowLimit: 1000 } });
     await sleep(380);
     yield ev("sql", sql as unknown as Record<string, unknown>);
-    answer = `${sql.summary} The query ran read-only against allowlisted, tenant-scoped views — expand **SQL** to see exactly what was executed.`;
+    answer = `${sql.summary} This only uses your own practice's cases; nothing is changed.`;
   } else if (plan.kind === "code_lookup") {
     await sleep(320);
     const code = String((plan.route.filters as { code?: string }).code ?? "");
@@ -259,9 +259,9 @@ async function* assistantStream(db: DemoDB, conversationId: string, content: str
     yield ev("retrieval", retrieval as unknown as Record<string, unknown>);
     if (!rows.length || rows[0]!.chunk.score < 0.35) {
       plan.route.abstained = true;
-      guardrails.push({ kind: "abstain", message: "Retrieval confidence below threshold after 2 corrective iterations." });
+      guardrails.push({ kind: "abstain", message: "Not enough information in your policies to answer this reliably." });
       yield ev("guardrail", guardrails[0]!);
-      answer = "I couldn't find enough evidence in the indexed policies to answer that confidently. Try naming the service, code or payer, or check the Policy Library.";
+      answer = "I couldn't find enough information in your policies to answer that confidently. Try naming the service, code or payer, or check the Policy library.";
     } else {
       const top = rows.slice(0, 3);
       citations = top.map((r, i) => ({ n: i + 1, chunkId: r.chunk.chunkId, sourceKey: r.chunk.sourceKey, title: r.chunk.title, sectionKey: r.chunk.sectionKey, version: r.chunk.version, quote: r.text, url: null }));
@@ -344,11 +344,11 @@ function heuristicJudge(db: DemoDB, caseId: string, leaf: CriteriaNode): Pick<Cr
     return {
       verdict: "MET",
       confidence: Math.min(0.95, 0.6 + best.score * 0.08),
-      rationale: `Chart language addresses this criterion (${best.score} key concepts matched) and was verified verbatim.`,
+      rationale: `The chart addresses this requirement, and the quoted passages were found in the chart.`,
       evidence: [{ chunkId: `${best.doc.id}#h`, documentId: best.doc.id, quote: best.sent, noteDate: best.doc.noteDate }],
     };
   }
-  return { verdict: "INSUFFICIENT", confidence: 0.72, rationale: docs.length ? "No chart passage supports this criterion after corrective retrieval." : "No clinical documents are attached to this case yet.", evidence: [] };
+  return { verdict: "INSUFFICIENT", confidence: 0.72, rationale: docs.length ? "No passage in the chart supports this requirement." : "No clinical documents are attached to this case yet.", evidence: [] };
 }
 
 async function* unevaluableRun(db: DemoDB, caseId: string, evaluationId: string, matches: PolicyMatch[]): AsyncGenerator<StreamEvent> {
@@ -361,10 +361,10 @@ async function* unevaluableRun(db: DemoDB, caseId: string, evaluationId: string,
   const gaps: Gap[] = [
     {
       criterionId: "policy:criteria",
-      title: matches.length ? "No approved criteria for the applicable policy" : "No applicable policy found",
-      detail: matches.length ? `Matched policies (${keys}) have no reviewed criteria set yet, so nothing was evaluated.` : "No active LCD, NCD or payer policy lists these service codes for this jurisdiction and date of service.",
+      title: matches.length ? "We couldn't check this case yet" : "No matching policy found",
+      detail: matches.length ? `The matching payer policy (${keys}) hasn't been set up in Necessa yet, so none of its requirements could be checked.` : "No active coverage policy lists these service codes for this jurisdiction and date of service.",
       severity: "blocker",
-      suggestedFix: matches.length ? "Compile or approve criteria in Knowledge → Criteria review, then re-run the evaluation." : "Check the service codes and state, or upload the payer's medical policy.",
+      suggestedFix: matches.length ? "Ask your administrator to add the policy, then check the case again." : "Check the service codes and state, or upload the payer's medical policy.",
     },
   ];
   yield ev("evaluation.aggregate", { readiness: "unknown", readinessScore: null, tree: { verdict: "INSUFFICIENT", label: "No approved criteria for the applicable policies" } });
@@ -537,7 +537,7 @@ async function* letterStream(db: DemoDB, caseId: string, letterId: string, signa
         : `I am requesting prior authorization for a ${c.title} (${c.serviceCodes.join(", ")}) for my patient, diagnosed with ${c.dxCodes.join(", ")}.`;
   const body = met.length
     ? met.slice(0, 6).map((r, i) => `**${r.text}.** ${r.evidence[0]!.quote.replace(/\.$/, "")} [${i + 1}].`).join("\n\n")
-    : "_No criteria are currently supported by verified chart evidence. Resolve the gaps on the Criteria tab before drafting._";
+    : "_No requirements are supported by the chart yet. Resolve the gaps on the Requirements tab before drafting._";
   const openGaps = (e?.gaps ?? []).length;
   const content = `**Re:** ${c.title} — ${c.payerName}  \n**Patient:** [PATIENT_NAME] · DOB [DOB] · Member ID [MEMBER_ID]  \n**Date of service:** ${c.dateOfService}\n\nTo the Medical Review Department,\n\n${intro}\n\n${body}\n\n${pol ? `The patient meets the documented coverage indications of ${pol.sourceKey} (${pol.title}, v${pol.version}).` : ""}${openGaps ? `\n\n> ⚠︎ ${openGaps} open gap${openGaps > 1 ? "s" : ""} remain on this case. Resolve before sending.` : ""}\n\nSincerely,\n\n[TREATING_CLINICIAN]`;
   let acc = "";

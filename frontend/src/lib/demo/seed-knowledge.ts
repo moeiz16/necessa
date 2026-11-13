@@ -324,7 +324,7 @@ export function buildCriteriaSets(policies: PolicyDetail[]): CriteriaSet[] {
       verifierModel: "groq/openai/gpt-oss-120b",
       agreement: 0.94,
       groundingPassRate: 1,
-      notes: "Frequency limit modeled as numeric criterion; anticoagulation folded into contraindication attestation.",
+      notes: "The frequency limit is checked as a number. Anticoagulation is covered by the must-be-confirmed requirement.",
       reviewedBy: { id: "u-tessa", fullName: "Priya Natarajan, RN" },
       reviewedAt: "2026-10-02T15:41:00Z",
       createdAt: "2026-10-01T09:12:00Z",
@@ -364,7 +364,7 @@ export function buildCriteriaSets(policies: PolicyDetail[]): CriteriaSet[] {
       verifierModel: "groq/openai/gpt-oss-120b",
       agreement: 0.78,
       groundingPassRate: 0.83,
-      notes: "Verifier split the psychological evaluation into two criteria; tree edit distance 2. One quote failed grounding (whitespace in source).",
+      notes: "A second check split the psychological evaluation into two requirements. One quote needs its spacing fixed to match the policy.",
       createdAt: "2026-11-11T07:30:00Z",
     },
     {
@@ -403,7 +403,7 @@ export function buildCriteriaSets(policies: PolicyDetail[]): CriteriaSet[] {
       verifierModel: "verbatim-grounding",
       agreement: 0.8,
       groundingPassRate: 0.8,
-      notes: "Transferred from L33930, another contractor's edition of this policy: 4/5 quotes re-verified verbatim against L38801. C2 is worded differently in this edition and must be re-anchored by a reviewer.",
+      notes: "Imported from L33930, another contractor's edition of this policy. 4 of 5 quotes match L38801. Requirement C2 is worded differently here and must be updated before it is used.",
       createdAt: "2026-11-13T06:10:00Z",
     },
     {

@@ -182,7 +182,7 @@ function nextActions(db: DemoDB, c: Case): NextAction[] {
   if (!ev) out.push({ type: "evaluate", title: "Run a medical-necessity check", detail: "Necessa will resolve the applicable policy and check each criterion.", priority: docs.length ? "high" : "medium" });
   if (ev) {
     for (const g of ev.gaps) out.push({ type: "fix_gap", title: g.title, detail: g.suggestedFix, criterionId: g.criterionId, priority: g.severity === "blocker" ? "high" : "medium" });
-    if (ev.status === "awaiting_review") out.push({ type: "review", title: "Complete clinical review", detail: "Confirm or override AI verdicts before submission.", priority: "medium" });
+    if (ev.status === "awaiting_review") out.push({ type: "review", title: "Complete clinical review", detail: "Confirm or change the suggested results before submitting.", priority: "medium" });
     if (ev.readiness === "ready" && !db.letters.some((l) => l.caseId === c.id && l.kind !== "appeal"))
       out.push({ type: "draft_letter", title: "Draft a letter of medical necessity", detail: "All criteria are met — generate a cited letter for clinician sign-off.", priority: "medium" });
     if (ev.readiness === "ready" && c.status === "ready") out.push({ type: "submit", title: "Submit to payer", detail: "The packet is complete. Record the submission once sent.", priority: "low" });
@@ -840,6 +840,15 @@ route("PATCH", "/cases/:id/letters/:letterId", ({ db, params, body }) => {
   saveDB();
   return l;
 });
+route("GET", "/denials", ({ db }) => {
+  const mine = new Set(orgCases(db).map((c) => c.id));
+  return db.denials
+    .filter((d) => mine.has(d.caseId))
+    .map((d) => {
+      const c = db.cases.find((x) => x.id === d.caseId);
+      return { ...d, case: c ? { number: c.number, title: c.title, payerName: c.payerName } : null };
+    });
+});
 route("GET", "/cases/:id/denials", ({ db, params }) => db.denials.filter((d) => d.caseId === params.id));
 route("POST", "/cases/:id/denials", ({ db, params, body }) => {
   const c = getCase(db, params.id!);
@@ -1090,9 +1099,12 @@ route("GET", "/knowledge/stats", ({ db }) => ({
   versions: 7_624,
   chunks: db.indexVersions.find((i) => i.status === "active" && i.alias === "policy_chunks")?.points ?? 0,
   codes: 79_544,
-  lastIngestion: db.ingestionRuns[0]?.finishedAt ?? null,
-  activeIndex: db.indexVersions.find((i) => i.status === "active" && i.alias === "policy_chunks")?.physicalName ?? null,
-  freshnessHours: 33,
+  lastIngestion: db.ingestionRuns[0] ? { id: db.ingestionRuns[0].id, source: db.ingestionRuns[0].source, status: db.ingestionRuns[0].status, startedAt: db.ingestionRuns[0].startedAt, finishedAt: db.ingestionRuns[0].finishedAt ?? null } : null,
+  activeIndex: (() => {
+    const a = db.indexVersions.find((i) => i.status === "active" && i.alias === "policy_chunks");
+    return a ? { id: a.id, points: a.points, activatedAt: a.activatedAt ?? null } : null;
+  })(),
+  freshnessDays: 1.4,
 }));
 route("POST", "/search/retrieve", async ({ body }) => {
   const { buildRetrieval } = await import("./streams");
@@ -1142,7 +1154,7 @@ route("GET", "/assistant/suggestions", ({ query }) => {
   const ctx = query.get("context") || "dashboard";
   if (ctx.startsWith("case:"))
     return [
-      { label: "What's missing for this case?", prompt: "Which criteria are not yet supported for this case and what documentation would close them?" },
+      { label: "What's missing for this case?", prompt: "Which requirements are not yet supported for this case and what documentation would close them?" },
       { label: "Summarize the policy", prompt: "Summarize the coverage indications of the matched policy in 3 bullets." },
       { label: "Prep a peer-to-peer", prompt: "Give me talking points for a peer-to-peer call on this case." },
     ];
@@ -1150,7 +1162,7 @@ route("GET", "/assistant/suggestions", ({ query }) => {
     { label: "ESI conservative care", prompt: "How many weeks of conservative care does Novitas require before a lumbar ESI?" },
     { label: "CPAP adherence rule", prompt: "What counts as CPAP adherence for continued coverage after 12 weeks?" },
     { label: "Policies for 64483 in TX", prompt: "Which LCDs list 64483 for Texas?" },
-    { label: "Top gaps this month", prompt: "What were our top 5 gap criteria this month?" },
+    { label: "Top gaps this month", prompt: "What were our top 5 documentation gaps this month?" },
     { label: "Is M17.11 covered for TKA?", prompt: "Is M17.11 a covered diagnosis for total knee arthroplasty in Arizona, and what documentation is needed?" },
   ];
 });
@@ -1292,7 +1304,7 @@ route("POST", "/admin/indexes/rollback", ({ db, query }) => {
   saveDB();
   return prev;
 });
-route("GET", "/admin/models", () => ({ groups: MODEL_GROUPS, embedding: { model: "gemini/gemini-embedding-001", dims: 768 }, reranker: { chain: ["cohere/rerank-v3.5", "jina/jina-reranker-v2-base-multilingual", "llm-listwise (groq/llama-3.1-8b-instant)", "rrf-only"] } }));
+route("GET", "/admin/models", () => ({ groups: MODEL_GROUPS, embedding: { model: "gemini/gemini-embedding-001", dims: 768, configured: true }, reranker: { chain: [{ provider: "cohere", model: "rerank-v3.5", configured: true }, { provider: "jina", model: "jina-reranker-v2-base-multilingual", configured: true }, { llmGroup: "router-small", configured: true }] } }));
 route("GET", "/admin/models/usage", ({ query }) => buildModelUsage(Number((query.get("range") || "7d").replace("d", ""))));
 route("POST", "/admin/models/test", async ({ body }) => {
   await sleep(500 + Math.random() * 700);
