@@ -1,84 +1,78 @@
 import type { Metadata } from "next";
 import { CircleCheck } from "lucide-react";
 
-export const metadata: Metadata = { title: "Security & compliance" };
+export const metadata: Metadata = {
+  title: "Security & compliance",
+  description: "How Necessa protects patient information, controls access, records every action and keeps a clinician in charge.",
+};
 
 const SECTIONS: { title: string; lead: string; points: string[] }[] = [
   {
-    title: "Protected health information",
-    lead: "De-identification first, encryption at rest, and the minimum necessary for every call.",
+    title: "Protecting patient information",
+    lead: "Identifiers are masked by default and shared only when needed.",
     points: [
-      "Charts are de-identified at intake: known identifiers from the patient record and pattern-based identifiers (MRN, member ID, phone, SSN, dates) are tokenized before any model sees them.",
-      "Raw text is encrypted at rest with field-level encryption; revealing identifiers requires a permission and writes an audit event.",
-      "Every model call carries a data class (PUBLIC, INTERNAL, PHI). The model router refuses PHI-class calls unless the text is de-identified and the destination is on the approved list — in production, only endpoints covered by a BAA.",
-      "Minimum necessary: the model receives only the evidence passages for one criterion at a time — never the full chart.",
+      "Names, dates of birth, member IDs, phone numbers and other identifiers are masked when a chart is added.",
+      "Sensitive fields are encrypted. Showing an identifier requires the right permission and a stated reason, and the access is recorded.",
+      "Necessa works with only the part of the chart relevant to each requirement, never the whole record at once.",
+      "Letters are prepared with placeholders for patient details and filled in only when an authorized person opens or exports them.",
     ],
   },
   {
-    title: "Human-in-the-loop by design",
-    lead: "Necessa assists documentation review. It never decides coverage.",
+    title: "A person is always in charge",
+    lead: "Necessa assists with documentation. It never decides coverage.",
     points: [
-      "Outputs describe documentation readiness — Ready, Gaps, Not supported — never approved or denied.",
-      "Absence of evidence is not treated as met; negative criteria (e.g. no active infection) require an explicit attestation.",
-      "Reviewers override any verdict with a recorded reason. Overrides feed the evaluation set after triage.",
-      "Aligned with state laws that prohibit AI as the sole basis for adverse determinations (e.g. WA SB 5395, IA HF 2635) and the transparency expectations of FDA's non-device CDS criteria.",
+      "Results describe documentation readiness (ready, gaps found, or not supported). They never say approved or denied.",
+      "If something isn’t documented, it isn’t counted as met. Statements such as “no active infection” need to be documented explicitly.",
+      "Reviewers can change any result, with a recorded reason. Letters need a clinician’s review and approval before they are exported.",
+      "Designed with state laws in mind that prohibit software from being the sole basis for a coverage denial.",
     ],
   },
   {
-    title: "Application security",
-    lead: "Controls mapped to OWASP ASVS L2 and the OWASP Top 10 for LLM Applications (2025).",
+    title: "Access control and account security",
+    lead: "People see only what their role requires.",
     points: [
-      "Argon2id passwords, short-lived access tokens, rotating refresh tokens with reuse detection, and TOTP MFA (enforceable per organization).",
-      "Role-based access with tenant isolation enforced server-side and by Postgres row-level security; vector search filters are injected by the server, never the client.",
-      "Prompt-injection screening on every upload and retrieved passage; suspicious documents are quarantined and excluded from evidence.",
-      "Strict output schemas, verbatim citation validation and an allowlisted, read-only SQL sandbox for analytics questions.",
-      "Token budgets, recursion limits, timeouts and circuit breakers prevent runaway agent loops and unbounded consumption.",
+      "Role-based access: coordinators, clinicians, reviewers, revenue-cycle managers, auditors and administrators each have their own permissions.",
+      "Each organization’s information is kept separate from every other organization’s.",
+      "Strong password protection, automatic session expiry, and an optional second verification step that your organization can require.",
+      "Uploaded documents are screened, and anything suspicious is held back from the review.",
     ],
   },
   {
-    title: "Auditability",
-    lead: "Every decision can be reconstructed.",
+    title: "A record of everything",
+    lead: "Every action can be reconstructed.",
     points: [
-      "Hash-chained, append-only audit log of views, reveals, evaluations, overrides, letters and exports — verifiable from the admin console.",
-      "Each verdict stores the policy version, criteria-set version, retrieved chunk IDs, models and prompt versions used.",
-      "Policy indexes are versioned with blue/green aliases; any answer can be replayed against the index that produced it.",
+      "Views, reveals, reviews, changes, approvals and exports are logged with who, what and when.",
+      "The log is tamper-evident, and an administrator can verify it at any time from the Compliance page.",
+      "Each result keeps the policy version it was checked against, so it can be explained later.",
     ],
   },
   {
-    title: "Licensing & data sources",
-    lead: "Public data, used responsibly.",
+    title: "Policies and data sources",
+    lead: "Public information, used responsibly.",
     points: [
-      "Coverage policies come from the public CMS Medicare Coverage Database; downloads require accepting AMA/ADA/AHA terms, and that content is never redistributed.",
-      "CPT® descriptors are not shipped; HCPCS Level II and ICD-10-CM code sets are public domain.",
-      "Development and the public demo use synthetic patients only.",
+      "Coverage policies come from the public Medicare Coverage Database and are kept up to date; the version in effect on the date of service is the one applied.",
+      "Necessa does not distribute copyrighted procedure-code descriptions.",
+      "The public demo uses made-up patients only.",
     ],
   },
 ];
 
 export default function SecurityPage() {
   return (
-    <div className="mx-auto max-w-4xl px-5 py-20">
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">Trust center</p>
-      <h1 className="mt-3 font-display text-5xl tracking-tight text-fg">Security & compliance</h1>
-      <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted">
-        Necessa is engineered for HIPAA-aligned workflows: privacy controls in every layer, humans in control, and an audit trail for everything the system suggests. This page is an engineering overview, not legal advice.
+    <div className="mx-auto max-w-4xl px-5 py-16 sm:py-20">
+      <p className="text-[13px] font-medium text-muted">Trust center</p>
+      <h1 className="mt-2 text-4xl font-semibold tracking-[-0.025em] text-fg sm:text-5xl">Security & compliance</h1>
+      <p className="mt-4 max-w-2xl text-[16px] leading-relaxed text-muted">
+        Necessa is designed with HIPAA-aligned safeguards: patient information is protected, access is controlled, every action is recorded, and a person always makes the decision. This page is an overview, not legal advice.
       </p>
-      <div className="mt-6 flex flex-wrap gap-2 text-xs">
-        {["De-identification at intake", "Field-level encryption", "Hash-chained audit log", "RBAC + tenant isolation", "No coverage decisions"].map((t) => (
-          <span key={t} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 text-muted">
-            <CircleCheck className="size-3.5 text-met" />
-            {t}
-          </span>
-        ))}
-      </div>
-      <p className="mt-6 rounded-lg border border-border bg-surface-2/60 px-4 py-3 text-[13px] text-muted">
-        Necessa has not been audited for HIPAA or SOC 2 compliance. The public demo runs on synthetic data; any real deployment needs Business Associate Agreements with every service that touches PHI.
+      <p className="mt-6 rounded-lg border border-border bg-surface px-4 py-3 text-[13px] leading-relaxed text-muted">
+        <span className="font-medium text-fg">An honest note.</span> Necessa does not hold a HIPAA or SOC 2 certification or audit report. The demo runs on made-up patient data. Before using real patient information, your organization will need the appropriate agreements with every service involved, and your compliance team should review the setup.
       </p>
       <div className="mt-14 grid gap-12">
         {SECTIONS.map((s) => (
           <section key={s.title} className="grid gap-4 border-t border-border pt-10 first:border-0 first:pt-0 md:grid-cols-[240px_1fr]">
             <div>
-              <h2 className="text-[15px] font-semibold tracking-tight text-fg">{s.title}</h2>
+              <h2 className="text-[15px] font-semibold text-fg">{s.title}</h2>
               <p className="mt-1 text-[13px] text-muted">{s.lead}</p>
             </div>
             <ul className="grid gap-3">
